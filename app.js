@@ -127,6 +127,14 @@ function initTrails() {
   renderLog();
 }
 
+function createEmptySurvey() {
+  return {
+    startNotes: '',
+    endNotes: '',
+    trails: {}
+  };
+}
+
 // --- REFRESH APP (ONLINE ONLY ACTION) ---
 async function refreshApp() {
   document.getElementById('status').textContent = 'Refreshing data…';
@@ -162,7 +170,36 @@ async function refreshApp() {
 
 // --- Storage ---
 function loadSurvey() {
-  return JSON.parse(localStorage.getItem('survey') || '{}');
+  try {
+    const survey = JSON.parse(
+      localStorage.getItem('survey')
+    );
+    if (!survey) {
+      return createEmptySurvey();
+    }
+
+  // Ensure required top-level fields exist
+  survey.startNotes ??= '';
+  survey.endNotes ??= '';
+  survey.trails ??= {};
+
+  return survey;
+
+  } catch(e) {
+    console.error('Bad survey data', e);
+    return createEmptySurvey();
+  }
+}
+
+function ensureTrail(survey, trailId) {
+  if (!survey.trails[trailId]) {
+    survey.trails[trailId] = {
+      notes: '',
+      entries: []
+    };
+  }
+
+  return survey.trails[trailId];
 }
 
 function saveSurvey(data) {
@@ -172,12 +209,12 @@ function saveSurvey(data) {
 // --- Add sighting ---
 function addSighting(item) {
   const survey = loadSurvey();
+  const trail = ensureTrail(survey, currentTrail);
 
-  if (!survey.trails) survey.trails = {};
-  if (!survey.trails[currentTrail]) survey.trails[currentTrail] = [];
+
 
   // Add to END (most recent last)
-  survey.trails[currentTrail].push({
+  trail.entries.push({
     speciesId: item.speciesId,
     commonName: item.commonName,
     scientificName: item.scientificName,
@@ -282,6 +319,13 @@ function renderResults(list) {
   const container = document.getElementById('results');
   container.innerHTML = '';
 
+  const input = document.getElementById('search');
+
+  if (input.value.length < 2) {
+    container.innerHTML = '';
+    return;
+  }
+
   if (list.length === 0) {
     container.innerHTML = '<div class="item">No matches</div>';
     return;
@@ -315,12 +359,14 @@ function renderResults(list) {
 // --- Render log ---
 function renderLog() {
   const survey = loadSurvey();
+  const trail = ensureTrail(survey, currentTrail);
+
+  const entries = trail.entries;
+
   const container = document.getElementById('log');
   container.innerHTML = '';
 
-  const trailData = survey.trails?.[currentTrail] || [];
-
-  trailData.forEach((entry, index) => {
+  entries.forEach((entry, index) => {
 
     const div = document.createElement('div');
     div.className = 'item';
@@ -342,6 +388,8 @@ function renderLog() {
     // Right side (note)
     const note = document.createElement('textarea');
     note.value = entry.note || '';
+    note.style.height = 'auto';
+    note.style.height = note.scrollHeight + 'px';
     note.placeholder = 'note...';
     note.style.minWidth = '60px';
     note.style.maxWidth = '50%';
@@ -358,23 +406,14 @@ function renderLog() {
       saveSurvey(survey);
     });
 
-    // initial size
-    setTimeout(() => {
-      note.style.height = note.scrollHeight + 'px';
-    }, 0);
 
     row.appendChild(label);
     row.appendChild(note);
 
     div.appendChild(row);
 
-    // highlight newest
-    if (index === trailData.length - 1) {
-      div.style.background = '#e6ffe6';
-      setTimeout(() => div.style.background = '', 400);
-    }
     // Highlight most recent (last item)
-    if (index === trailData.length - 1) {
+    if (index === entries.length - 1) {
       div.style.background = '#e6ffe6';
       setTimeout(() => div.style.background = '', 400);
     }
