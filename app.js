@@ -396,7 +396,8 @@ row.style.flexwrap = 'wrap';
 
   note.style.flex = '0 1 120px';
   note.style.minWidth = '60px';
-  note.style.maxWidth = '40%';
+  note.style.maxWidth = '50%';
+note.style.width = '120ox';
 
   note.style.resize = 'none';
   note.style.overflow = 'hidden';
