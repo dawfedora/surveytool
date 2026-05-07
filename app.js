@@ -210,8 +210,14 @@ function saveSurvey(data) {
 function addSighting(item) {
   const survey = loadSurvey();
   const trail = ensureTrail(survey, currentTrail);
+  const entries = trail.entries;
 
-
+  const duplicate = entries.some( e => e.speciesId == item.speciesId );
+  if (duplicate) {
+    if (!confirm('Already recorded on this trail. Add again?')) {
+      return;
+    }
+  }
 
   // Add to END (most recent last)
   trail.entries.push({
