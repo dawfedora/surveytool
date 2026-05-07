@@ -1,4 +1,4 @@
-et/ --- GLOBAL STATE ---
+// --- GLOBAL STATE ---
 let species = [];
 let trails = [];
 let currentTrail = null;
