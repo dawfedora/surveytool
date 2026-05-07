@@ -373,13 +373,12 @@ function renderLog() {
 
     const row = document.createElement('div');
     row.style.display = 'flex';
-row.style.flexwrap = 'wrap';
     row.style.alignItems = 'flex-start';
     row.style.gap = '8px';
 
     // Left side (names)
     const label = document.createElement('div');
-    label.style.flex = '1 1 200px';
+    label.style.flex = '1';
 
     label.innerHTML = `
       <span class="common">${entry.commonName}</span>
@@ -410,8 +409,6 @@ setTimeout(() => {
   note.style.height = note.scrollHeight + 'px';
 }, 0);
 
-//  note.style.height = 'auto';
-//  note.style.height = note.scrollHeight + 'px';
 
     // auto-grow
     note.addEventListener('input', () => {
