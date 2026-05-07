@@ -385,17 +385,25 @@ function renderLog() {
       <span class="scientific">${entry.scientificName}</span>
     `;
 
-    // Right side (note)
-    const note = document.createElement('textarea');
-    note.value = entry.note || '';
-    note.style.height = 'auto';
-    note.style.height = note.scrollHeight + 'px';
-    note.placeholder = 'note...';
-    note.style.minWidth = '60px';
-    note.style.maxWidth = '50%';
-    note.style.resize = 'none';
-    note.style.overflow = 'hidden';
-    note.rows = 1;
+  // Right side (note)
+  const note = document.createElement('textarea');
+
+  note.value = entry.note || '';
+  note.placeholder = 'note...';
+
+  note.rows = 1;
+
+  note.style.flex = '0 1 120px';
+  note.style.minWidth = '60px';
+  note.style.maxWidth = '40%';
+
+  note.style.resize = 'none';
+  note.style.overflow = 'hidden';
+  note.style.font = 'inherit';
+  note.style.lineHeight = '1.3';
+
+  note.style.height = 'auto';
+  note.style.height = note.scrollHeight + 'px';
 
     // auto-grow
     note.addEventListener('input', () => {
