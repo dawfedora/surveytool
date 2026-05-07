@@ -1,4 +1,4 @@
-// --- GLOBAL STATE ---
+et/ --- GLOBAL STATE ---
 let species = [];
 let trails = [];
 let currentTrail = null;
@@ -404,8 +404,14 @@ note.style.width = '120ox';
   note.style.font = 'inherit';
   note.style.lineHeight = '1.3';
 
+// initial size AFTER attachment/layout
+setTimeout(() => {
   note.style.height = 'auto';
   note.style.height = note.scrollHeight + 'px';
+}, 0);
+
+//  note.style.height = 'auto';
+//  note.style.height = note.scrollHeight + 'px';
 
     // auto-grow
     note.addEventListener('input', () => {
