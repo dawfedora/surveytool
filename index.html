@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Edgewood Survey Tool</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 12px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      font-size: 1.3em;
+      margin-bottom: 10px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    #downloadBtn, #refreshBtn {
+      width: auto;
+      padding: 8px 12px;
+      font-size: 0.9em;
+      margin-left: 6px;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 12px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+
+    #results {
+      background: white;
+      border-radius: 8px;
+      max-height: 25vh;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    #log {
+      background: white;
+      border-radius: 8px;
+      max-height: 45vh;
+      overflow-y: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding-bottom: 10px;
+    }
+
+    .item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      line-height: 1.3;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+    .common {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    .scientific {
+      font-style: italic;
+      color: #555;
+    }
+
+    #searchArea {
+      position: sticky;
+      bottom: 0;
+      background: #f5f5f5;
+      padding-top: 6px;
+    }
+
+    textarea {
+      font-family: inherit;
+      font-size: 0.9em;
+      border: none;
+      background: transparent;
+      outline: none;
+      line-height: 1.3;
+    }
+
+    #status {
+      font-size: 0.8em;
+      color: #666;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <h1>Edgewood Survey</h1>
+    <div>
+      <button id="refreshBtn">Refresh</button>
+      <button id="downloadBtn">Download</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+
+  <!-- Trail selector -->
+  <select id="trailSelect"></select>
+
+  <!-- Log of sightings -->
+  <div id="log"></div>
+
+  <!-- Search + results (sticky bottom) -->
+  <div id="searchArea">
+    <div id="results"></div>
+    <input id="search" type="text" placeholder="Type plant name..." />
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+</html>
