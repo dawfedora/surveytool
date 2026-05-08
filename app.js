@@ -68,6 +68,9 @@ async function init() {
     status.textContent =
       'Data updated: ' + new Date(last).toLocaleString();
   }
+  if (navigator.onLine) {
+    checkForAppUpdate();
+  }
 }
 
 // --- LOAD LOCAL DATA ---
@@ -127,6 +130,119 @@ function initTrails() {
   renderLog();
 }
 
+async function checkForAppUpdate() {
+
+  if (!navigator.onLine) {
+    return;
+  }
+
+  try {
+
+    const res = await fetch(
+      'version.json?ts=' + Date.now(),
+      { cache: 'no-store' }
+    );
+
+    if (!res.ok) {
+      return;
+    }
+
+    const info = await res.json();
+
+    const installed =
+      localStorage.getItem('installedAppVersion');
+
+    // First run
+    if (!installed) {
+
+      localStorage.setItem(
+        'installedAppVersion',
+        info.appVersion
+      );
+
+      updateStatus(info.appVersion);
+
+      return;
+    }
+
+    updateStatus(installed);
+
+    // New version available
+    if (installed !== info.appVersion) {
+
+      const ok = confirm(
+        `New app version available.\n\n` +
+        `Current: ${installed}\n` +
+        `New: ${info.appVersion}\n\n` +
+        `Update now?`
+      );
+
+      if (ok) {
+        await updateAppShell(info.appVersion);
+      }
+    }
+
+  } catch (e) {
+
+    console.warn(
+      'Version check failed',
+      e
+    );
+  }
+}
+
+async function updateAppShell(version) {
+
+  const status =
+    document.getElementById('status');
+
+  status.textContent =
+    'Updating app…';
+
+  try {
+
+    const cache =
+      await caches.open(
+        'edgewood-shell-v1'
+      );
+
+    // Force fresh shell fetches
+    await Promise.all([
+
+      cache.add(
+        './index.html?ts=' + Date.now()
+      ),
+
+      cache.add(
+        './app.js?ts=' + Date.now()
+      ),
+
+      cache.add(
+        './manifest.json?ts=' + Date.now()
+      )
+
+    ]);
+
+    localStorage.setItem(
+      'installedAppVersion',
+      version
+    );
+
+    status.textContent =
+      'Reloading…';
+
+    location.href =
+      './index.html?reload=' +
+      Date.now();
+
+  } catch (e) {
+
+    console.error(e);
+
+    alert('Update failed');
+  }
+}
+
 function createEmptySurvey() {
   return {
     startNotes: '',
@@ -166,6 +282,25 @@ async function refreshApp() {
     alert('Refresh failed — check network connection');
     location.reload();
   }
+}
+
+function updateStatus(version) {
+
+  const status =
+    document.getElementById('status');
+
+  const last =
+    localStorage.getItem('lastUpdated');
+
+  let text =
+    `App ${version}`;
+
+  if (last) {
+    text +=
+      ` • Data ${new Date(last).toLocaleDateString()}`;
+  }
+
+  status.textContent = text;
 }
 
 // --- Storage ---
