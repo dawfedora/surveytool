@@ -54,12 +54,20 @@
     }
 
     #results {
+      position: absolute;
+      bottom: 56px;
+      left: 0;
+      right: 0;
+      z-index: 1000;
       background: white;
       border-radius: 8px;
-      max-height: 25vh;
+      max-height: 40vh;
       overflow-y: auto;
-      margin-bottom: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    result:empty {
+      display:none;
     }
 
     #log {
@@ -102,6 +110,8 @@
       bottom: 0;
       background: #f5f5f5;
       padding-top: 6px;
+      z-index: 100;
+      position: relative;
     }
 
     textarea {
