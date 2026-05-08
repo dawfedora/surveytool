@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Edgewood Survey Tool</title>
 
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4a7c59">
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -128,6 +131,19 @@
   </div>
 
   <script src="app.js"></script>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+      try {
+        await navigator.serviceWorker.register('./sw.js');
+        console.log('Service worker registered');
+      } catch (err) {
+        console.error('SW registration failed', err);
+      }
+    });
+  }
+  </script>
 
 </body>
 </html>

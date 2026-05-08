@@ -253,34 +253,68 @@ function createEmptySurvey() {
 
 // --- REFRESH APP (ONLINE ONLY ACTION) ---
 async function refreshApp() {
-  document.getElementById('status').textContent = 'Refreshing data…';
+
+  const status = document.getElementById('status');
+  status.textContent = 'Refreshing…';
 
   try {
+
+    // Require network
+    if (!navigator.onLine) {
+      throw new Error('Offline');
+    }
+
+    // Refresh datasets
     const [plantsRes, trailsRes] = await Promise.all([
-      fetch('plants.json?ts=' + Date.now(), { cache: 'no-store' }),
-      fetch('trails.json?ts=' + Date.now(), { cache: 'no-store' })
+      fetch('plants.json?ts=' + Date.now(), {
+        cache: 'no-store'
+      }),
+      fetch('trails.json?ts=' + Date.now(), {
+        cache: 'no-store'
+      })
     ]);
 
     if (!plantsRes.ok || !trailsRes.ok) {
-      throw new Error('Network response not ok');
+      throw new Error('Dataset fetch failed');
     }
 
     const plants = await plantsRes.json();
     const trailData = await trailsRes.json();
 
-    // Save locally
     localStorage.setItem('plants', JSON.stringify(plants));
     localStorage.setItem('trails', JSON.stringify(trailData));
     localStorage.setItem('lastUpdated', new Date().toISOString());
 
-    console.log('Refresh complete');
+    // Force fresh app shell into SW cache
+    if ('serviceWorker' in navigator) {
 
-    location.reload();
+      const cache = await caches.open('edgewood-shell-v1');
+
+      await cache.addAll([
+        './',
+        './index.html?ts=' + Date.now(),
+        './app.js?ts=' + Date.now(),
+        './manifest.json?ts=' + Date.now()
+      ]);
+    }
+
+    status.textContent = 'Refresh complete';
+
+    // HARD reload from network
+    window.location.href =
+      './index.html?reload=' + Date.now();
 
   } catch (e) {
-    console.error('Refresh failed', e);
-    alert('Refresh failed — check network connection');
-    location.reload();
+
+    console.error(e);
+
+    alert(
+      'Refresh failed.\n' +
+      'Check network connection.'
+    );
+
+    status.textContent =
+      'Offline mode using cached app';
   }
 }
 
