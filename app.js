@@ -543,6 +543,7 @@ function search(q) {
 function renderResults(list) {
   const container = document.getElementById('results');
   container.innerHTML = '';
+  container.scrollTop = 0;
 
   const input = document.getElementById('search');
 
@@ -560,7 +561,7 @@ function renderResults(list) {
 
   list.forEach(item => {
     const div = document.createElement('div');
-    div.className = 'item';
+    div.className = 'resultItem';
 
     div.innerHTML = `
       <span class="common">${item.commonName}</span>
