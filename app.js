@@ -601,6 +601,23 @@ setTimeout(() => {
     row.appendChild(label);
     row.appendChild(note);
 
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.className = 'deleteBtn';
+
+    del.onclick = () => {
+      const ok = confirm(
+        `Delete "${entry.commonName}"?`
+      );
+      if (!ok) {
+        return;
+      }
+      entries.splice(index, 1);
+      saveSurvey(survey);
+      renderLog();
+    };
+
+    row.appendChild(del);
     div.appendChild(row);
 
     // Highlight most recent (last item)
