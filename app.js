@@ -149,45 +149,48 @@ async function checkForAppUpdate() {
 
     const info = await res.json();
 
-    const installed =
-      localStorage.getItem('installedAppVersion');
-
-    // First run
-    if (!installed) {
-
-      localStorage.setItem(
-        'installedAppVersion',
-        info.appVersion
-      );
-
-      updateStatus(info.appVersion);
-
+    if (!info || !info.version) {
+      console.warn('Bad version payload', info);
       return;
     }
 
-    updateStatus(installed);
+    const remoteVersion = String(info.version).trim();
 
-    // New version available
-    if (installed !== info.appVersion) {
+    let installed =
+      localStorage.getItem('installedAppVersion');
+
+    if (installed) {
+      installed = installed.trim();
+    }
+
+    // BOOTSTRAP
+    if (!installed) {
+      installed = remoteVersion;
+
+      localStorage.setItem(
+        'installedAppVersion',
+        installed
+      );
+    }
+
+    // UPDATE CHECK
+    if (installed !== remoteVersion) {
 
       const ok = confirm(
         `New app version available.\n\n` +
         `Current: ${installed}\n` +
-        `New: ${info.appVersion}\n\n` +
+        `New: ${remoteVersion}\n\n` +
         `Update now?`
       );
 
       if (ok) {
-        await updateAppShell(info.appVersion);
+        await updateAppShell(remoteVersion);
       }
     }
 
   } catch (e) {
 
-    console.warn(
-      'Version check failed',
-      e
-    );
+    console.warn('Version check failed', e);
   }
 }
 
