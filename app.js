@@ -441,7 +441,7 @@ function addSighting(item) {
   // Add to END (most recent last)
   trail.entries.push({
     speciesId: item.speciesId,
-    commonName: item.displayCommon,,
+    commonName: item.displayCommon,
     scientificName: item.scientificName,
     note: '', 
     time: new Date().toISOString()
