@@ -87,12 +87,59 @@ function loadLocalData() {
     trails = trailData.trails || trailData;
     species = plants.species || plants;
 
+    let dropped = 0;
+    let missingCommon = 0;
+    let missingScientific = 0;
+
     // 🔥 Normalize once
-    species.forEach(s => {
-      s._common = (s.commonName || '').toLowerCase();
-      s._scientific = (s.scientificName || '').toLowerCase();
+    species = species.filter(s => {
+      let common = s.commonName?.trim();
+      let scientific = s.scientificName?.trim();
+
+      // Remove completely broken entries
+      if (!common && !scientific) {
+        dropped++;
+        console.warn( 'Dropped empty species record', s);
+        return false;
+      }
+
+      // Repair partial entries
+      if (!common) {
+        missingCommon++;
+        common = '[no common name]';
+      }
+      if (!scientific) {
+        missingScientific++;
+        scientific = '[no scientific name]';
+      }
+      // Normalize back into object
+      s.commonName = common;
+      s.scientificName = scientific;
+      s._common = common.toLowerCase();
+      s._scientific = scientific.toLowerCase();
+      s.displayCommon = common + (s.status || '');
+
+      return true;
     });
 
+    if (missingCommon || missingScientific) {
+      let msg = 'Plant data warning: ';
+      if (missingCommon) {
+        msg += `${missingCommon} missing common names`;
+      }
+      if (missingCommon && missingScientific) {
+        msg += ', ';
+      }
+      if (missingScientific) {
+        msg += `${missingScientific} missing scientific names`;
+      }
+      console.warn(msg);
+
+      const status = document.getElementById('status');
+      if (status) {
+        status.textContent = msg;
+      }
+    }
     console.log(`Loaded ${trails.length} trails, ${species.length} species`);
     return true;
 
@@ -394,7 +441,7 @@ function addSighting(item) {
   // Add to END (most recent last)
   trail.entries.push({
     speciesId: item.speciesId,
-    commonName: item.commonName,
+    commonName: item.displayCommon,,
     scientificName: item.scientificName,
     note: '', 
     time: new Date().toISOString()
