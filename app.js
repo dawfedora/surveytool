@@ -68,6 +68,9 @@ async function init() {
     status.textContent =
       'Data updated: ' + new Date(last).toLocaleString();
   }
+  if (navigator.onLine) {
+    checkForAppUpdate();
+  }
 }
 
 // --- LOAD LOCAL DATA ---
@@ -84,12 +87,59 @@ function loadLocalData() {
     trails = trailData.trails || trailData;
     species = plants.species || plants;
 
+    let dropped = 0;
+    let missingCommon = 0;
+    let missingScientific = 0;
+
     // 🔥 Normalize once
-    species.forEach(s => {
-      s._common = (s.commonName || '').toLowerCase();
-      s._scientific = (s.scientificName || '').toLowerCase();
+    species = species.filter(s => {
+      let common = s.commonName?.trim();
+      let scientific = s.scientificName?.trim();
+
+      // Remove completely broken entries
+      if (!common && !scientific) {
+        dropped++;
+        console.warn( 'Dropped empty species record', s);
+        return false;
+      }
+
+      // Repair partial entries
+      if (!common) {
+        missingCommon++;
+        common = '[no common name]';
+      }
+      if (!scientific) {
+        missingScientific++;
+        scientific = '[no scientific name]';
+      }
+      // Normalize back into object
+      s.commonName = common;
+      s.scientificName = scientific;
+      s._common = common.toLowerCase();
+      s._scientific = scientific.toLowerCase();
+      s.displayCommon = common + (s.status || '');
+
+      return true;
     });
 
+    if (missingCommon || missingScientific) {
+      let msg = 'Plant data warning: ';
+      if (missingCommon) {
+        msg += `${missingCommon} missing common names`;
+      }
+      if (missingCommon && missingScientific) {
+        msg += ', ';
+      }
+      if (missingScientific) {
+        msg += `${missingScientific} missing scientific names`;
+      }
+      console.warn(msg);
+
+      const status = document.getElementById('status');
+      if (status) {
+        status.textContent = msg;
+      }
+    }
     console.log(`Loaded ${trails.length} trails, ${species.length} species`);
     return true;
 
@@ -127,6 +177,122 @@ function initTrails() {
   renderLog();
 }
 
+async function checkForAppUpdate() {
+
+  if (!navigator.onLine) {
+    return;
+  }
+
+  try {
+
+    const res = await fetch(
+      'version.json?ts=' + Date.now(),
+      { cache: 'no-store' }
+    );
+
+    if (!res.ok) {
+      return;
+    }
+
+    const info = await res.json();
+
+    if (!info || !info.version) {
+      console.warn('Bad version payload', info);
+      return;
+    }
+
+    const remoteVersion = String(info.version).trim();
+
+    let installed =
+      localStorage.getItem('installedAppVersion');
+
+    if (installed) {
+      installed = installed.trim();
+    }
+
+    // BOOTSTRAP
+    if (!installed) {
+      installed = remoteVersion;
+
+      localStorage.setItem(
+        'installedAppVersion',
+        installed
+      );
+    }
+
+    // UPDATE CHECK
+    if (installed !== remoteVersion) {
+
+      const ok = confirm(
+        `New app version available.\n\n` +
+        `Current: ${installed}\n` +
+        `New: ${remoteVersion}\n\n` +
+        `Update now?`
+      );
+
+      if (ok) {
+        await updateAppShell(remoteVersion);
+      }
+    }
+
+  } catch (e) {
+
+    console.warn('Version check failed', e);
+  }
+}
+
+async function updateAppShell(version) {
+
+  const status =
+    document.getElementById('status');
+
+  status.textContent =
+    'Updating app…';
+
+  try {
+
+    const cache =
+      await caches.open(
+        'edgewood-shell-v1'
+      );
+
+    // Force fresh shell fetches
+    await Promise.all([
+
+      cache.add(
+        './index.html?ts=' + Date.now()
+      ),
+
+      cache.add(
+        './app.js?ts=' + Date.now()
+      ),
+
+      cache.add(
+        './manifest.json?ts=' + Date.now()
+      )
+
+    ]);
+
+    localStorage.setItem(
+      'installedAppVersion',
+      version
+    );
+
+    status.textContent =
+      'Reloading…';
+
+    location.href =
+      './index.html?reload=' +
+      Date.now();
+
+  } catch (e) {
+
+    console.error(e);
+
+    alert('Update failed');
+  }
+}
+
 function createEmptySurvey() {
   return {
     startNotes: '',
@@ -137,35 +303,88 @@ function createEmptySurvey() {
 
 // --- REFRESH APP (ONLINE ONLY ACTION) ---
 async function refreshApp() {
-  document.getElementById('status').textContent = 'Refreshing data…';
+
+  const status = document.getElementById('status');
+  status.textContent = 'Refreshing…';
 
   try {
+
+    // Require network
+    if (!navigator.onLine) {
+      throw new Error('Offline');
+    }
+
+    // Refresh datasets
     const [plantsRes, trailsRes] = await Promise.all([
-      fetch('plants.json?ts=' + Date.now(), { cache: 'no-store' }),
-      fetch('trails.json?ts=' + Date.now(), { cache: 'no-store' })
+      fetch('plants.json?ts=' + Date.now(), {
+        cache: 'no-store'
+      }),
+      fetch('trails.json?ts=' + Date.now(), {
+        cache: 'no-store'
+      })
     ]);
 
     if (!plantsRes.ok || !trailsRes.ok) {
-      throw new Error('Network response not ok');
+      throw new Error('Dataset fetch failed');
     }
 
     const plants = await plantsRes.json();
     const trailData = await trailsRes.json();
 
-    // Save locally
     localStorage.setItem('plants', JSON.stringify(plants));
     localStorage.setItem('trails', JSON.stringify(trailData));
     localStorage.setItem('lastUpdated', new Date().toISOString());
 
-    console.log('Refresh complete');
+    // Force fresh app shell into SW cache
+    if ('serviceWorker' in navigator) {
 
-    location.reload();
+      const cache = await caches.open('edgewood-shell-v1');
+
+      await cache.addAll([
+        './',
+        './index.html?ts=' + Date.now(),
+        './app.js?ts=' + Date.now(),
+        './manifest.json?ts=' + Date.now()
+      ]);
+    }
+
+    status.textContent = 'Refresh complete';
+
+    // HARD reload from network
+    window.location.href =
+      './index.html?reload=' + Date.now();
 
   } catch (e) {
-    console.error('Refresh failed', e);
-    alert('Refresh failed — check network connection');
-    location.reload();
+
+    console.error(e);
+
+    alert(
+      'Refresh failed.\n' +
+      'Check network connection.'
+    );
+
+    status.textContent =
+      'Offline mode using cached app';
   }
+}
+
+function updateStatus(version) {
+
+  const status =
+    document.getElementById('status');
+
+  const last =
+    localStorage.getItem('lastUpdated');
+
+  let text =
+    `App ${version}`;
+
+  if (last) {
+    text +=
+      ` • Data ${new Date(last).toLocaleDateString()}`;
+  }
+
+  status.textContent = text;
 }
 
 // --- Storage ---
@@ -222,7 +441,7 @@ function addSighting(item) {
   // Add to END (most recent last)
   trail.entries.push({
     speciesId: item.speciesId,
-    commonName: item.commonName,
+    commonName: item.displayCommon,
     scientificName: item.scientificName,
     note: '', 
     time: new Date().toISOString()
@@ -324,6 +543,7 @@ function search(q) {
 function renderResults(list) {
   const container = document.getElementById('results');
   container.innerHTML = '';
+  container.scrollTop = 0;
 
   const input = document.getElementById('search');
 
@@ -341,7 +561,7 @@ function renderResults(list) {
 
   list.forEach(item => {
     const div = document.createElement('div');
-    div.className = 'item';
+    div.className = 'resultItem';
 
     div.innerHTML = `
       <span class="common">${item.commonName}</span>
@@ -429,6 +649,23 @@ setTimeout(() => {
     row.appendChild(label);
     row.appendChild(note);
 
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.className = 'deleteBtn';
+
+    del.onclick = () => {
+      const ok = confirm(
+        `Delete "${entry.commonName}"?`
+      );
+      if (!ok) {
+        return;
+      }
+      entries.splice(index, 1);
+      saveSurvey(survey);
+      renderLog();
+    };
+
+    row.appendChild(del);
     div.appendChild(row);
 
     // Highlight most recent (last item)

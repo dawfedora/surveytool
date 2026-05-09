@@ -1,0 +1,9 @@
+{
+  "name": "Edgewood Survey",
+  "short_name": "Survey",
+  "display": "standalone",
+  "start_url": "./",
+  "background_color": "#f5f5f5",
+  "theme_color": "#4a7c59",
+  "icons": []
+}
