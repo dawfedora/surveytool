@@ -10,9 +10,9 @@ async function init() {
   const input = document.getElementById('search');
   const refreshBtn = document.getElementById('refreshBtn');
   const downloadBtn = document.getElementById('downloadBtn');
-  const clearBtn = document.getElementById('clearBtn');
+  const newBtn = document.getElementById('newBtn');
 
-  if (!input || !refreshBtn || !downloadBtn || !clearBtn) {
+  if (!input || !modeBtn || !refreshBtn || !downloadBtn || !newBtn) {
     console.error('Missing required DOM elements');
     return;
   }
@@ -28,7 +28,7 @@ async function init() {
     // Disable everything except refresh
     input.disabled = true;
     downloadBtn.disabled = true;
-    clearBtn.disabled = true;
+    newBtn.disabled = true;
 
     const status = document.getElementById('status');
     if (status) {
@@ -59,7 +59,7 @@ async function init() {
   // Hook up download amd clear buttons
   downloadBtn.addEventListener('click', downloadSurvey);
 
-  clearBtn.addEventListener('click', clearSurvey);
+  newBtn.addEventListener('click', clearSurvey);
 
   // Optional: show last updated time
   const status = document.getElementById('status');
