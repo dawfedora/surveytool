@@ -62,7 +62,7 @@ async function init() {
   // Hook up download amd clear buttons
   downloadBtn.addEventListener('click', downloadSurvey);
 
-  modeBtnaddEventListener('click', toggleMode);
+  modeBtn.addEventListener('click', toggleMode);
   renderMode();
 
   newBtn.addEventListener('click', clearSurvey);
