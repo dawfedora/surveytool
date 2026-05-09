@@ -146,27 +146,54 @@
 
 <body>
 
-  <div class="header">
-    <h1>Edgewood Survey</h1>
-    <div>
-      <button id="refreshBtn">Refresh</button>
-      <button id="downloadBtn">Download</button>
-      <button id="clearBtn">Clear</button>
+  <div id="globalHeader">
+    <div class="header">
+      <h1>Edgewood Survey</h1>
+      <div>
+        <button id="modeBtn">Notes</button>
+        <button id="Btn">Clear</button>
+        <button id="refreshBtn">Refresh</button>
+        <button id="downloadBtn">Download</button>
+      </div>
     </div>
+    <div id="status"></div>
   </div>
 
-  <div id="status"></div>
 
-  <!-- Trail selector -->
-  <select id="trailSelect"></select>
+  <dive id="logView">
+    <!-- Trail selector -->
+    <select id="trailSelect"></select>
 
-  <!-- Log of sightings -->
-  <div id="log"></div>
+    <!-- Log of sightings -->
+    <div id="log"></div>
 
-  <!-- Search + results (sticky bottom) -->
-  <div id="searchArea">
-    <div id="results"></div>
-    <input id="search" type="text" placeholder="Type plant name..." />
+    <!-- Search + results (sticky bottom) -->
+    <div id="searchArea">
+      <div id="results"></div>
+      <input id="search" type="text" placeholder="Type plant name..." />
+    </div>
+
+  <div id="notesView"> style="display:none">
+
+    <div class="header">
+      <-- notes buttons -->
+      <div>
+        <button id="startBtn">Start</button>
+        <button id="trailoadBtn">Trail</button>
+        <button id="closingBtn">Closing</button>
+      </div>
+    </div>
+
+      <-- notes UI -->
+    <div id="notesTrailContainer" style="display:none">
+      <select id="notesTrailSelect"></select>
+    </div>
+
+    <div id="notesContent"></div>
+      <div id="notes"></div>
+      <input id="notes" type="text" placeholder="Notes..." />
+    </div>
+
   </div>
 
   <script src="app.js"></script>
