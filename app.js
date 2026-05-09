@@ -2,6 +2,7 @@
 let species = [];
 let trails = [];
 let currentTrail = null;
+let currentMode = 'log';
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -11,6 +12,8 @@ async function init() {
   const refreshBtn = document.getElementById('refreshBtn');
   const downloadBtn = document.getElementById('downloadBtn');
   const newBtn = document.getElementById('newBtn');
+  const modeBtn = document.getElementById('modeBtn');
+
 
   if (!input || !modeBtn || !refreshBtn || !downloadBtn || !newBtn) {
     console.error('Missing required DOM elements');
@@ -58,6 +61,9 @@ async function init() {
 
   // Hook up download amd clear buttons
   downloadBtn.addEventListener('click', downloadSurvey);
+
+  modeBtnaddEventListener('click', toggleMode);
+  renderMode();
 
   newBtn.addEventListener('click', clearSurvey);
 
@@ -290,6 +296,31 @@ async function updateAppShell(version) {
     console.error(e);
 
     alert('Update failed');
+  }
+}
+
+function toggleMode() {
+  currentMode =
+    currentMode === 'log'
+      ? 'notes'
+      : 'log';
+  renderMode();
+}
+
+function renderMode() {
+
+  const logView = document.getElementById('logView');
+  const notesView = document.getElementById('notesView');
+  const modeBtn = document.getElementById('modeBtn');
+
+  if (currentMode === 'log') {
+    logView.style.display = '';
+    notesView.style.display = 'none';
+    modeBtn.textContent = 'Notes';
+  } else {
+    logView.style.display = 'none';
+    notesView.style.display = '';
+    modeBtn.textContent = 'Log';
   }
 }
 
