@@ -322,7 +322,7 @@ function populateTrailSelector(select) {
   select.addEventListener('change', (e) => {
     currentTrail = e.target.value;
     localStorage.setItem('lastTrail', currentTrail);
-    renderLog();
+    renderMode();
   });
 }
 
