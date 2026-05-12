@@ -13,7 +13,7 @@ let trails = [];
 let survey = null;
 let currentTrail = null;
 let currentMode = 'log';
-let currentNoteType = 'start';
+let currentNorePanel = 'start';
 
 function debounce(fn, delay = 300) {
   let timer = null;
@@ -302,7 +302,7 @@ function determineInitialMode() {
     currentMode = 'log';
   } else {
     currentMode = 'notes';
-    currentNoteType = 'start';
+    currentNorePanel = 'start';
   }
 }
 
@@ -456,19 +456,19 @@ function renderNotesView() {
   ui.notes.buttons.trail.classList.remove('activeNoteBtn');
   ui.notes.buttons.close.classList.remove('activeNoteBtn');
 
-  if (currentNoteType === 'start') {
+  if (currentNorePanel === 'start') {
     ui.notes.start.panel.style.display = '';
     ui.notes.buttons.start.classList.add('activeNoteBtn');
     renderStartNote();
   }
 
-  if (currentNoteType === 'trail') {
+  if (currentNorePanel === 'trail') {
     ui.notes.trail.panel.style.display = '';
     ui.notes.buttons.trail.classList.add('activeNoteBtn');
     renderTrailNotes();
   }
 
-  if (currentNoteType === 'close') {
+  if (currentNorePanel === 'close') {
     ui.notes.close.panel.style.display = '';
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
@@ -588,9 +588,16 @@ function newSurvey() {
   survey = createEmptySurvey();
   saveSurvey(survey);
   currentMode = 'notes';
-  currentNoteType = 'start';
+  currentNorePanel = 'start';
   renderMode();
   showNotesPanel('start');
+}
+
+function showNotesPanel(panel) {
+
+  currentNotePanel = panel;
+
+  renderNotesView();
 }
 
 // --- Storage ---
@@ -630,6 +637,114 @@ function ensureTrail(survey, trailId) {
 
 function saveSurvey() {
   localStorage.setItem('survey', JSON.stringify(survey));
+}
+
+function saveStartNote() {
+
+  if (!survey) {
+    return;
+  }
+
+  const s = ui.notes.start;
+
+  survey.startNote = {
+    date: s.date.value,
+    startTime: s.time.value,
+    weather: s.weather.value,
+    participants: s.participants.value,
+    notes: s.notes.value
+  };
+
+  survey.meta.updated = new Date().toISOString();
+
+  saveSurvey();
+}
+
+function renderStartNote() {
+
+  if (!survey) {
+    return;
+  }
+
+  const s = ui.notes.start;
+  const data = survey.startNote || {};
+
+  s.date.value = data.date || '';
+  s.time.value = data.startTime || '';
+  s.weather.value = data.weather || '';
+  s.participants.value = data.participants || '';
+  s.notes.value = data.notes || '';
+}
+
+function saveTrailNote() {
+
+  if (!survey || !currentTrail) {
+    return;
+  }
+
+  const trail = ensureTrail(survey, currentTrail);
+
+  trail.notes = ui.notes.trail.notes.value;
+
+  survey.meta.updated = new Date().toISOString();
+
+  saveSurvey();
+}
+
+function renderTrailNotes() {
+
+  if (!survey || !currentTrail) {
+    return;
+  }
+
+  const trail = ensureTrail(survey, currentTrail);
+
+  ui.notes.trail.notes.value =
+    trail.notes || '';
+}
+
+function onTrailChange(e) {
+
+  currentTrail = e.target.value;
+
+  localStorage.setItem(
+    'lastTrail',
+    currentTrail
+  );
+
+  renderTrailNotes();
+}
+function saveCloseNote() {
+
+  if (!survey) {
+    return;
+  }
+
+  const c = ui.notes.close;
+
+  survey.endNote = {
+    endTime: c.time.value,
+    weather: c.weather.value,
+    notes: c.notes.value
+  };
+
+  survey.meta.updated = new Date().toISOString();
+
+  saveSurvey();
+}
+
+function renderCloseNote() {
+
+  if (!survey) {
+    return;
+  }
+
+  const c = ui.notes.close;
+  const data = survey.endNote || {};
+
+  c.time.value = data.endTime || '';
+  c.weather.value = data.weather || '';
+  c.notes.value = data.notes || '';
 }
 
 // --- Add sighting ---
