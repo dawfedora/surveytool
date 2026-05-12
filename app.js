@@ -1,82 +1,137 @@
 // --- GLOBAL STATE ---
+const ui = {
+  header: {},
+  log: {},
+  notes: {
+    start:{},
+    trail: {},
+    close: {}
+  }
+};
 let species = [];
 let trails = [];
+let survey = null;
 let currentTrail = null;
 let currentMode = 'log';
+let currentNoteType = 'start';
 
 document.addEventListener('DOMContentLoaded', init);
 
 // --- INIT ---
+
 async function init() {
-  const input = document.getElementById('search');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const downloadBtn = document.getElementById('downloadBtn');
-  const newBtn = document.getElementById('newBtn');
-  const modeBtn = document.getElementById('modeBtn');
 
+  if (navigator.onLine) {
+    await checkForAppUpdate();
+  }
 
-  if (!input || !modeBtn || !refreshBtn || !downloadBtn || !newBtn) {
-    console.error('Missing required DOM elements');
+  initUI();
+
+  const missing = validateUI(ui);
+  if (missing.length) {
+    console.error(
+      'Missing DOM elements:\n' +
+      missing.join('\n')
+    );
     return;
   }
 
-  // Always allow refresh
-  refreshBtn.addEventListener('click', refreshApp);
+  initHeader();
 
   const ok = loadLocalData();
 
   if (!ok) {
-    console.warn('No local data → limited mode');
-
-    // Disable everything except refresh
-    input.disabled = true;
-    downloadBtn.disabled = true;
-    newBtn.disabled = true;
-
-    const status = document.getElementById('status');
-    if (status) {
-      status.textContent = 'No data loaded. Tap Refresh while online.';
-    }
-
-    return; // 🚨 STOP HERE
+    enterLimitedMode();
+    return;
   }
 
-  // ✅ FULL APP MODE
+  survey = loadSurvey();
 
-  input.disabled = false;
-  downloadBtn.disabled = false;
+  initLogView();
 
-  initTrails();
+  initNotesView();
 
-  // Hook search
-  let searchTimer;
+  determineInitialMode();
 
-  input.addEventListener('input', e => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      const results = search(e.target.value);
-      renderResults(results);
-    }, 100);
-  });
-
-  // Hook up download amd clear buttons
-  downloadBtn.addEventListener('click', downloadSurvey);
-
-  modeBtn.addEventListener('click', toggleMode);
   renderMode();
 
-  newBtn.addEventListener('click', clearSurvey);
 
   // Optional: show last updated time
-  const status = document.getElementById('status');
+  const status = ui.header.status;
   const last = localStorage.getItem('lastUpdated');
   if (status && last) {
     status.textContent =
       'Data updated: ' + new Date(last).toLocaleString();
   }
-  if (navigator.onLine) {
-    checkForAppUpdate();
+}
+
+function initUI() {
+  ui.header = {
+    modeBtn: document.getElementById('modeBtn'),
+    newBtn: document.getElementById('newBtn'),
+    refreshBtn: document.getElementById('refreshBtn'),
+    downloadBtn: document.getElementById('downloadBtn'),
+    status: document.getElementById('status')
+  };
+  ui.log ={
+    panel: document.getElementById('logView'),
+    trailSelect: document.getElementById('logTrailSelect'),
+    search: document.getElementById('search'),
+    results: document.getElementById('results'),
+    log:  document.getElementById('log'),
+  };
+  ui.notes = {
+    panel: document.getElementById('notesView'),
+    buttons: {
+      start: document.getElementById('startBtn'),
+      trail: document.getElementById('trailBtn'),
+      close: document.getElementById('closeBtn')
+    },
+    start: {
+      panel: document.getElementById('startPanel'),
+      date: document.getElementById('startDate'),
+      time: document.getElementById('startTime'),
+      weather: document.getElementById('startWeather'),
+      participants: document.getElementById('participants'),
+      notes: document.getElementById('startNotes')
+    },
+    trail: {
+      panel: document.getElementById('trailPanel'),
+      trailSelect: document.getElementById('notesTrailSelect'),
+      notes: document.getElementById('trailNotes')
+    },
+    close: {
+      panel: document.getElementById('closePanel'),
+      time: document.getElementById('closeTime'),
+      weather: document.getElementById('closeWeather'),
+      notes: document.getElementById('closeNotes')
+    }
+  };
+}
+
+function validateUI(obj, path = 'ui') {
+  const missing = [];
+
+  for (const [key, value] of Object.entries(obj)) {
+    const currentPath = `${path}.${key}`;
+    if ( value && typeof value === 'object' &&
+        !(value instanceof HTMLElement)) {
+      missing.push(
+        ...validateUI(value, currentPath)
+      );
+    } else if (!value) {
+      missing.push(currentPath);
+    }
   }
+  return missing;
+}
+
+function initHeader() {
+  // Hook up buttons
+  ui.header.modeBtn.addEventListener('click', toggleMode);
+  ui.header.newBtn.addEventListener('click', newSurvey);
+  ui.header.refreshBtn.addEventListener('click', refreshApp);
+  ui.header.downloadBtn.addEventListener('click', downloadSurvey);
 }
 
 // --- LOAD LOCAL DATA ---
@@ -141,7 +196,7 @@ function loadLocalData() {
       }
       console.warn(msg);
 
-      const status = document.getElementById('status');
+      const status = ui.header.status;
       if (status) {
         status.textContent = msg;
       }
@@ -155,23 +210,99 @@ function loadLocalData() {
   }
 }
 
-// --- Initialize trail dropdown ---
-function initTrails() {
-  const select = document.getElementById('trailSelect');
+function enterLimitedMode() {
+  console.warn('No local data → limited mode');
+
+  // Disable everything except refresh
+  ui.log.search.disabled = true;
+  ui.header.downloadBtn.disabled = true;
+  ui.header.newBtn.disabled = true;
+
+  const status = ui.header.status;
+  if (status) {
+    status.textContent = 'No data loaded. Tap Refresh while online.';
+  }
+
+  return; // 🚨 STOP HERE
+}
+
+function initLogView() {
+  // Hook search
+  let searchTimer;
+  ui.log.search.addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      const results = search(e.target.value);
+      renderResults(results);
+    }, 100);
+  });
+  populateTrailSelector(ui.log.trailSelect);
+}
+
+function initNotesView() {
+  ui.notes.buttons.start.addEventListener('click', () => {
+    showNotesPanel('start');
+  });
+  ui.notes.buttons.trail.addEventListener('click', () => {
+    showNotesPanel('trail');
+  });
+  ui.notes.buttons.close.addEventListener('click', () => {
+    showNotesPanel('close');
+  });
+
+  initStartNote();
+  initTrailNote();
+  initCloseNote();
+
+  showNotesPanel('start'); // or whatever default
+}
+
+function initStartNote() {
+
+  const s = ui.notes.start;
+
+  s.date.addEventListener('input', debounce(saveStartNote, 300));
+  s.time.addEventListener('input', debounce(saveStartNote, 300));
+  s.weather.addEventListener('input', debounce(saveStartNote, 300));
+  s.participants.addEventListener('input', debounce(saveStartNote, 300));
+  s.notes.addEventListener('input', debounce(saveStartNote, 300));
+}
+
+function initTrailNote() {
+
+  const t = ui.notes.trail;
+
+  t.trailSelect.addEventListener('change', onTrailChange);
+  t.notes.addEventListener('input', debounce(saveTrailNote, 300));
+}
+
+function initCloseNote() {
+
+  const c = ui.notes.close;
+
+  c.time.addEventListener('input', debounce(saveStartNote, 300));
+  c.weather.addEventListener('input', debounce(saveStartNote, 300));
+  c.notes.addEventListener('input', debounce(saveStartNote, 300));
+}
+
+function determineInitialMode() {
+  if (survey) {
+    currentMode = 'log';
+  } else {
+    currentMode = 'notes';
+    currentNoteType = 'start';
+  }
+}
+
+function populateTrailSelector(select) {
   select.innerHTML = '';
 
-  if (!Array.isArray(trails) || trails.length === 0) {
-    console.warn('No trails available');
-    return;
-  }
-  trails.forEach(t => { 
+  trails.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t.id;
     opt.textContent = t.name;
     select.appendChild(opt);
   });
-    
-  currentTrail = localStorage.getItem('lastTrail') || trails[0]?.id;
   select.value = currentTrail;
 
   select.addEventListener('change', (e) => {
@@ -179,29 +310,19 @@ function initTrails() {
     localStorage.setItem('lastTrail', currentTrail);
     renderLog();
   });
-
-  renderLog();
 }
 
 async function checkForAppUpdate() {
-
   if (!navigator.onLine) {
     return;
   }
 
   try {
-
-    const res = await fetch(
-      'version.json?ts=' + Date.now(),
-      { cache: 'no-store' }
-    );
-
-    if (!res.ok) {
-      return;
-    }
+    const res = await fetch('version.json?ts=' +
+                             Date.now(), {cache: 'no-store'});
+    if (!res.ok) { return; }
 
     const info = await res.json();
-
     if (!info || !info.version) {
       console.warn('Bad version payload', info);
       return;
@@ -209,8 +330,7 @@ async function checkForAppUpdate() {
 
     const remoteVersion = String(info.version).trim();
 
-    let installed =
-      localStorage.getItem('installedAppVersion');
+    let installed = localStorage.getItem('installedAppVersion');
 
     if (installed) {
       installed = installed.trim();
@@ -219,16 +339,11 @@ async function checkForAppUpdate() {
     // BOOTSTRAP
     if (!installed) {
       installed = remoteVersion;
-
-      localStorage.setItem(
-        'installedAppVersion',
-        installed
-      );
+      localStorage.setItem('installedAppVersion', installed);
     }
 
     // UPDATE CHECK
     if (installed !== remoteVersion) {
-
       const ok = confirm(
         `New app version available.\n\n` +
         `Current: ${installed}\n` +
@@ -240,9 +355,7 @@ async function checkForAppUpdate() {
         await updateAppShell(remoteVersion);
       }
     }
-
   } catch (e) {
-
     console.warn('Version check failed', e);
   }
 }
@@ -250,7 +363,7 @@ async function checkForAppUpdate() {
 async function updateAppShell(version) {
 
   const status =
-    document.getElementById('status');
+    ui.header.status;
 
   status.textContent =
     'Updating app…';
@@ -308,38 +421,76 @@ function toggleMode() {
 }
 
 function renderMode() {
-
-  const logView = document.getElementById('logView');
-  const notesView = document.getElementById('notesView');
-  const modeBtn = document.getElementById('modeBtn');
-
   if (currentMode === 'log') {
-    logView.style.display = '';
-    notesView.style.display = 'none';
-    modeBtn.textContent = 'Notes';
+    ui.log.panel.style.display = '';
+    ui.notes.panel.style.display = 'none';
+    ui.header.modeBtn.textContent = 'Notes';
+    renderLogView();
   } else {
-    logView.style.display = 'none';
-    notesView.style.display = '';
-    modeBtn.textContent = 'Log';
+    ui.log.panel.style.display = 'none';
+    ui.notes.panel.style.display = '';
+    ui.header.modeBtn.textContent = 'Log';
+    renderNotesView();
+  }
+}
+
+function renderNotesView() {
+
+  ui.notes.start.panel.style.display = 'none';
+  ui.notes.trail.panel.style.display = 'none';
+  ui.notes.close.panel.style.display = 'none';
+
+  ui.notes.buttons.start.classList.remove('activeNoteBtn');
+  ui.notes.buttons.trail.classList.remove('activeNoteBtn');
+  ui.notes.buttons.close.classList.remove('activeNoteBtn');
+
+  if (currentNoteType === 'start') {
+    ui.notes.start.panel.style.display = '';
+    ui.notes.buttons.start.classList.add('activeNoteBtn');
+    renderStartNote();
+  }
+
+  if (currentNoteType === 'trail') {
+    ui.notes.trail.panel.style.display = '';
+    ui.notes.buttons.trail.classList.add('activeNoteBtn');
+    renderTrailNotes();
+  }
+
+  if (currentNoteType === 'close') {
+    ui.notes.close.panel.style.display = '';
+    ui.notes.buttons.close.classList.add('activeNoteBtn');
+    renderCloseNote();
   }
 }
 
 function createEmptySurvey() {
   return {
-    startNotes: '',
-    endNotes: '',
+    meta: {
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
+    },
+    startNote: {
+      date: '',
+      startTime: '',
+      weather: '',
+      participants: '',
+      notes: ''
+    },
+    endNote: {
+      endTime: '',
+      weather: '',
+      notes: ''
+    },
     trails: {}
   };
 }
 
 // --- REFRESH APP (ONLINE ONLY ACTION) ---
 async function refreshApp() {
-
-  const status = document.getElementById('status');
+  const status = ui.header.status;
   status.textContent = 'Refreshing…';
 
   try {
-
     // Require network
     if (!navigator.onLine) {
       throw new Error('Offline');
@@ -347,12 +498,8 @@ async function refreshApp() {
 
     // Refresh datasets
     const [plantsRes, trailsRes] = await Promise.all([
-      fetch('plants.json?ts=' + Date.now(), {
-        cache: 'no-store'
-      }),
-      fetch('trails.json?ts=' + Date.now(), {
-        cache: 'no-store'
-      })
+      fetch('plants.json?ts=' + Date.now(), { cache: 'no-store' }),
+      fetch('trails.json?ts=' + Date.now(), { cache: 'no-store' })
     ]);
 
     if (!plantsRes.ok || !trailsRes.ok) {
@@ -401,8 +548,7 @@ async function refreshApp() {
 
 function updateStatus(version) {
 
-  const status =
-    document.getElementById('status');
+  const status = ui.header.status;
 
   const last =
     localStorage.getItem('lastUpdated');
@@ -418,6 +564,23 @@ function updateStatus(version) {
   status.textContent = text;
 }
 
+function newSurvey() {
+  const ok = confirm(
+    'Start a new survey?'
+  );
+
+  if (!ok) {
+    return;
+  }
+
+  survey = createEmptySurvey();
+  saveSurvey(survey);
+  currentMode = 'notes';
+  currentNoteType = 'start';
+  renderMode();
+  showNotesPanel('start');
+}
+
 // --- Storage ---
 function loadSurvey() {
   try {
@@ -425,7 +588,7 @@ function loadSurvey() {
       localStorage.getItem('survey')
     );
     if (!survey) {
-      return createEmptySurvey();
+      return null;
     }
 
   // Ensure required top-level fields exist
@@ -437,13 +600,14 @@ function loadSurvey() {
 
   } catch(e) {
     console.error('Bad survey data', e);
-    return createEmptySurvey();
+    return null;
   }
 }
 
 function ensureTrail(survey, trailId) {
   if (!survey.trails[trailId]) {
     survey.trails[trailId] = {
+      firstEntered: new Date().toISOString(),
       notes: '',
       entries: []
     };
@@ -452,13 +616,17 @@ function ensureTrail(survey, trailId) {
   return survey.trails[trailId];
 }
 
-function saveSurvey(data) {
-  localStorage.setItem('survey', JSON.stringify(data));
+function saveSurvey() {
+  localStorage.setItem('survey', JSON.stringify(survey));
 }
 
 // --- Add sighting ---
 function addSighting(item) {
-  const survey = loadSurvey();
+
+  if (!survey) {
+    alert('No active survey');
+    return;
+  }
   const trail = ensureTrail(survey, currentTrail);
   const entries = trail.entries;
 
@@ -487,11 +655,13 @@ function clearSurvey() {
 
   if (!confirmClear) return;
 
+  survey = null;
   localStorage.removeItem('survey');
 
-  renderLog();
+  determineInitialMode();
+  renderMode();
 
-  const status = document.getElementById('status');
+  const status = ui.header.status;
   if (status) {
     status.textContent = 'Survey cleared';
     setTimeout(() => {
@@ -572,11 +742,11 @@ function search(q) {
 
 // --- Render results ---
 function renderResults(list) {
-  const container = document.getElementById('results');
+  const container = ui.log.results;
   container.innerHTML = '';
   container.scrollTop = 0;
 
-  const input = document.getElementById('search');
+  const input = ui.log.search;
 
   if (input.value.length < 2) {
     container.innerHTML = '';
@@ -602,7 +772,7 @@ function renderResults(list) {
     div.onclick = () => {
       addSighting(item);
 
-      const input = document.getElementById('search');
+      const input = ui.log.search;
       input.value = '';
       renderResults([]);
 
@@ -615,12 +785,16 @@ function renderResults(list) {
 
 // --- Render log ---
 function renderLog() {
-  const survey = loadSurvey();
+
+  if (!survey || !currentTrail) {
+    ui.log.log.innerHTML = '';
+    return;
+  }
   const trail = ensureTrail(survey, currentTrail);
 
   const entries = trail.entries;
 
-  const container = document.getElementById('log');
+  const container = ui.log.log;
   container.innerHTML = '';
 
   entries.forEach((entry, index) => {
@@ -653,7 +827,7 @@ function renderLog() {
   note.style.flex = '0 1 120px';
   note.style.minWidth = '60px';
   note.style.maxWidth = '50%';
-note.style.width = '120ox';
+  note.style.width = '120px';
 
   note.style.resize = 'none';
   note.style.overflow = 'hidden';
