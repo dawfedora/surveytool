@@ -262,6 +262,8 @@ function initNotesView() {
     showNotesPanel('close');
   });
 
+  populateTrailSelector(ui.notes.trail.trailSelect);
+
   initStartNote();
   initTrailNote();
   initCloseNote();
