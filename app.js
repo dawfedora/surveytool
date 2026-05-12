@@ -446,6 +446,32 @@ function renderMode() {
   }
 }
 
+function renderLogView() {
+
+  if (!survey) {
+    ui.log.log.innerHTML = '';
+    return;
+  }
+
+  // restore last trail if needed
+  if (!currentTrail) {
+    currentTrail = localStorage.getItem('lastTrail')
+      || trails?.[0]?.id
+      || null;
+  }
+
+  // ensure selector is correct
+  if (ui.log.trailSelect.value !== currentTrail) {
+    ui.log.trailSelect.value = currentTrail;
+  }
+
+  // render sightings list
+  renderLog();
+
+  // clear search UI state (optional but clean)
+  ui.log.results.innerHTML = '';
+}
+
 function renderNotesView() {
 
   ui.notes.start.panel.style.display = 'none';
