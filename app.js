@@ -93,7 +93,7 @@ function initUI() {
       time: document.getElementById('startTime'),
       weather: document.getElementById('startWeather'),
       participants: document.getElementById('participants'),
-      notes: document.getElementById('startNotes')
+      notes: document.getElementById('startNote')
     },
     trail: {
       panel: document.getElementById('trailPanel'),
@@ -104,7 +104,7 @@ function initUI() {
       panel: document.getElementById('closePanel'),
       time: document.getElementById('closeTime'),
       weather: document.getElementById('closeWeather'),
-      notes: document.getElementById('closeNotes')
+      notes: document.getElementById('closeNote')
     }
   };
 }
