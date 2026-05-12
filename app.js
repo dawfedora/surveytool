@@ -33,11 +33,11 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
 
+  initUI();
+
   if (navigator.onLine) {
     await checkForAppUpdate();
   }
-
-  initUI();
 
   const missing = validateUI(ui);
   if (missing.length) {
