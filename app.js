@@ -15,6 +15,18 @@ let currentTrail = null;
 let currentMode = 'log';
 let currentNoteType = 'start';
 
+function debounce(fn, delay = 300) {
+  let timer = null;
+
+  return function (...args) {
+    clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
 // --- INIT ---
