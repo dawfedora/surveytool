@@ -13,7 +13,7 @@ let trails = [];
 let survey = null;
 let currentTrail = null;
 let currentMode = 'log';
-let currentNorePanel = 'start';
+let currentNotePanel = 'start';
 
 function debounce(fn, delay = 300) {
   let timer = null;
@@ -302,7 +302,7 @@ function determineInitialMode() {
     currentMode = 'log';
   } else {
     currentMode = 'notes';
-    currentNorePanel = 'start';
+    currentNotePanel = 'start';
   }
 }
 
@@ -482,19 +482,19 @@ function renderNotesView() {
   ui.notes.buttons.trail.classList.remove('activeNoteBtn');
   ui.notes.buttons.close.classList.remove('activeNoteBtn');
 
-  if (currentNorePanel === 'start') {
+  if (currentNotePanel === 'start') {
     ui.notes.start.panel.style.display = '';
     ui.notes.buttons.start.classList.add('activeNoteBtn');
     renderStartNote();
   }
 
-  if (currentNorePanel === 'trail') {
+  if (currentNotePanel === 'trail') {
     ui.notes.trail.panel.style.display = '';
     ui.notes.buttons.trail.classList.add('activeNoteBtn');
     renderTrailNotes();
   }
 
-  if (currentNorePanel === 'close') {
+  if (currentNotePanel === 'close') {
     ui.notes.close.panel.style.display = '';
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
@@ -614,7 +614,7 @@ function newSurvey() {
   survey = createEmptySurvey();
   saveSurvey(survey);
   currentMode = 'notes';
-  currentNorePanel = 'start';
+  currentNotePanel = 'start';
   renderMode();
   showNotesPanel('start');
 }
