@@ -726,6 +726,11 @@ function renderTrailNotes() {
 
   const trail = ensureTrail(survey, currentTrail);
 
+  // ensure selector is correct
+  if (ui.log.trailSelect.value !== currentTrail) {
+    ui.log.trailSelect.value = currentTrail;
+  }
+
   ui.notes.trail.notes.value =
     trail.notes || '';
 }
