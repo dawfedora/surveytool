@@ -286,7 +286,6 @@ function initTrailNote() {
 
   const t = ui.notes.trail;
 
-  t.trailSelect.addEventListener('change', onTrailChange);
   t.notes.addEventListener('input', debounce(saveTrailNote, 300));
 }
 
