@@ -35,46 +35,76 @@ async function init() {
 
   initUI();
 
+  const missing = validateUI(ui);
+  if (missing.length) {
+    console.error('Missing DOM elements:\n' + missing.join('\n'));
+    return;
+  }
+
   if (navigator.onLine) {
     await checkForAppUpdate();
   }
 
-  const missing = validateUI(ui);
-  if (missing.length) {
-    console.error(
-      'Missing DOM elements:\n' +
-      missing.join('\n')
-    );
-    return;
-  }
-
-  initHeader();
-
   const ok = loadLocalData();
-
   if (!ok) {
     enterLimitedMode();
     return;
   }
 
+  initializeCurrentTrail();
   survey = loadSurvey();
-
-  initLogView();
-
-  initNotesView();
-
   determineInitialMode();
+
+  initHeader();
+  initLogView();
+  initNotesView();
 
   renderMode();
 
-
   // Optional: show last updated time
-  const status = ui.header.status;
   const last = localStorage.getItem('lastUpdated');
+
   if (status && last) {
-    status.textContent =
+    ui.header.status.textContent =
       'Data updated: ' + new Date(last).toLocaleString();
   }
+}
+
+function enterLimitedMode() {
+
+  ui.header.refreshBtn.onclick = refreshApp;
+
+  ui.header.modeBtn.style.display = 'none';
+  ui.header.newBtn.style.display = 'none';
+  ui.header.downloadBtn.style.display = 'none';
+
+  ui.log.panel.style.display = 'none';
+  ui.notes.panel.style.display = 'none';
+
+  ui.header.status.textContent =
+    'No local data. Connect to network and tap Refresh.';
+
+  const status = ui.header.status;
+  if (status) {
+    status.textContent = 'No data loaded. Tap Refresh while online.';
+  }
+
+  return; // 🚨 STOP HERE
+}
+
+function initializeCurrentTrail() {
+
+  const saved =
+    localStorage.getItem('lastTrail');
+
+  const valid =
+    trails.some(t => t.id === saved);
+
+  currentTrail =
+    valid
+      ? saved
+      : trails?.[0]?.id
+      || null;
 }
 
 function initUI() {
@@ -220,22 +250,6 @@ function loadLocalData() {
     console.error('Failed to load local data', e);
     return false;
   }
-}
-
-function enterLimitedMode() {
-  console.warn('No local data → limited mode');
-
-  // Disable everything except refresh
-  ui.log.search.disabled = true;
-  ui.header.downloadBtn.disabled = true;
-  ui.header.newBtn.disabled = true;
-
-  const status = ui.header.status;
-  if (status) {
-    status.textContent = 'No data loaded. Tap Refresh while online.';
-  }
-
-  return; // 🚨 STOP HERE
 }
 
 function initLogView() {
