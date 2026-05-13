@@ -319,10 +319,28 @@ function populateTrailSelector(select) {
   select.value = currentTrail;
 
   select.addEventListener('change', (e) => {
-    currentTrail = e.target.value;
-    localStorage.setItem('lastTrail', currentTrail);
-    renderMode();
+    setCurrentTrail(e.target.value);
   });
+}
+
+function setCurrentTrail(id) {
+  currentTrail = id;
+  localStorage.setItem('lastTrail', id);
+
+  syncTrailSelectors();
+
+  renderLog();
+  renderTrailNotes();
+}
+
+function syncTrailSelectors() {
+  if (ui.log.trailSelect) {
+    ui.log.trailSelect.value = currentTrail;
+  }
+
+  if (ui.notes.trail.trailSelect) {
+    ui.notes.trail.trailSelect.value = currentTrail;
+  }
 }
 
 async function checkForAppUpdate() {
@@ -459,11 +477,6 @@ function renderLogView() {
     currentTrail = localStorage.getItem('lastTrail')
       || trails?.[0]?.id
       || null;
-  }
-
-  // ensure selector is correct
-  if (ui.log.trailSelect.value !== currentTrail) {
-    ui.log.trailSelect.value = currentTrail;
   }
 
   // render sightings list
@@ -723,29 +736,10 @@ function renderTrailNotes() {
   if (!survey || !currentTrail) {
     return;
   }
-
   const trail = ensureTrail(survey, currentTrail);
-
-  // ensure selector is correct
-  if (ui.log.trailSelect.value !== currentTrail) {
-    ui.log.trailSelect.value = currentTrail;
-  }
-
-  ui.notes.trail.notes.value =
-    trail.notes || '';
+  ui.notes.trail.notes.value = trail.notes || '';
 }
 
-function onTrailChange(e) {
-
-  currentTrail = e.target.value;
-
-  localStorage.setItem(
-    'lastTrail',
-    currentTrail
-  );
-
-  renderTrailNotes();
-}
 function saveCloseNote() {
 
   if (!survey) {
