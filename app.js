@@ -59,6 +59,7 @@ async function init() {
   initLogView();
   initNotesView();
 
+  syncTrailSelectors();
   renderMode();
 
   // Optional: show last updated time
