@@ -1,7 +1,7 @@
 {
   "header": {
     "version": "1.0",
-    "count": "594"
+    "count": "605"
   },
   "species": [
     {"speciesId":1,"scientificName":"Chlorogalum pomeridianum var. pomeridianum","commonName":"soap plant","status":""},
@@ -591,12 +591,23 @@
     {"speciesId":585,"scientificName":"Vicia species","commonName":"vetch species","status":""},
     {"speciesId":586,"scientificName":"Brassicaceae species","commonName":"mustard species","status":""},
     {"speciesId":587,"scientificName":"Verbena species","commonName":"verbena species","status":""},
-    {"speciesId":588,"scientificName":"Erythranthe species","commonName":"monkeyflower species","status":""},
-    {"speciesId":589,"scientificName":"Trifolium species","commonName":"clover species","status":""},
-    {"speciesId":590,"scientificName":"Lasthenia species","commonName":"goldfields species","status":""},
-    {"speciesId":591,"scientificName":"Microseris douglasii subspecies","commonName":"Douglas' silverpuffs","status":""},
-    {"speciesId":592,"scientificName":"Gilia species","commonName":"gilia species","status":""},
-    {"speciesId":593,"scientificName":"Rumex species","commonName":"dock species","status":""},
-    {"speciesId":594,"scientificName":"Epilobium species","commonName":"willow herb species","status":""}
+    {"speciesId":588,"scientificName":"Trifolium species","commonName":"clover species","status":""},
+    {"speciesId":589,"scientificName":"Lasthenia species","commonName":"goldfields species","status":""},
+    {"speciesId":590,"scientificName":"Microseris douglasii subspecies","commonName":"Douglas' silverpuffs","status":""},
+    {"speciesId":591,"scientificName":"Gilia species","commonName":"gilia species","status":""},
+    {"speciesId":592,"scientificName":"Rumex species","commonName":"dock species","status":""},
+    {"speciesId":593,"scientificName":"Epilobium species","commonName":"willow herb species","status":""},
+    {"speciesId":594,"scientificName":"Rubus ursinus","commonName":"California blackberry (m)","status":""},
+    {"speciesId":595,"scientificName":"Rubus ursinus","commonName":"California blackberry (f)","status":""},
+    {"speciesId":596,"scientificName":"Galium porrigens var. porrigens","commonName":"climbing bedstraw (m)","status":""},
+    {"speciesId":597,"scientificName":"Galium porrigens var. porrigens","commonName":"climbing bedstraw (f)","status":""},
+    {"speciesId":598,"scientificName":"Garrya elliptica","commonName":"coast silk tassel (m)","status":""},
+    {"speciesId":599,"scientificName":"Garrya elliptica","commonName":"coast silk tassel (f)","status":""},
+    {"speciesId":600,"scientificName":"Salix lasiolepis","commonName":"arroyo willow (m)","status":""},
+    {"speciesId":601,"scientificName":"Salix lasiolepis","commonName":"arroyo willow (f)","status":""},
+    {"speciesId":602,"scientificName":"Toxicodendron diversilobum","commonName":"poison oak (m)","status":""},
+    {"speciesId":603,"scientificName":"Toxicodendron diversilobum","commonName":"poison oak (f)","status":""},
+    {"speciesId":604,"scientificName":"Thalictrum fendleri var. polycarpum","commonName":"meadow-rue (m)","status":""},
+    {"speciesId":605,"scientificName":"Thalictrum fendleri var. polycarpum","commonName":"meadow-rue (f)","status":""}
   ]
 }
