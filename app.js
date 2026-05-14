@@ -41,10 +41,6 @@ async function init() {
     return;
   }
 
-  if (navigator.onLine) {
-    await checkForAppUpdate();
-  }
-
   const ok = loadLocalData();
   if (!ok) {
     enterLimitedMode();
@@ -65,7 +61,7 @@ async function init() {
   // Optional: show last updated time
   const last = localStorage.getItem('lastUpdated');
 
-  if (status && last) {
+  if (ui.header.status && last) {
     ui.header.status.textContent =
       'Data updated: ' + new Date(last).toLocaleString();
   }
@@ -308,9 +304,9 @@ function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener('input', debounce(saveStartNote, 300));
-  c.weather.addEventListener('input', debounce(saveStartNote, 300));
-  c.notes.addEventListener('input', debounce(saveStartNote, 300));
+  c.time.addEventListener('input', debounce(saveCloseNote, 300));
+  c.weather.addEventListener('input', debounce(saveCloseNote, 300));
+  c.notes.addEventListener('input', debounce(saveCloseNote, 300));
 }
 
 function determineInitialMode() {
@@ -355,106 +351,6 @@ function syncTrailSelectors() {
 
   if (ui.notes.trail.trailSelect) {
     ui.notes.trail.trailSelect.value = currentTrail;
-  }
-}
-
-async function checkForAppUpdate() {
-  if (!navigator.onLine) {
-    return;
-  }
-
-  try {
-    const res = await fetch('version.json?ts=' +
-                             Date.now(), {cache: 'no-store'});
-    if (!res.ok) { return; }
-
-    const info = await res.json();
-    if (!info || !info.version) {
-      console.warn('Bad version payload', info);
-      return;
-    }
-
-    const remoteVersion = String(info.version).trim();
-
-    let installed = localStorage.getItem('installedAppVersion');
-
-    if (installed) {
-      installed = installed.trim();
-    }
-
-    // BOOTSTRAP
-    if (!installed) {
-      installed = remoteVersion;
-      localStorage.setItem('installedAppVersion', installed);
-    }
-
-    // UPDATE CHECK
-    if (installed !== remoteVersion) {
-      const ok = confirm(
-        `New app version available.\n\n` +
-        `Current: ${installed}\n` +
-        `New: ${remoteVersion}\n\n` +
-        `Update now?`
-      );
-
-      if (ok) {
-        await updateAppShell(remoteVersion);
-      }
-    }
-  } catch (e) {
-    console.warn('Version check failed', e);
-  }
-}
-
-async function updateAppShell(version) {
-
-  const status =
-    ui.header.status;
-
-  status.textContent =
-    'Updating app…';
-
-  try {
-
-    const cache =
-      await caches.open(
-        'edgewood-shell-v1'
-      );
-
-    // Force fresh shell fetches
-    await Promise.all([
-
-      cache.add(
-        './index.html?ts=' + Date.now()
-      ),
-
-      cache.add(
-        './app.js?ts=' + Date.now()
-      ),
-
-      cache.add(
-        './manifest.json?ts=' + Date.now()
-      )
-
-    ]);
-
-    localStorage.setItem(
-      'installedAppVersion',
-      version
-    );
-
-    status.textContent =
-      'Reloading…';
-
-    location.href =
-      './index.html?reload=' +
-      Date.now();
-
-  } catch (e) {
-
-    console.error(e);
-
-    alert('Update failed');
   }
 }
 
@@ -558,15 +454,16 @@ async function refreshApp() {
   status.textContent = 'Refreshing…';
 
   try {
-    // Require network
     if (!navigator.onLine) {
       throw new Error('Offline');
     }
 
-    // Refresh datasets
+    //
+    // fetch fresh datasets
+    //
     const [plantsRes, trailsRes] = await Promise.all([
-      fetch('plants.json?ts=' + Date.now(), { cache: 'no-store' }),
-      fetch('trails.json?ts=' + Date.now(), { cache: 'no-store' })
+      fetch('./plants.json', { cache: 'reload' }),
+      fetch('./trails.json', { cache: 'reload' })
     ]);
 
     if (!plantsRes.ok || !trailsRes.ok) {
@@ -578,57 +475,43 @@ async function refreshApp() {
 
     localStorage.setItem('plants', JSON.stringify(plants));
     localStorage.setItem('trails', JSON.stringify(trailData));
-    localStorage.setItem('lastUpdated', new Date().toISOString());
+    localStorage.setItem( 'lastUpdated', new Date().toISOString());
 
-    // Force fresh app shell into SW cache
-    if ('serviceWorker' in navigator) {
+    //
+    // refresh shell cache
+    //
 
-      const cache = await caches.open('edgewood-shell-v1');
+    const cache = await caches.open('edgewood-shell');
 
-      await cache.addAll([
-        './',
-        './index.html?ts=' + Date.now(),
-        './app.js?ts=' + Date.now(),
-        './manifest.json?ts=' + Date.now()
-      ]);
+    const shellFiles = [
+      './',
+      './index.html',
+      './app.js',
+      './manifest.json',
+      './sw.js'
+    ];
+
+    for (const file of shellFiles) {
+      const response = await fetch(file, { cache: 'reload' });
+
+      if (!response.ok) {
+        throw new Error(`Failed to refresh ${file}`);
+      }
+      await cache.put(file, response.clone);
     }
 
     status.textContent = 'Refresh complete';
 
-    // HARD reload from network
-    window.location.href =
-      './index.html?reload=' + Date.now();
+    //
+    // reload app
+    //
+    location.reload();
 
   } catch (e) {
-
     console.error(e);
-
-    alert(
-      'Refresh failed.\n' +
-      'Check network connection.'
-    );
-
-    status.textContent =
-      'Offline mode using cached app';
+    alert('Refresh failed.\n' + 'Check network connection.');
+    status.textContent = 'Offline mode using cached app';
   }
-}
-
-function updateStatus(version) {
-
-  const status = ui.header.status;
-
-  const last =
-    localStorage.getItem('lastUpdated');
-
-  let text =
-    `App ${version}`;
-
-  if (last) {
-    text +=
-      ` • Data ${new Date(last).toLocaleDateString()}`;
-  }
-
-  status.textContent = text;
 }
 
 function newSurvey() {
@@ -666,8 +549,8 @@ function loadSurvey() {
     }
 
   // Ensure required top-level fields exist
-  survey.startNotes ??= '';
-  survey.endNotes ??= '';
+  survey.startNote ??= '';
+  survey.endNote ??= '';
   survey.trails ??= {};
 
   return survey;
