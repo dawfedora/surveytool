@@ -191,7 +191,7 @@ function loadLocalData() {
     let missingCommon = 0;
     let missingScientific = 0;
 
-    // 🔥 Normalize once
+    //  Normalize once
     species = species.filter(s => {
       let common = s.commonName?.trim();
       let scientific = s.scientificName?.trim();
@@ -214,10 +214,19 @@ function loadLocalData() {
       }
       // Normalize back into object
       s.commonName = common;
+      s.displayCommon = common + (s.status || '');
       s.scientificName = scientific;
+
+const commonNorm = normalizeCommon(common);
+const scientificNorm = normalizeScientific(scientific);
+
+s._commonNormalized = commonNorm;
+s._commonTokens = commonNorm.split(' ');
+s._commonJoined = s._commonTokens.join('');
+
+s._scientificNormalized = scientificNorm;
       s._common = common.toLowerCase();
       s._scientific = scientific.toLowerCase();
-      s.displayCommon = common + (s.status || '');
 
       return true;
     });
@@ -249,14 +258,50 @@ function loadLocalData() {
   }
 }
 
+function normalizeCommon(str) {
+  return (str || '')
+    .toLowerCase()
+    .trim()
+    // replace funky apostrophes
+    .replace(/[’']/g, "'")
+    .replace(/-/g, ' ')
+    .replace(/(\w+)'s/, '$1s')
+    .replace(/(\w+)s'/, '$1s')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeScientific(str) {
+  return (str || '')
+    .toLowerCase()
+    .trim()
+    // unify taxonomic abbreviations
+    .replace(/ssp\./g, 'ssp')
+    .replace(/var\./g, 'var')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeQuery(str) {
+  return (str || '')
+    .toLowerCase()
+    .trim()
+    // remove punctuation that commonly breaks plant names
+    .replace(/-/, ' ')
+    .replace(/[’']/g, "'")
+    .replace(/(\w+)'s/, '$1s')
+    .replace(/(\w+)s's/, '$1s')
+    .replace(/(\w+)s'/, '$1s')
+    // collapse all whitespace (including trailing spaces inside query)
+    .replace(/\s+/g, ' ');
+}
+
 function initLogView() {
-  // Hook search
   let searchTimer;
+
   ui.log.search.addEventListener('input', e => {
     clearTimeout(searchTimer);
+
     searchTimer = setTimeout(() => {
-      const results = search(e.target.value);
-      renderResults(results);
+      updateSearchResults(e.target.value);
     }, 100);
   });
   populateTrailSelector(ui.log.trailSelect);
@@ -727,24 +772,124 @@ function clearSurvey() {
   }
 }
 
-// --- SEARCH ---
-function search(q) {
-  if (!Array.isArray(species)) return [];
-
-  q = (q || '').toLowerCase();
-
-  if (q.length < 2) return [];
-
-  if (q.length < 3) {
-    return species.filter(item => {
-      return item._common.startsWith(q) || item._scientific.startsWith(q);
-    });
+function updateSearchResults(query) {
+  query = query.trim();
+  if (query.length < 2) {
+    renderResults([]);
+    return;
   }
 
-  const exactWord = [];   // NEW
+  const results = search(query);
+
+  if (!results.length) {
+    renderNoMatches();
+    return;
+  }
+  renderResults(results);
+}
+
+// --- SEARCH ---
+function search(q) {
+
+  if (!Array.isArray(species)) {
+    return [];
+  }
+
+  const qNorm = normalizeQuery(q);
+
+  if (qNorm.length < 2) {
+    return [];
+  }
+
+  const qJoined =
+    qNorm.replace(/\s+/g, '');
+
+  const exactWord = [];
   const starts = [];
   const wordStarts = [];
+  const joined = [];
   const contains = [];
+
+  species.forEach(item => {
+
+    const common =
+      item._commonNormalized || '';
+
+    const scientific =
+      item._scientificNormalized || '';
+
+    const commonJoined =
+      item._commonJoined || '';
+
+    //
+    // 1. exact starting word
+    //
+    if (
+      common.startsWith(qNorm + ' ') ||
+      scientific.startsWith(qNorm + ' ')
+    ) {
+      exactWord.push(item);
+      return;
+    }
+
+    //
+    // 2. starts with
+    //
+    if (
+      common.startsWith(qNorm) ||
+      scientific.startsWith(qNorm)
+    ) {
+      starts.push(item);
+      return;
+    }
+
+    //
+    // 3. later word starts
+    //
+    if (
+      common.includes(' ' + qNorm) ||
+      scientific.includes(' ' + qNorm)
+    ) {
+      wordStarts.push(item);
+      return;
+    }
+
+    //
+    // 4. token-joined match
+    // dog wood -> dogwood
+    // meadow rue -> meadow-rue
+    //
+    qJoined = qNorm.replace(/\s+/g, '');
+
+    if (qJoined & item._commonJoined.includes(qJoined)) {
+      joinedContains.push(item);
+    }
+    if (
+      qJoined.length >= 5 &&
+      commonJoined.includes(qJoined)
+    ) {
+      joined.push(item);
+      return;
+    }
+
+    //
+    // 5. substring contains
+    //
+    if (common.includes(qNorm) || scientific.includes(qNorm)) {
+      contains.push(item);
+    }
+
+  });
+
+  return [
+    ...exactWord,
+    ...starts,
+    ...wordStarts,
+    ...joined,
+    ...contains
+  ].slice(0, 30);
+}
+function search(q) {
 
   species.forEach(item => {
     const common = (item._common || '');
@@ -774,47 +919,25 @@ function search(q) {
       return;
     }
 
-    // q is in there
-    if (
-      common.includes(q) ||
-      scientific.includes(q)
-    ) {
-      contains.push(item);
-    }
-    });
+  });
 
-  return [
-    ...exactWord,   // 👈 highest priority
-    ...starts,
-    ...wordStarts,
-    ...contains
-  ].slice(0, 30);
 }
 
 // --- Render results ---
+function renderNoMatches() {
+  const container = ui.log.results;
+  container.innerHTML = ` <div class="item">No matches</div> `;
+  container.scrollTop = 0;
+}
+
 function renderResults(list) {
   const container = ui.log.results;
   container.innerHTML = '';
   container.scrollTop = 0;
 
-  const input = ui.log.search;
-
-  if (input.value.length < 2) {
-    container.innerHTML = '';
-    return;
-  }
-
-  if (list.length === 0) {
-    container.innerHTML = '<div class="item">No matches</div>';
-    return;
-  }
-
-  if (!Array.isArray(list)) return;
-
   list.forEach(item => {
     const div = document.createElement('div');
     div.className = 'resultItem';
-
     div.innerHTML = `
       <span class="common">${item.commonName}</span>
       <span class="scientific">${item.scientificName}</span>
@@ -822,17 +945,15 @@ function renderResults(list) {
 
     div.onclick = () => {
       addSighting(item);
-
-      const input = ui.log.search;
-      input.value = '';
+      ui.log.search.value = '';
       renderResults([]);
-
-      input.focus();  // 👈 here
+      ui.log.search.focus();
     };
-
     container.appendChild(div);
   });
 }
+
+
 
 // --- Render log ---
 function renderLog() {
