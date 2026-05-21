@@ -509,7 +509,7 @@ async function refreshApp() {
 
   } catch (e) {
     console.error('REFRESH FAILED:', e);
-    alert('Refresh failed:\n' + 'e.message);
+    alert('Refresh failed:\n' + 'e.message');
     status.textContent = 'Offline mode using cached app';
   }
 }
