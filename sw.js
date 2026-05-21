@@ -5,7 +5,7 @@ const APP_SHELL = [
   './index.html',
   './app.js',
   './manifest.json',
-  './sw.js'
+  './version.js'
 ];
 
 // INSTALL
@@ -56,7 +56,6 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname.endsWith('/plants.json') ||
     url.pathname.endsWith('/trails.json') ||
-    url.pathname.endsWith('/version.json')
   ) {
     return;
   }
