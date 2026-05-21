@@ -493,14 +493,16 @@ async function refreshApp() {
 
     for (const file of shellFiles) {
       console.log('refreshing:', file);
-      const response = await fetch(file, { cache: 'reload' });
+      const request = new Request(file, { cache: 'reload' });
+
+      const response = await fetch(request);
 
       console.log(file, response.status, response.type);
 
       if (!response.ok) {
         throw new Error(`Failed to refresh ${file}`);
       }
-      await cache.put(file, response.clone);
+      await cache.put(request, response.clone());
     }
 
     status.textContent = 'Refresh complete';
