@@ -55,7 +55,7 @@ self.addEventListener('fetch', event => {
   // never cache mutable datasets
   if (
     url.pathname.endsWith('/plants.json') ||
-    url.pathname.endsWith('/trails.json') ||
+    url.pathname.endsWith('/trails.json')
   ) {
     return;
   }
