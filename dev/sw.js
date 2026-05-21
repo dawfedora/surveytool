@@ -5,7 +5,7 @@ const APP_SHELL = [
   './index.html',
   './app.js',
   './manifest.json',
-  './sw.js'
+  './version.json'
 ];
 
 // INSTALL
@@ -55,8 +55,7 @@ self.addEventListener('fetch', event => {
   // never cache mutable datasets
   if (
     url.pathname.endsWith('/plants.json') ||
-    url.pathname.endsWith('/trails.json') ||
-    url.pathname.endsWith('/version.json')
+    url.pathname.endsWith('/trails.json')
   ) {
     return;
   }

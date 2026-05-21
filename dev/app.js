@@ -508,8 +508,8 @@ async function refreshApp() {
     location.reload();
 
   } catch (e) {
-    console.error(e);
-    alert('Refresh failed.\n' + 'Check network connection.');
+    console.error('REFRESH FAILED:', e);
+    alert('Refresh failed:\n' + 'e.message');
     status.textContent = 'Offline mode using cached app';
   }
 }
