@@ -11,8 +11,9 @@
   <title>Edgewood Survey Tool</title>
 
   <link rel="manifest" href="manifest.json">
-
   <meta name="theme-color" content="#4a7c59">
+
+  <meta http-equiv="Cache-Control" content="no-cache">
 
   <!-- iOS PWA support -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,9 +22,6 @@
 
   <!-- Older Android support -->
   <meta name="mobile-web-app-capable" content="yes">
-
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#4a7c59">
 
   <style>
     body {
@@ -285,11 +283,11 @@ textarea {
         await navigator.serviceWorker.register('./sw.js');
         console.log('Service worker registered');
       } catch (err) {
-        console.error('SW registration failed', err);
+        console.error( 'SW registration failed', err);
       }
     });
   }
-  </script>
+</script>
 
 </body>
 </html>
