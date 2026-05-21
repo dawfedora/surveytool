@@ -1,7 +1,6 @@
 const CACHE_NAME = 'edgewood-shell';
 
 const APP_SHELL = [
-  './',
   './index.html',
   './app.js',
   './manifest.json',
