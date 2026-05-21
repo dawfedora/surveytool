@@ -5,7 +5,7 @@ const APP_SHELL = [
   './index.html',
   './app.js',
   './manifest.json',
-  './version.js'
+  './version.json'
 ];
 
 // INSTALL
