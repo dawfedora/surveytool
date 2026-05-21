@@ -1,0 +1,41 @@
+name: Deploy site
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare files
+        run: |
+          mkdir publish
+
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            cp -r ./* publish/
+          fi
+
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            mkdir -p publish/dev
+            cp -r ./* publish/dev/
+          fi
+
+          rm -rf publish/.git
+          rm -rf publish/.github
+
+      - name: Publish
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: publish
+          keep_files: true
