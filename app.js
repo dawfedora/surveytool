@@ -492,7 +492,10 @@ async function refreshApp() {
     ];
 
     for (const file of shellFiles) {
+      console.log('refreshing:', file);
       const response = await fetch(file, { cache: 'reload' });
+
+      console.log(file, response.status, response.type);
 
       if (!response.ok) {
         throw new Error(`Failed to refresh ${file}`);
@@ -509,7 +512,7 @@ async function refreshApp() {
 
   } catch (e) {
     console.error('REFRESH FAILED:', e);
-    alert('Refresh failed:\n' + 'e.message');
+    alert('Refresh failed:\n' + e.message);
     status.textContent = 'Offline mode using cached app';
   }
 }
