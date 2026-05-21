@@ -14,23 +14,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Prepare files
         run: |
           mkdir publish
 
+          rsync -av \
+            --exclude 'publish' \
+            --exclude '.git' \
+            --exclude '.github' \
+            ./ publish-temp/
+
           if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            cp -r ./* publish/
+            cp -r publish-temp/* publish/
           fi
 
           if [ "${GITHUB_REF_NAME}" = "dev" ]; then
             mkdir -p publish/dev
-            cp -r ./* publish/dev/
+            cp -r publish-temp/* publish/dev/
           fi
-
-          rm -rf publish/.git
-          rm -rf publish/.github
 
       - name: Publish
         uses: peaceiris/actions-gh-pages@v4
