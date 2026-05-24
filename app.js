@@ -483,15 +483,16 @@ async function refreshApp() {
 
     const cache = await caches.open('edgewood-shell');
 
-    const shellFiles = [
+    const APP_SHELL = [
       './',
       './index.html',
       './app.js',
       './manifest.json',
+      './version.json',
       './sw.js'
     ];
 
-    for (const file of shellFiles) {
+    for (const file of APP_SHELL) {
       console.log('refreshing:', file);
       const request = new Request(file, { cache: 'reload' });
 
