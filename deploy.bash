@@ -10,7 +10,7 @@ fi
 STAMP=$(TZ=America/Los_Angeles date +%Y.%m.%d.%H%M)
 
 VERSION="${BRANCH}-${STAMP}"
-CACHE_NAME="edgewood-$BRANCH-$VERSION"
+CACHE_NAME="edgewood-$VERSION"
 
 cat > version.json <<EOF
 {
@@ -21,5 +21,5 @@ cat > version.json <<EOF
 EOF
 
 sed \
-  "s/__CACHE_NAME__/${CACHE_NAME}/g" \
+  "s/^\(const CACHE_NAME = \)'__CACHE_NAME__';/\1'${CACHE_NAME}';/" \
   sw.js.in > sw.js
