@@ -41,6 +41,10 @@ async function init() {
     return;
   }
 
+//  const response = await fetch('./version.json');
+//  if (response.ok) {
+//  version = response.version`
+
   const ok = loadLocalData();
   if (!ok) {
     enterLimitedMode();
@@ -152,7 +156,7 @@ function validateUI(obj, path = 'ui') {
   const missing = [];
 
   for (const [key, value] of Object.entries(obj)) {
-    const currentPath = `${path}.${key}`;
+    const currentPath = '${path}.${key}`;
     if ( value && typeof value === 'object' &&
         !(value instanceof HTMLElement)) {
       missing.push(
@@ -487,9 +491,11 @@ async function refreshApp() {
       './',
       './index.html',
       './app.js',
-      './manifest.json',
+      './sw.js',
       './version.json',
-      './sw.js'
+      './plants.json',
+      './trails.json',
+      './manifest.json'
     ];
 
     for (const file of APP_SHELL) {
