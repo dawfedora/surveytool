@@ -16,9 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Generate version.json
+      - name: Generate version.json and sw.js
         run: |
-          bash generateVersion.bash
+          bash deploy.bash
 
       - name: Prepare files
         run: |

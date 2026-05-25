@@ -1,104 +1,97 @@
-const CACHE_NAME = 'edgewood-shell';
+const CACHE_NAME = '__CACHE_NAME__';
 
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './manifest.json',
+  './sw.js',
   './version.json',
-  './sw.js'
+  './plants.json',
+  './trails.json',
+  './manifest.json'
 ];
 
-// INSTALL
-self.addEventListener('install', event => {
+if (CACHE_NAME === '__CACHE_NAME__') {
+  throw new Error('CACHE_NAME not injected');
+}
 
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
-  );
-});
+self.addEventListener('install', handleInstall);
+
+self.addEventListener('activate', handleActivate);
+
+self.addEventListener('fetch', handleFetch);
+
+// INSTALL
+async function handleInstall(event) {
+  event.waitUntil( cacheAppShell());
+  self.skipWaiting();
+}
+
+async function cacheAppShell() {
+
+  const cache = await caches.open(CACHE_NAME);
+
+  for (const file of APP_SHELL) {
+    console.log( 'caching:', file);
+
+    const response = await fetch(file);
+    if (!response.ok) {
+      throw new Error( `Failed ${file}`);
+    }
+
+    await cache.put( file, response.clone());
+  }
+}
 
 // ACTIVATE
-self.addEventListener('activate', event => {
+function handleActivate(event) {
+  event.waitUntil(deleteOldCaches());
+}
 
-  event.waitUntil(
-
-    caches.keys().then(keys => {
-
-      return Promise.all(
-
-        keys.map(key => {
-
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
+async function deleteOldCaches() {
+  const keys = await caches.keys();
+  await Promise.all(
+    keys.map(key => {
+      if (key !== CACHE_NAME) {
+        return caches.delete(key);
+      }
     })
   );
-});
+  await clients.claim();
+}
 
 // FETCH
-self.addEventListener('fetch', event => {
-
-  const request = event.request;
+function handleFetch(event) {
+  const rq = event.request;
 
   // only same-origin GET
-  if (
-    request.method !== 'GET' ||
-    new URL(request.url).origin !== location.origin
-  ) {
+  if (rq.method !== 'GET' || new URL(rq.url).origin !== location.origin) {
     return;
   }
+  event.respondWith(fetchFromCache(rq));
+}
 
+async function fetchFromCache(request) {
   const url = new URL(request.url);
 
-  // never cache mutable datasets
-  if (
-    url.pathname.endsWith('/plants.json') ||
-    url.pathname.endsWith('/trails.json')
-  ) {
-    return;
-  }
-
   // normalize shell URLs
-  let cacheKey = request;
-
-  if (
-    url.pathname === '/' ||
-    url.pathname.endsWith('/index.html')
-  ) {
+  let cacheKey = url.pathname;
+  if ( cacheKey === '/' || cacheKey.endsWith('/index.html')) {
     cacheKey = './index.html';
   }
 
-  event.respondWith(
+  const cached = await caches.match(cacheKey);
 
-    caches.match(cacheKey).then(cached => {
+  if (cached) {
+    return cached;
+  }
 
-      // CACHE FIRST
-      if (cached) {
-        return cached;
-      }
+  // fallback
+  const response = await fetch(request, { cache:'reload' });
+  if ( response.ok && response.type === 'basic') {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(cacheKey, response.clone());
+  }
 
-      // fallback for unexpected assets
-      return fetch(request).then(response => {
-
-        // cache successful same-origin responses
-        if (
-          response.ok &&
-          response.type === 'basic'
-        ) {
-
-          const copy = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(cacheKey, copy);
-            });
-        }
-
-        return response;
-      });
-    })
-  );
-});
+  return response;
+}
