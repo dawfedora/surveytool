@@ -156,7 +156,7 @@ function validateUI(obj, path = 'ui') {
   const missing = [];
 
   for (const [key, value] of Object.entries(obj)) {
-    const currentPath = '${path}.${key}`;
+    const currentPath = `${path}.${key}`;
     if ( value && typeof value === 'object' &&
         !(value instanceof HTMLElement)) {
       missing.push(
