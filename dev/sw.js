@@ -1,4 +1,5 @@
-const CACHE_NAME = 'edgewood-dev-dev-2026.05.25.1355';
+// DO NOT REFORMAT deploy.bash depends on this line
+const CACHE_NAME = 'edgewood-dev-2026.05.25.1440';
 
 const APP_SHELL = [
   './',
@@ -11,7 +12,7 @@ const APP_SHELL = [
   './manifest.json'
 ];
 
-if (CACHE_NAME === 'edgewood-dev-dev-2026.05.25.1355') {
+if (CACHE_NAME === '__CACHE_NAME__') {
   throw new Error('CACHE_NAME not injected');
 }
 
