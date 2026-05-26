@@ -535,35 +535,6 @@ function createEmptySurvey() {
   };
 }
 
-// --- REFRESH APP (ONLINE ONLY ACTION) ---
-async function refreshApp() {
-  const status = ui.header.status;
-  status.textContent = 'Refreshing…';
-
-  try {
-    if (!navigator.onLine) {
-      throw new Error('Offline');
-    }
-
-    //
-    // fetch fresh datasets
-    //
-    const [plantsRes, trailsRes] = await Promise.all([
-      fetch('./plants.json', { cache: 'reload' }),
-      fetch('./trails.json', { cache: 'reload' })
-    ]);
-
-    if (!plantsRes.ok || !trailsRes.ok) {
-      throw new Error('Dataset fetch failed');
-    }
-
-    const plants = await plantsRes.json();
-    const trailData = await trailsRes.json();
-
-    localStorage.setItem('plants', JSON.stringify(plants));
-    localStorage.setItem('trails', JSON.stringify(trailData));
-    localStorage.setItem('lastUpdated', new Date().toISOString());
-
 // --- REFRESH APP ---
 async function refreshApp() {
   const status = ui.header.status;
@@ -611,21 +582,6 @@ async function refreshApp() {
   } catch (e) {
     console.error( 'REFRESH FAILED:', e);
     alert( 'Refresh failed:\n' + e.message);
-    status.textContent = 'Offline mode using cached app';
-  }
-}
-
-
-    status.textContent = 'Refresh complete';
-
-    //
-    // reload app
-    //
-    location.reload();
-
-  } catch (e) {
-    console.error('REFRESH FAILED:', e);
-    alert('Refresh failed:\n' + e.message);
     status.textContent = 'Offline mode using cached app';
   }
 }
