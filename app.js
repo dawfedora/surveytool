@@ -35,35 +35,92 @@ async function init() {
 
   initUI();
 
+  // Validate DOM
   const missing = validateUI(ui);
   if (missing.length) {
     console.error('Missing DOM elements:\n' + missing.join('\n'));
     return;
   }
 
-  const ok = loadLocalData();
+  // Load running version info
+  try {
+    version = await loadVersion();
+    updateStatus();
+  } catch (e) {
+    console.error('Version load failed', e);
+    if (ui.header.status)
+      ui.header.status.textContent = 'Unknown version';
+  }
+
+  // Async update check
+  checkForUpdate().catch(e => console.warn('Version check failed', e));
+
+  // Load datasets
+  const ok = await loadLocalData();
+
   if (!ok) {
     enterLimitedMode();
     return;
   }
 
+  //
+  // Restore state
+  //
   initializeCurrentTrail();
+
   survey = loadSurvey();
+
   determineInitialMode();
 
+  // Initialize UI
   initHeader();
   initLogView();
   initNotesView();
 
   syncTrailSelectors();
+
   renderMode();
+}
 
-  // Optional: show last updated time
-  const last = localStorage.getItem('lastUpdated');
+async function loadVersion() {
 
-  if (ui.header.status && last) {
+  const response = await fetch('./version.json');
+
+  if (!response.ok)
+    throw new Error('Failed to load version');
+
+  const data = await response.json();
+
+  if (!data.version || !data.cacheName)
+    throw new Error( 'Invalid version.json');
+
+  return data;
+}
+
+function updateStatus() {
+  if (!ui.header.status || !version)
+    return;
+  ui.header.status.textContent = `Vers: ${version.version}`;
+}
+
+async function checkForUpdate() {
+
+  if (!navigator.onLine)
+    return;
+
+  const response = await fetch('./version.json', {cache: 'reload'});
+
+  if (!response.ok)
+    return;
+
+  const latest = await response.json();
+
+  if (latest.version !== version.version) {
+
     ui.header.status.textContent =
-      'Data updated: ' + new Date(last).toLocaleString();
+      `Vers: ${version.version} (Update available)`;
+
+    // or banner/button
   }
 }
 
@@ -153,7 +210,7 @@ function validateUI(obj, path = 'ui') {
 
   for (const [key, value] of Object.entries(obj)) {
     const currentPath = `${path}.${key}`;
-    if ( value && typeof value === 'object' &&
+    if (value && typeof value === 'object' &&
         !(value instanceof HTMLElement)) {
       missing.push(
         ...validateUI(value, currentPath)
@@ -174,24 +231,38 @@ function initHeader() {
 }
 
 // --- LOAD LOCAL DATA ---
-function loadLocalData() {
+async function loadLocalData() {
+
   try {
-    const plants = JSON.parse(localStorage.getItem('plants'));
-    const trailData = JSON.parse(localStorage.getItem('trails'));
 
-    if (!plants || !trailData) {
-      console.warn('No local data found');
-      return false;
-    }
+    const dataFiles = [
+      'plants',
+      'trails'
+    ];
 
-    trails = trailData.trails || trailData;
-    species = plants.species || plants;
+    const responses = await Promise.all(
+        dataFiles.map(name => fetch(`./${name}.json`))
+    );
+
+    responses.forEach(
+      (response, i) => {
+        if (!response.ok) throw new Error(`Failed to load ${dataFiles[i]}`);
+      }
+    );
+
+    const parsed = await Promise.all(responses.map(r => r.json()));
+
+    const loaded =
+      Object.fromEntries(dataFiles.map((name, i) => [name, parsed[i]]));
+
+    species = requireArray(loaded.plants, 'species', 'plants.json');
+    trails = requireArray(loaded.trails, 'trails', 'trails.json');
 
     let dropped = 0;
     let missingCommon = 0;
     let missingScientific = 0;
 
-    //  Normalize once
+    // Normalize once
     species = species.filter(s => {
       let common = s.commonName?.trim();
       let scientific = s.scientificName?.trim();
@@ -199,7 +270,7 @@ function loadLocalData() {
       // Remove completely broken entries
       if (!common && !scientific) {
         dropped++;
-        console.warn( 'Dropped empty species record', s);
+        console.warn('Dropped empty species record', s);
         return false;
       }
 
@@ -214,31 +285,20 @@ function loadLocalData() {
       }
       // Normalize back into object
       s.commonName = common;
-      s.displayCommon = common + (s.status || '');
       s.scientificName = scientific;
-
-const commonNorm = normalizeCommon(common);
-const scientificNorm = normalizeScientific(scientific);
-
-s._commonNormalized = commonNorm;
-s._commonTokens = commonNorm.split(' ');
-s._commonJoined = s._commonTokens.join('');
-
-s._scientificNormalized = scientificNorm;
       s._common = common.toLowerCase();
       s._scientific = scientific.toLowerCase();
+      s.displayCommon = common + (s.status || '');
 
       return true;
     });
 
+    if (dropped) console.warn(`Dropped ${dropped} invalid species`);
+
     if (missingCommon || missingScientific) {
       let msg = 'Plant data warning: ';
-      if (missingCommon) {
-        msg += `${missingCommon} missing common names`;
-      }
-      if (missingCommon && missingScientific) {
-        msg += ', ';
-      }
+      if (missingCommon) msg += `${missingCommon} missing common names`;
+      if (missingCommon && missingScientific) msg += ', ';
       if (missingScientific) {
         msg += `${missingScientific} missing scientific names`;
       }
@@ -251,57 +311,27 @@ s._scientificNormalized = scientificNorm;
     }
     console.log(`Loaded ${trails.length} trails, ${species.length} species`);
     return true;
-
   } catch (e) {
     console.error('Failed to load local data', e);
     return false;
   }
 }
 
-function normalizeCommon(str) {
-  return (str || '')
-    .toLowerCase()
-    .trim()
-    // replace funky apostrophes
-    .replace(/[’']/g, "'")
-    .replace(/-/g, ' ')
-    .replace(/(\w+)'s/, '$1s')
-    .replace(/(\w+)s'/, '$1s')
-    .replace(/\s+/g, ' ');
-}
+function requireArray(obj, key, filename) {
 
-function normalizeScientific(str) {
-  return (str || '')
-    .toLowerCase()
-    .trim()
-    // unify taxonomic abbreviations
-    .replace(/ssp\./g, 'ssp')
-    .replace(/var\./g, 'var')
-    .replace(/\s+/g, ' ');
-}
+  if (!obj || !Array.isArray(obj[key])) throw new Error(`Invalid ${filename}`);
 
-function normalizeQuery(str) {
-  return (str || '')
-    .toLowerCase()
-    .trim()
-    // remove punctuation that commonly breaks plant names
-    .replace(/-/, ' ')
-    .replace(/[’']/g, "'")
-    .replace(/(\w+)'s/, '$1s')
-    .replace(/(\w+)s's/, '$1s')
-    .replace(/(\w+)s'/, '$1s')
-    // collapse all whitespace (including trailing spaces inside query)
-    .replace(/\s+/g, ' ');
+  return obj[key];
 }
 
 function initLogView() {
+  // Hook search
   let searchTimer;
-
   ui.log.search.addEventListener('input', e => {
     clearTimeout(searchTimer);
-
     searchTimer = setTimeout(() => {
-      updateSearchResults(e.target.value);
+      const results = search(e.target.value);
+      renderResults(results);
     }, 100);
   });
   populateTrailSelector(ui.log.trailSelect);
@@ -520,30 +550,59 @@ async function refreshApp() {
 
     localStorage.setItem('plants', JSON.stringify(plants));
     localStorage.setItem('trails', JSON.stringify(trailData));
-    localStorage.setItem( 'lastUpdated', new Date().toISOString());
+    localStorage.setItem('lastUpdated', new Date().toISOString());
 
-    //
-    // refresh shell cache
-    //
+// --- REFRESH APP ---
+async function refreshApp() {
+  const status = ui.header.status;
+  status.textContent = 'Refreshing…';
 
-    const cache = await caches.open('edgewood-shell');
+  try {
+    if (!navigator.onLine) { throw new Error('Offline'); }
 
-    const shellFiles = [
+    const version = getInstalledVersion();
+    const cacheName = version.cacheName;
+
+    if (!cacheName) { throw new Error('Missing cache name'); }
+
+    const cache = await caches.open(cacheName);
+
+    const APP_SHELL = [
       './',
       './index.html',
       './app.js',
-      './manifest.json',
-      './sw.js'
+      './sw.js',
+      './version.json',
+      './plants.json',
+      './trails.json',
+      './manifest.json'
     ];
+    // refresh cached files
+    for (const file of APP_SHELL) {
+      console.log('refreshing:', file);
+      const request = new Request(file, { cache: 'reload' });
 
-    for (const file of shellFiles) {
-      const response = await fetch(file, { cache: 'reload' });
+      const response = await fetch(request);
+      console.log(file, response.status, response.type);
 
       if (!response.ok) {
         throw new Error(`Failed to refresh ${file}`);
       }
-      await cache.put(file, response.clone);
+      await cache.put(file, response.clone());
     }
+
+    status.textContent = 'Refresh complete';
+
+    // restart app
+    location.reload();
+
+  } catch (e) {
+    console.error( 'REFRESH FAILED:', e);
+    alert( 'Refresh failed:\n' + e.message);
+    status.textContent = 'Offline mode using cached app';
+  }
+}
+
 
     status.textContent = 'Refresh complete';
 
@@ -553,8 +612,8 @@ async function refreshApp() {
     location.reload();
 
   } catch (e) {
-    console.error(e);
-    alert('Refresh failed.\n' + 'Check network connection.');
+    console.error('REFRESH FAILED:', e);
+    alert('Refresh failed:\n' + e.message);
     status.textContent = 'Offline mode using cached app';
   }
 }
@@ -726,7 +785,7 @@ function addSighting(item) {
   const trail = ensureTrail(survey, currentTrail);
   const entries = trail.entries;
 
-  const duplicate = entries.some( e => e.speciesId == item.speciesId );
+  const duplicate = entries.some(e => e.speciesId == item.speciesId);
   if (duplicate) {
     if (!confirm('Already recorded on this trail. Add again?')) {
       return;
@@ -772,124 +831,24 @@ function clearSurvey() {
   }
 }
 
-function updateSearchResults(query) {
-  query = query.trim();
-  if (query.length < 2) {
-    renderResults([]);
-    return;
-  }
-
-  const results = search(query);
-
-  if (!results.length) {
-    renderNoMatches();
-    return;
-  }
-  renderResults(results);
-}
-
 // --- SEARCH ---
 function search(q) {
+  if (!Array.isArray(species)) return [];
 
-  if (!Array.isArray(species)) {
-    return [];
+  q = (q || '').toLowerCase();
+
+  if (q.length < 2) return [];
+
+  if (q.length < 3) {
+    return species.filter(item => {
+      return item._common.startsWith(q) || item._scientific.startsWith(q);
+    });
   }
 
-  const qNorm = normalizeQuery(q);
-
-  if (qNorm.length < 2) {
-    return [];
-  }
-
-  const qJoined =
-    qNorm.replace(/\s+/g, '');
-
-  const exactWord = [];
+  const exactWord = [];   // NEW
   const starts = [];
   const wordStarts = [];
-  const joined = [];
   const contains = [];
-
-  species.forEach(item => {
-
-    const common =
-      item._commonNormalized || '';
-
-    const scientific =
-      item._scientificNormalized || '';
-
-    const commonJoined =
-      item._commonJoined || '';
-
-    //
-    // 1. exact starting word
-    //
-    if (
-      common.startsWith(qNorm + ' ') ||
-      scientific.startsWith(qNorm + ' ')
-    ) {
-      exactWord.push(item);
-      return;
-    }
-
-    //
-    // 2. starts with
-    //
-    if (
-      common.startsWith(qNorm) ||
-      scientific.startsWith(qNorm)
-    ) {
-      starts.push(item);
-      return;
-    }
-
-    //
-    // 3. later word starts
-    //
-    if (
-      common.includes(' ' + qNorm) ||
-      scientific.includes(' ' + qNorm)
-    ) {
-      wordStarts.push(item);
-      return;
-    }
-
-    //
-    // 4. token-joined match
-    // dog wood -> dogwood
-    // meadow rue -> meadow-rue
-    //
-    qJoined = qNorm.replace(/\s+/g, '');
-
-    if (qJoined & item._commonJoined.includes(qJoined)) {
-      joinedContains.push(item);
-    }
-    if (
-      qJoined.length >= 5 &&
-      commonJoined.includes(qJoined)
-    ) {
-      joined.push(item);
-      return;
-    }
-
-    //
-    // 5. substring contains
-    //
-    if (common.includes(qNorm) || scientific.includes(qNorm)) {
-      contains.push(item);
-    }
-
-  });
-
-  return [
-    ...exactWord,
-    ...starts,
-    ...wordStarts,
-    ...joined,
-    ...contains
-  ].slice(0, 30);
-}
-function search(q) {
 
   species.forEach(item => {
     const common = (item._common || '');
@@ -919,25 +878,47 @@ function search(q) {
       return;
     }
 
-  });
+    // q is in there
+    if (
+      common.includes(q) ||
+      scientific.includes(q)
+    ) {
+      contains.push(item);
+    }
+    });
 
+  return [
+    ...exactWord,   // 👈 highest priority
+    ...starts,
+    ...wordStarts,
+    ...contains
+  ].slice(0, 30);
 }
 
 // --- Render results ---
-function renderNoMatches() {
-  const container = ui.log.results;
-  container.innerHTML = ` <div class="item">No matches</div> `;
-  container.scrollTop = 0;
-}
-
 function renderResults(list) {
   const container = ui.log.results;
   container.innerHTML = '';
   container.scrollTop = 0;
 
+  const input = ui.log.search;
+
+  if (input.value.length < 2) {
+    container.innerHTML = '';
+    return;
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="item">No matches</div>';
+    return;
+  }
+
+  if (!Array.isArray(list)) return;
+
   list.forEach(item => {
     const div = document.createElement('div');
     div.className = 'resultItem';
+
     div.innerHTML = `
       <span class="common">${item.commonName}</span>
       <span class="scientific">${item.scientificName}</span>
@@ -945,15 +926,17 @@ function renderResults(list) {
 
     div.onclick = () => {
       addSighting(item);
-      ui.log.search.value = '';
+
+      const input = ui.log.search;
+      input.value = '';
       renderResults([]);
-      ui.log.search.focus();
+
+      input.focus();  // 👈 here
     };
+
     container.appendChild(div);
   });
 }
-
-
 
 // --- Render log ---
 function renderLog() {

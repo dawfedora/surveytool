@@ -1,0 +1,48 @@
+name: Deploy site
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Generate version.json and sw.js
+        run: |
+          bash deploy.bash
+
+      - name: Prepare files
+        run: |
+          mkdir publish
+
+          rsync -av \
+            --exclude 'publish' \
+            --exclude '.git' \
+            --exclude '.github' \
+            ./ publish-temp/
+
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            cp -r publish-temp/* publish/
+          fi
+
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            mkdir -p publish/dev
+            cp -r publish-temp/* publish/dev/
+          fi
+
+      - name: Publish
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: publish
+          keep_files: true
