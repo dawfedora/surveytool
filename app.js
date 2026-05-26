@@ -324,6 +324,18 @@ function requireArray(obj, key, filename) {
   return obj[key];
 }
 
+function normalizeCommon(str) {
+  return (str || '')
+    .toLowerCase()
+    .trim()
+    // replace funky apostrophes
+    .replace(/[’']/g, "'")
+    .replace(/-/g, ' ')
+    .replace(/(\w+)'s/, '$1s')
+    .replace(/(\w+)s'/, '$1s')
+    .replace(/\s+/g, ' ');
+}
+
 function initLogView() {
   // Hook search
   let searchTimer;
