@@ -35,39 +35,92 @@ async function init() {
 
   initUI();
 
+  // Validate DOM
   const missing = validateUI(ui);
   if (missing.length) {
     console.error('Missing DOM elements:\n' + missing.join('\n'));
     return;
   }
 
-//  const response = await fetch('./version.json');
-//  if (response.ok) {
-//  version = response.version`
+  // Load running version info
+  try {
+    version = await loadVersion();
+    updateStatus();
+  } catch (e) {
+    console.error('Version load failed', e);
+    if (ui.header.status)
+      ui.header.status.textContent = 'Unknown version';
+  }
 
-  const ok = loadLocalData();
+  // Async update check
+  checkForUpdate().catch(e => console.warn('Version check failed', e));
+
+  // Load datasets
+  const ok = await loadLocalData();
+
   if (!ok) {
     enterLimitedMode();
     return;
   }
 
+  //
+  // Restore state
+  //
   initializeCurrentTrail();
+
   survey = loadSurvey();
+
   determineInitialMode();
 
+  // Initialize UI
   initHeader();
   initLogView();
   initNotesView();
 
   syncTrailSelectors();
+
   renderMode();
+}
 
-  // Optional: show last updated time
-  const last = localStorage.getItem('lastUpdated');
+async function loadVersion() {
 
-  if (ui.header.status && last) {
+  const response = await fetch('./version.json');
+
+  if (!response.ok)
+    throw new Error('Failed to load version');
+
+  const data = await response.json();
+
+  if (!data.version || !data.cacheName)
+    throw new Error( 'Invalid version.json');
+
+  return data;
+}
+
+function updateStatus() {
+  if (!ui.header.status || !version)
+    return;
+  ui.header.status.textContent = `Vers: ${version.version}`;
+}
+
+async function checkForUpdate() {
+
+  if (!navigator.onLine)
+    return;
+
+  const response = await fetch('./version.json', {cache: 'reload'});
+
+  if (!response.ok)
+    return;
+
+  const latest = await response.json();
+
+  if (latest.version !== version.version) {
+
     ui.header.status.textContent =
-      'Data updated: ' + new Date(last).toLocaleString();
+      `Vers: ${version.version} (Update available)`;
+
+    // or banner/button
   }
 }
 
@@ -157,7 +210,7 @@ function validateUI(obj, path = 'ui') {
 
   for (const [key, value] of Object.entries(obj)) {
     const currentPath = `${path}.${key}`;
-    if ( value && typeof value === 'object' &&
+    if (value && typeof value === 'object' &&
         !(value instanceof HTMLElement)) {
       missing.push(
         ...validateUI(value, currentPath)
@@ -178,24 +231,38 @@ function initHeader() {
 }
 
 // --- LOAD LOCAL DATA ---
-function loadLocalData() {
+async function loadLocalData() {
+
   try {
-    const plants = JSON.parse(localStorage.getItem('plants'));
-    const trailData = JSON.parse(localStorage.getItem('trails'));
 
-    if (!plants || !trailData) {
-      console.warn('No local data found');
-      return false;
-    }
+    const dataFiles = [
+      'plants',
+      'trails'
+    ];
 
-    trails = trailData.trails || trailData;
-    species = plants.species || plants;
+    const responses = await Promise.all(
+        dataFiles.map(name => fetch(`./${name}.json`))
+    );
+
+    responses.forEach(
+      (response, i) => {
+        if (!response.ok) throw new Error(`Failed to load ${dataFiles[i]}`);
+      }
+    );
+
+    const parsed = await Promise.all(responses.map(r => r.json()));
+
+    const loaded =
+      Object.fromEntries(dataFiles.map((name, i) => [name, parsed[i]]));
+
+    species = requireArray(loaded.plants, 'species', 'plants.json');
+    trails = requireArray(loaded.trails, 'trails', 'trails.json');
 
     let dropped = 0;
     let missingCommon = 0;
     let missingScientific = 0;
 
-    // 🔥 Normalize once
+    // Normalize once
     species = species.filter(s => {
       let common = s.commonName?.trim();
       let scientific = s.scientificName?.trim();
@@ -203,7 +270,7 @@ function loadLocalData() {
       // Remove completely broken entries
       if (!common && !scientific) {
         dropped++;
-        console.warn( 'Dropped empty species record', s);
+        console.warn('Dropped empty species record', s);
         return false;
       }
 
@@ -226,14 +293,12 @@ function loadLocalData() {
       return true;
     });
 
+    if (dropped) console.warn(`Dropped ${dropped} invalid species`);
+
     if (missingCommon || missingScientific) {
       let msg = 'Plant data warning: ';
-      if (missingCommon) {
-        msg += `${missingCommon} missing common names`;
-      }
-      if (missingCommon && missingScientific) {
-        msg += ', ';
-      }
+      if (missingCommon) msg += `${missingCommon} missing common names`;
+      if (missingCommon && missingScientific) msg += ', ';
       if (missingScientific) {
         msg += `${missingScientific} missing scientific names`;
       }
@@ -246,11 +311,29 @@ function loadLocalData() {
     }
     console.log(`Loaded ${trails.length} trails, ${species.length} species`);
     return true;
-
   } catch (e) {
     console.error('Failed to load local data', e);
     return false;
   }
+}
+
+function requireArray(obj, key, filename) {
+
+  if (!obj || !Array.isArray(obj[key])) throw new Error(`Invalid ${filename}`);
+
+  return obj[key];
+}
+
+function normalizeCommon(str) {
+  return (str || '')
+    .toLowerCase()
+    .trim()
+    // replace funky apostrophes
+    .replace(/[’']/g, "'")
+    .replace(/-/g, ' ')
+    .replace(/(\w+)'s/, '$1s')
+    .replace(/(\w+)s'/, '$1s')
+    .replace(/\s+/g, ' ');
 }
 
 function initLogView() {
@@ -479,13 +562,22 @@ async function refreshApp() {
 
     localStorage.setItem('plants', JSON.stringify(plants));
     localStorage.setItem('trails', JSON.stringify(trailData));
-    localStorage.setItem( 'lastUpdated', new Date().toISOString());
+    localStorage.setItem('lastUpdated', new Date().toISOString());
 
-    //
-    // refresh shell cache
-    //
+// --- REFRESH APP ---
+async function refreshApp() {
+  const status = ui.header.status;
+  status.textContent = 'Refreshing…';
 
-    const cache = await caches.open('edgewood-shell');
+  try {
+    if (!navigator.onLine) { throw new Error('Offline'); }
+
+    const version = getInstalledVersion();
+    const cacheName = version.cacheName;
+
+    if (!cacheName) { throw new Error('Missing cache name'); }
+
+    const cache = await caches.open(cacheName);
 
     const APP_SHELL = [
       './',
@@ -497,20 +589,32 @@ async function refreshApp() {
       './trails.json',
       './manifest.json'
     ];
-
+    // refresh cached files
     for (const file of APP_SHELL) {
       console.log('refreshing:', file);
       const request = new Request(file, { cache: 'reload' });
 
       const response = await fetch(request);
-
       console.log(file, response.status, response.type);
 
       if (!response.ok) {
         throw new Error(`Failed to refresh ${file}`);
       }
-      await cache.put(request, response.clone());
+      await cache.put(file, response.clone());
     }
+
+    status.textContent = 'Refresh complete';
+
+    // restart app
+    location.reload();
+
+  } catch (e) {
+    console.error( 'REFRESH FAILED:', e);
+    alert( 'Refresh failed:\n' + e.message);
+    status.textContent = 'Offline mode using cached app';
+  }
+}
+
 
     status.textContent = 'Refresh complete';
 
@@ -693,7 +797,7 @@ function addSighting(item) {
   const trail = ensureTrail(survey, currentTrail);
   const entries = trail.entries;
 
-  const duplicate = entries.some( e => e.speciesId == item.speciesId );
+  const duplicate = entries.some(e => e.speciesId == item.speciesId);
   if (duplicate) {
     if (!confirm('Already recorded on this trail. Add again?')) {
       return;
