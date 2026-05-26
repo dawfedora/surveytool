@@ -83,7 +83,6 @@ async function init() {
 }
 
 async function loadVersion() {
-
   const response = await fetch('./version.json');
 
   if (!response.ok)
@@ -108,7 +107,7 @@ async function checkForUpdate() {
   if (!navigator.onLine)
     return;
 
-  const response = await fetch('./version.json', {cache: 'reload'});
+  const response = await fetch('./version.json', {cache: 'no-store'});
 
   if (!response.ok)
     return;
@@ -116,11 +115,8 @@ async function checkForUpdate() {
   const latest = await response.json();
 
   if (latest.version !== version.version) {
-
     ui.header.status.textContent =
-      `Vers: ${version.version} (Update available)`;
-
-    // or banner/button
+       `Vers: ${version.version} (Update available)`;
   }
 }
 
@@ -543,7 +539,7 @@ async function refreshApp() {
   try {
     if (!navigator.onLine) { throw new Error('Offline'); }
 
-    const version = getInstalledVersion();
+    const version = loadVersion();
     const cacheName = version.cacheName;
 
     if (!cacheName) { throw new Error('Missing cache name'); }
@@ -560,6 +556,7 @@ async function refreshApp() {
       './trails.json',
       './manifest.json'
     ];
+
     // refresh cached files
     for (const file of APP_SHELL) {
       console.log('refreshing:', file);
