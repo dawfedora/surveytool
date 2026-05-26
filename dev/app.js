@@ -539,7 +539,7 @@ async function refreshApp() {
   try {
     if (!navigator.onLine) { throw new Error('Offline'); }
 
-    const version = loadVersion();
+    const version = await loadVersion();
     const cacheName = version.cacheName;
 
     if (!cacheName) { throw new Error('Missing cache name'); }
