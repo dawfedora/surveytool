@@ -466,11 +466,12 @@ function renderMode() {
 
 function positionResults() {
 
-  if (!ui.log.search || !ui.log.results) return;
+  if (!ui.log.search || !ui.log.results)
+    return;
 
   const searchRect = ui.log.search.getBoundingClientRect();
 
-  const panelRect = ui.log.panel?.getBoundingClientRect.();
+  const panelRect = ui.log.panel.getBoundingClientRect();
 
   // distance from top of logView
   const top = searchRect.bottom - panelRect.top;
