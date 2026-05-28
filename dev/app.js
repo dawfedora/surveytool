@@ -466,15 +466,19 @@ function renderMode() {
 
 function positionResults() {
 
-  if (!ui.log.search || !ui.log.results) {
-    return;
-  }
+  if (!ui.log.search || !ui.log.results) return;
 
-  const rect =
-    ui.log.search.getBoundingClientRect();
+  const searchRect = ui.log.search.getBoundingClientRect();
 
-  ui.log.results.style.top =
-    `${rect.bottom}px`;
+  const panelRect = ui.log.panel?.getBoundingClientRect.();
+
+  // distance from top of logView
+  const top = searchRect.bottom - panelRect.top;
+
+  ui.log.results.style.top = `${top}px`;
+
+  // make it cover everything below search
+  ui.log.results.style.height = `${panelRect.bottom - searchRect.bottom}px`;
 }
 
 function renderLogView() {
