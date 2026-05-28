@@ -14,6 +14,7 @@ let survey = null;
 let currentTrail = null;
 let currentMode = 'log';
 let currentNotePanel = 'start';
+let version = null;
 
 function debounce(fn, delay = 300) {
   let timer = null;
@@ -342,6 +343,10 @@ function initLogView() {
       renderResults(results);
     }, 100);
   });
+
+  window.addEventListener('resize', debounce(positionResults, 50));
+  window.visualViewport?.addEventListener( 'resize', debounce(positionResults, 50));
+
   populateTrailSelector(ui.log.trailSelect);
 }
 
@@ -459,6 +464,19 @@ function renderMode() {
   }
 }
 
+function positionResults() {
+
+  if (!ui.log.search || !ui.log.results) {
+    return;
+  }
+
+  const rect =
+    ui.log.search.getBoundingClientRect();
+
+  ui.log.results.style.top =
+    `${rect.bottom}px`;
+}
+
 function renderLogView() {
 
   if (!survey) {
@@ -478,6 +496,9 @@ function renderLogView() {
 
   // clear search UI state (optional but clean)
   ui.log.results.innerHTML = '';
+
+  // position results overlay
+  requestAnimationFrame(positionResults);
 }
 
 function renderNotesView() {
@@ -512,8 +533,8 @@ function renderNotesView() {
 function createEmptySurvey() {
   return {
     meta: {
-      created: new Date().toISOString(),
-      updated: new Date().toISOString()
+      created: formatTimestamp(),
+      updated: formatTimestamp()
     },
     startNote: {
       date: '',
@@ -617,8 +638,8 @@ function loadSurvey() {
     }
 
   // Ensure required top-level fields exist
-  survey.startNote ??= '';
-  survey.endNote ??= '';
+  survey.startNote ??= {};
+  survey.endNote ??= {};
   survey.trails ??= {};
 
   return survey;
@@ -632,7 +653,7 @@ function loadSurvey() {
 function ensureTrail(survey, trailId) {
   if (!survey.trails[trailId]) {
     survey.trails[trailId] = {
-      firstEntered: new Date().toISOString(),
+      firstEntered: formatTimestamp(),
       notes: '',
       entries: []
     };
@@ -641,7 +662,7 @@ function ensureTrail(survey, trailId) {
   return survey.trails[trailId];
 }
 
-function saveSurvey() {
+function saveSurvey(survey) {
   localStorage.setItem('survey', JSON.stringify(survey));
 }
 
@@ -661,9 +682,9 @@ function saveStartNote() {
     notes: s.notes.value
   };
 
-  survey.meta.updated = new Date().toISOString();
+  survey.meta.updated = formatTimestamp();
 
-  saveSurvey();
+  saveSurvey(survey);
 }
 
 function renderStartNote() {
@@ -692,9 +713,9 @@ function saveTrailNote() {
 
   trail.notes = ui.notes.trail.notes.value;
 
-  survey.meta.updated = new Date().toISOString();
+  survey.meta.updated = formatTimestamp();
 
-  saveSurvey();
+  saveSurvey(survey);
 }
 
 function renderTrailNotes() {
@@ -720,9 +741,9 @@ function saveCloseNote() {
     notes: c.notes.value
   };
 
-  survey.meta.updated = new Date().toISOString();
+  survey.meta.updated = formatTimestamp();
 
-  saveSurvey();
+  saveSurvey(survey);
 }
 
 function renderCloseNote() {
@@ -762,7 +783,7 @@ function addSighting(item) {
     commonName: item.displayCommon,
     scientificName: item.scientificName,
     note: '', 
-    time: new Date().toISOString()
+    time: formatTimestamp()
   });
 
   saveSurvey(survey);
@@ -1019,10 +1040,47 @@ function downloadSurvey() {
   const a = document.createElement('a');
   a.href = url;
 
-  const date = new Date().toISOString().slice(0, 10);
+  const date = formatTimestamp().slice(0, 10);
   a.download = `edgewood-survey-${date}.json`;
 
   a.click();
 
   URL.revokeObjectURL(url);
 }
+//
+// local timestamp
+// YYYY-MM-DD HH:MM:SS
+//
+function formatTimestamp(date = new Date()) {
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+
+  return (`${yyyy}-${mm}-${dd} ` + `${hh}:${min}:${ss}`);
+}
+
+//
+// display date
+// MM/DD/YYYY
+//
+function formatDate(date) {
+  return date.toLocaleDateString(
+    'en-US', {year: 'numeric', month: '2-digit', day: '2-digit' }
+  );
+}
+
+//
+// display time
+// HH:MM
+//
+function formatTime(date) {
+  return date.toLocaleTimeString(
+    'en-US',
+    {hour: '2-digit', minute: '2-digit', hour12: false }
+  );
+}
+
