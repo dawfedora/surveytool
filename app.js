@@ -579,7 +579,7 @@ async function refreshApp() {
       './version.json',
       './plants.json',
       './trails.json',
-      './foe-logo.pdf',
+      './foe-logo.png',
       './manifest.json'
     ];
 
