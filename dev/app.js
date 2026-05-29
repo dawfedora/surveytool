@@ -579,8 +579,9 @@ async function refreshApp() {
       './version.json',
       './plants.json',
       './trails.json',
-      './foe-logo.png',
-      './manifest.json'
+      './manifest.json',
+      './icons/foe-icon-512.png',
+      './foe-logo.png'
     ];
 
     // refresh cached files
