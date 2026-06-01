@@ -1066,7 +1066,7 @@ function renderLog() {
   const note = document.createElement('textarea');
 
   note.value = entry.note || '';
-  note.placeholder = 'note...';
+  note.placeholder = 'note';
 
   note.rows = 1;
 
