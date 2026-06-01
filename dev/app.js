@@ -1082,6 +1082,13 @@ function renderLog() {
   // wrap nicely
   note.style.whiteSpace = 'pre-wrap';
   note.style.wordBreak = 'break-word';
+note.style.paddingTop = '0';
+note.style.paddingBottom = '0';
+note.style.paddingLeft = '4px';
+note.style.paddingRight = '4px';
+
+note.style.boxSizing = 'border-box';
+note.style.verticalAlign = 'top';
 
 // initial size AFTER attachment/layout
 setTimeout(() => resizeNote(note), 0);
