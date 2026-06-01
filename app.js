@@ -1078,7 +1078,7 @@ function renderLog() {
   note.style.resize = 'none';
   note.style.overflow = 'hidden';
   note.style.font = 'inherit';
-  note.style.lineHeight = '1.3';
+  note.style.lineHeight = 'inherit';
   // wrap nicely
   note.style.whiteSpace = 'pre-wrap';
   note.style.wordBreak = 'break-word';
@@ -1146,11 +1146,12 @@ note.addEventListener('blur', () => {
 function resizeNote(note, expanded = false) {
 
   // width
+  minCh = note.placeholder.length + 1;
   if (expanded) {
     note.style.width = '24ch';
   } else {
     const len = note.value.trim().length;
-    note.style.width = `${Math.min(Math.max(len + 2, 6), 20)}ch`;
+    note.style.width = `${Math.min(Math.max(len + 2, minCh), 20)}ch`;
   }
   // height
   note.style.height = 'auto';
