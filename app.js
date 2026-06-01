@@ -12,8 +12,8 @@ let species = [];
 let trails = [];
 let survey = null;
 let currentTrail = null;
-let currentMode = 'log';
-let currentNotePanel = 'start';
+let currentMode = "log";
+let currentNotePanel = "start";
 let version = null;
 
 function debounce(fn, delay = 300) {
@@ -28,7 +28,7 @@ function debounce(fn, delay = 300) {
   };
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener("DOMContentLoaded", init);
 
 // --- INIT ---
 
@@ -39,7 +39,7 @@ async function init() {
   // Validate DOM
   const missing = validateUI(ui);
   if (missing.length) {
-    console.error('Missing DOM elements:\n' + missing.join('\n'));
+    console.error("Missing DOM elements:\n" + missing.join("\n"));
     return;
   }
 
@@ -48,13 +48,13 @@ async function init() {
     version = await loadVersion();
     updateStatus();
   } catch (e) {
-    console.error('Version load failed', e);
+    console.error("Version load failed", e);
     if (ui.header.status)
-      ui.header.status.textContent = 'Unknown version';
+      ui.header.status.textContent = "Unknown version";
   }
 
   // Async update check
-  checkForUpdate().catch(e => console.warn('Version check failed', e));
+  checkForUpdate().catch(e => console.warn("Version check failed", e));
 
   // Load datasets
   const ok = await loadLocalData();
@@ -84,15 +84,15 @@ async function init() {
 }
 
 async function loadVersion() {
-  const response = await fetch('./version.json');
+  const response = await fetch("./version.json");
 
   if (!response.ok)
-    throw new Error('Failed to load version');
+    throw new Error("Failed to load version");
 
   const data = await response.json();
 
   if (!data.version || !data.cacheName)
-    throw new Error( 'Invalid version.json');
+    throw new Error( "Invalid version.json");
 
   return data;
 }
@@ -108,7 +108,7 @@ async function checkForUpdate() {
   if (!navigator.onLine)
     return;
 
-  const response = await fetch('./version.json', {cache: 'no-store'});
+  const response = await fetch("./version.json", {cache: "no-store"});
 
   if (!response.ok)
     return;
@@ -125,28 +125,28 @@ function enterLimitedMode() {
 
   ui.header.refreshBtn.onclick = refreshApp;
 
-  ui.header.modeBtn.style.display = 'none';
-  ui.header.newBtn.style.display = 'none';
-  ui.header.downloadBtn.style.display = 'none';
+  ui.header.modeBtn.style.display = "none";
+  ui.header.newBtn.style.display = "none";
+  ui.header.downloadBtn.style.display = "none";
 
-  ui.log.panel.style.display = 'none';
-  ui.notes.panel.style.display = 'none';
+  ui.log.panel.style.display = "none";
+  ui.notes.panel.style.display = "none";
 
   ui.header.status.textContent =
-    'No local data. Connect to network and tap Refresh.';
+    "No local data. Connect to network and tap Refresh.";
 
   const status = ui.header.status;
   if (status) {
-    status.textContent = 'No data loaded. Tap Refresh while online.';
+    status.textContent = "No data loaded. Tap Refresh while online.";
   }
 
-  return; // 🚨 STOP HERE
+  return; // STOP HERE
 }
 
 function initializeCurrentTrail() {
 
   const saved =
-    localStorage.getItem('lastTrail');
+    localStorage.getItem("lastTrail");
 
   const valid =
     trails.some(t => t.id === saved);
@@ -160,9 +160,9 @@ function initializeCurrentTrail() {
 
 function initUI() {
   ui.header = {
-    modeBtn: document.getElementById('modeBtn'),
-    newBtn: document.getElementById('newBtn'),
-    refreshBtn: document.getElementById('refreshBtn'),
+    modeBtn: document.getElementById("modeBtn"),
+    newBtn: document.getElementById("newBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
     downloadBtn: document.getElementById('downloadBtn'),
     status: document.getElementById('status')
   };
@@ -253,60 +253,9 @@ async function loadLocalData() {
       Object.fromEntries(dataFiles.map((name, i) => [name, parsed[i]]));
 
     species = requireArray(loaded.plants, 'species', 'plants.json');
+    species = processSpecies(species);
     trails = requireArray(loaded.trails, 'trails', 'trails.json');
 
-    let dropped = 0;
-    let missingCommon = 0;
-    let missingScientific = 0;
-
-    // Normalize once
-    species = species.filter(s => {
-      let common = s.commonName?.trim();
-      let scientific = s.scientificName?.trim();
-
-      // Remove completely broken entries
-      if (!common && !scientific) {
-        dropped++;
-        console.warn('Dropped empty species record', s);
-        return false;
-      }
-
-      // Repair partial entries
-      if (!common) {
-        missingCommon++;
-        common = '[no common name]';
-      }
-      if (!scientific) {
-        missingScientific++;
-        scientific = '[no scientific name]';
-      }
-      // Normalize back into object
-      s.commonName = common;
-      s.scientificName = scientific;
-      s._common = common.toLowerCase();
-      s._scientific = scientific.toLowerCase();
-      s.displayCommon = common + (s.status || '');
-
-      return true;
-    });
-
-    if (dropped) console.warn(`Dropped ${dropped} invalid species`);
-
-    if (missingCommon || missingScientific) {
-      let msg = 'Plant data warning: ';
-      if (missingCommon) msg += `${missingCommon} missing common names`;
-      if (missingCommon && missingScientific) msg += ', ';
-      if (missingScientific) {
-        msg += `${missingScientific} missing scientific names`;
-      }
-      console.warn(msg);
-
-      const status = ui.header.status;
-      if (status) {
-        status.textContent = msg;
-      }
-    }
-    console.log(`Loaded ${trails.length} trails, ${species.length} species`);
     return true;
   } catch (e) {
     console.error('Failed to load local data', e);
@@ -314,51 +263,218 @@ async function loadLocalData() {
   }
 }
 
+function processSpecies(species) {
+  let dropped = 0;
+  let missingCommon = 0;
+  let missingScientific = 0;
+
+  // Normalize once at load
+  species = species.filter(s => {
+
+    if (!s || typeof s !== 'object') {
+      dropped++;
+      console.warn('processSpecies: invalid record', s);
+      return false;
+    }
+
+    let field = 'common name';
+    let common = cleanData(s.commonName, field);
+    if (common === null) {
+      // already eliminated
+    } else if (common.split(' ').some(t => t.length < 2)) {
+        console.warn(`processSpecies: ${field} short token`, common);
+        common = null;
+    } else if (!/^[a-zA-Z '()\-]+$/.test(common)) {
+        console.warn(`processSpecies: invalid characters in ${field}`, common);
+        common = null;
+    }
+
+    field = 'scientific name';
+    let scientific = cleanData(s.scientificName, field);
+    if (scientific === null) {
+      // already eliminated
+    } else if (scientific.split(' ').some(t => t.length < 2)) {
+      console.warn(`processSpecies: ${field} short token`, scientific);
+      scientific = null;
+    } else if (!/^[a-zA-Z .]+$/.test(scientific)) {
+      console.warn(`processSpecies: invalid characters in ${field}`,
+        scientific);
+      scientific = null;
+    }
+
+    field = "status";
+    let status = cleanData(s.status, field);
+    if (status === null)
+      status = "";
+    if (status !== '' &&  status !== '*' && status !== '#' && status !== '[#]') {
+      console.warn(`processSpecies: invalid value in ${field}`, status);
+      status = "";
+    }
+
+    // Remove completely broken entries
+    if (common === null && scientific === null) {
+      dropped++;
+      console.warn(`processSpecies: Dropped species record`, s);
+      return false;
+    }
+
+    // Repair partial entries
+    if (common === null) {
+      missingCommon++;
+      common = "[no common name]";
+    }
+    if (scientific === null) {
+      missingScientific++;
+      scientific = "[no scientific name]";
+    }
+    // Normalize back into object
+    s.status = status;
+    s.scientificName = scientific;
+    s.scientificNorm = normalizeScientific(scientific);
+    s.commonName = common;
+    s.displayCommon = common + (s.status || "");
+    s.commonNorm = normalizeCommon(common);
+    s.commonTokens = s.commonNorm.split(" ");
+    s.commonJoined = s.commonTokens.join("");
+
+    return true;
+  });
+
+  if (dropped) console.warn(`Dropped ${dropped} invalid species`);
+
+  if (missingCommon || missingScientific) {
+    let msg = "Plant data warning: ";
+    if (missingCommon)
+      msg += `${missingCommon} missing common names`;
+    if (missingCommon && missingScientific)
+      msg += ", ";
+    if (missingScientific)
+      msg += `${missingScientific} missing scientific names`;
+
+    console.warn(msg);
+
+    const status = ui.header.status;
+    if (status) {
+      status.textContent = msg;
+    }
+  }
+  console.log(
+    `Loaded ${trails.length} trails, ${species.length} species`
+  );
+
+  return species;
+}
+
 function requireArray(obj, key, filename) {
-
-  if (!obj || !Array.isArray(obj[key])) throw new Error(`Invalid ${filename}`);
-
+  if (!obj || !Array.isArray(obj[key]))
+    throw new Error(`Invalid data: ${filename}`);
   return obj[key];
 }
 
+function cleanData(s,Fieldname = "field") {
+  if (typeof s !== "string") {
+    console.warn(`cleanData: expected string for ${fieldName}`, s);
+    return null;
+  }
+
+  if (/[\n\r\v\f\u00A0]/.test(s))
+    console.warn(`cleanData: illegal whitespace in ${fieldName}`, s);
+
+  const cleaned = s
+    .replace(/[\s\u00A0]+/g, " ")
+    .trim();
+  if (cleaned !== s)
+    console.warn(`cleanData: normalized whitespace in ${fieldName}`, s);
+  return cleaned;
+}
+
 function normalizeCommon(str) {
-  return (str || '')
+  return (str)
+    .toLowerCase()
+    .replace(/(\w+)-(\w+)/g, "$1 $2")
+    .replace(/(\w+)'s/, "$1s")
+    .replace(/(\w+)s'/, "$1s");
+}
+
+function normalizeScientific(str) {
+  return (str || null)
     .toLowerCase()
     .trim()
-    // replace funky apostrophes
-    .replace(/[’']/g, "'")
-    .replace(/-/g, ' ')
+    .replace(/ssp\./, "ssp")
+    .replace(/var\./, "var");
+}
+
+function normalizeQuery(str) {
+  return (str || "")
+    .toLowerCase()
+    .trim()
+    // remove punctuation that commonly breaks plant names
+    .replace(/-/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
     .replace(/(\w+)'s/, '$1s')
     .replace(/(\w+)s'/, '$1s')
+    // collapse all whitespace (including trailing spaces inside query)
     .replace(/\s+/g, ' ');
 }
 
-function initLogView() {
-  // Hook search
-  let searchTimer;
-  ui.log.search.addEventListener('input', e => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      const results = search(e.target.value);
-      renderResults(results);
-    }, 100);
-  });
+function validateSearchInput(event) {
 
-  window.addEventListener('resize', debounce(positionResults, 50));
-  window.visualViewport?.addEventListener( 'resize', debounce(positionResults, 50));
+  // allow deletes/backspace
+  if ( event.inputType?.startsWith( 'delete'))
+    return;
+
+  // IME / autocomplete / weird cases
+  if (!event.data) 
+     return;
+
+  const allowed = /^[a-zA-Z\s\-'.’]+$/;
+
+  if (!allowed.test(event.data)) {
+    event.preventDefault();
+    flashInvalidSearch();
+  }
+}
+
+function flashInvalidSearch() {
+  const input = ui.log.search;
+
+  input.classList.add("inputRejected");
+  setTimeout(() => {input.classList.remove( "inputRejected"); }, 120);
+}
+
+
+function initLogView() {
+
+  ui.log.search.addEventListener("beforeinput", validateSearchInput);
+
+  let searchTimer;
+
+  ui.log.search.addEventListener("input", e => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        const results = search(e.target.value);
+        renderResults(results);
+      }, 100);
+    }
+  );
+
+  window.addEventListener("resize", debounce(positionResults, 50));
+  window.visualViewport?.addEventListener(
+    "resize",debounce(positionResults, 50)
+  );
 
   populateTrailSelector(ui.log.trailSelect);
 }
 
 function initNotesView() {
-  ui.notes.buttons.start.addEventListener('click', () => {
-    showNotesPanel('start');
+  ui.notes.buttons.start.addEventListener("click", () => {
+    showNotesPanel("start");
   });
-  ui.notes.buttons.trail.addEventListener('click', () => {
-    showNotesPanel('trail');
+  ui.notes.buttons.trail.addEventListener("click", () => {
+    showNotesPanel("trail");
   });
-  ui.notes.buttons.close.addEventListener('click', () => {
-    showNotesPanel('close');
+  ui.notes.buttons.close.addEventListener("click", () => {
+    showNotesPanel("close");
   });
 
   populateTrailSelector(ui.notes.trail.trailSelect);
@@ -367,50 +483,50 @@ function initNotesView() {
   initTrailNote();
   initCloseNote();
 
-  showNotesPanel('start'); // or whatever default
+  showNotesPanel("start"); // or whatever default
 }
 
 function initStartNote() {
 
   const s = ui.notes.start;
 
-  s.date.addEventListener('input', debounce(saveStartNote, 300));
-  s.time.addEventListener('input', debounce(saveStartNote, 300));
-  s.weather.addEventListener('input', debounce(saveStartNote, 300));
-  s.participants.addEventListener('input', debounce(saveStartNote, 300));
-  s.notes.addEventListener('input', debounce(saveStartNote, 300));
+  s.date.addEventListener("input", debounce(saveStartNote, 300));
+  s.time.addEventListener("input", debounce(saveStartNote, 300));
+  s.weather.addEventListener("input", debounce(saveStartNote, 300));
+  s.participants.addEventListener("input", debounce(saveStartNote, 300));
+  s.notes.addEventListener("input", debounce(saveStartNote, 300));
 }
 
 function initTrailNote() {
 
   const t = ui.notes.trail;
 
-  t.notes.addEventListener('input', debounce(saveTrailNote, 300));
+  t.notes.addEventListener("input", debounce(saveTrailNote, 300));
 }
 
 function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener('input', debounce(saveCloseNote, 300));
-  c.weather.addEventListener('input', debounce(saveCloseNote, 300));
-  c.notes.addEventListener('input', debounce(saveCloseNote, 300));
+  c.time.addEventListener("input", debounce(saveCloseNote, 300));
+  c.weather.addEventListener("input", debounce(saveCloseNote, 300));
+  c.notes.addEventListener("input", debounce(saveCloseNote, 300));
 }
 
 function determineInitialMode() {
   if (survey) {
-    currentMode = 'log';
+    currentMode = "log";
   } else {
-    currentMode = 'notes';
-    currentNotePanel = 'start';
+    currentMode = "notes";
+    currentNotePanel = "start";
   }
 }
 
 function populateTrailSelector(select) {
-  select.innerHTML = '';
+  select.innerHTML = "";
 
   trails.forEach(t => {
-    const opt = document.createElement('option');
+    const opt = document.createElement("option");
     opt.value = t.id;
     opt.textContent = t.name;
     select.appendChild(opt);
@@ -777,7 +893,7 @@ function addSighting(item) {
   const trail = ensureTrail(survey, currentTrail);
   const entries = trail.entries;
 
-  const duplicate = entries.some(e => e.speciesId == item.speciesId);
+  const duplicate = entries.some(e => e.speciesId === item.speciesId);
   if (duplicate) {
     if (!confirm('Already recorded on this trail. Add again?')) {
       return;
@@ -825,64 +941,47 @@ function clearSurvey() {
 
 // --- SEARCH ---
 function search(q) {
-  if (!Array.isArray(species)) return [];
 
-  q = (q || '').toLowerCase();
+  q = normalizeQuery(q);
 
   if (q.length < 2) return [];
 
-  if (q.length < 3) {
-    return species.filter(item => {
-      return item._common.startsWith(q) || item._scientific.startsWith(q);
-    });
-  }
 
-  const exactWord = [];   // NEW
+  if (q.length < 2) return [];
+  
+  const qWord = " " + q;
+  const qJoined = q.replace(/\s+/g, "");
+
   const starts = [];
   const wordStarts = [];
+  const joined = [];
   const contains = [];
+ 
+// create " q" and "q " for use in exactWord and wordStarts
+  for (const item of species) {
+    const common = item.commonNorm;
+    const scientific = item.scientificNorm;
+    const commonJoined = item.commonJoined;
 
-  species.forEach(item => {
-    const common = (item._common || '');
-    const scientific = (item._scientific || '');
-
-    //  Exact match on starting word (best)
-    if (
-      common.startsWith(q + ' ') ||
-      scientific.startsWith(q + ' ')
-    ) {
-      exactWord.push(item);
-      return;
-    }
-
-    // starts with q
-    if (common.startsWith(q) || scientific.startsWith(q)) {
+    if (common.startsWith(q) || scientific.startsWith(q))
       starts.push(item);
-      return;
-    }
 
-    // a non-leading word starts with q
-    if (
-      common.includes(' ' + q) ||
-      scientific.includes(' ' + q)
-    ) {
+    else if (common.includes(qWord) || scientific.includes(qWord))
       wordStarts.push(item);
-      return;
-    }
 
-    // q is in there
-    if (
-      common.includes(q) ||
-      scientific.includes(q)
-    ) {
+    else if (commonJoined.includes(qJoined))
+      joined.push(item);
+
+    else if (common.includes(q) || scientific.includes(q))
       contains.push(item);
-    }
-    });
+
+  }
 
   return [
     ...exactWord,   // 👈 highest priority
     ...starts,
     ...wordStarts,
+    ...joined,
     ...contains
   ].slice(0, 30);
 }
