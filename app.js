@@ -293,7 +293,7 @@ function processSpecies(species) {
     let scientific = cleanData(s.scientificName, field);
     if (scientific === null) {
       // already eliminated
-    } else if (scientific.split(' ').some(t => t.length < 2)) {
+    } else if (scientific.split(' ').some(t => t !== "x" && t.length < 2)) {
       console.warn(`processSpecies: ${field} short token`, scientific);
       scientific = null;
     } else if (!/^[a-zA-Z .\-]+$/.test(scientific)) {
