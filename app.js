@@ -336,7 +336,7 @@ function processSpecies(species) {
     s.displayCommon = common + (s.status || "");
     s.commonNorm = normalizeCommon(common);
     s.commonWords = s.commonNorm.split(" ");
-    s.commonJoined = s.commonTokens.join("");
+    s.commonJoined = s.commonWords.join("");
 
     return true;
   });
