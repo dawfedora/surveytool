@@ -1080,7 +1080,7 @@ function renderLog() {
   note.style.font = 'inherit';
   note.style.lineHeight = 'inherit';
   // wrap nicely
-  note.style.whiteSpace = 'pre-wrap';
+  note.style.whiteSpace = 'pre';
   note.style.wordBreak = 'break-word';
 note.style.paddingTop = '0';
 note.style.paddingBottom = '0';
@@ -1149,7 +1149,9 @@ function resizeNote(note, expanded = false) {
   minCh = note.placeholder.length + 1;
   if (expanded) {
     note.style.width = '24ch';
+    note.style.whiteSpace = 'pre-wrap';
   } else {
+    note.style.whiteSpace = 'pre';
     const len = note.value.trim().length;
     note.style.width = `${Math.min(Math.max(len + 2, minCh), 20)}ch`;
   }
