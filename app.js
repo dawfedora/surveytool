@@ -303,12 +303,12 @@ function processSpecies(species) {
     }
 
     field = "status";
-    let status = cleanData(s.status, field);
-    if (status === null)
-      status = "";
-    if (status !== '' &&  status !== '*' && status !== '#' && status !== '[#]') {
-      console.warn(`processSpecies: invalid value in ${field}`, status);
-      status = "";
+    let suffix = cleanData(s.status, field);
+    if (suffix === null)
+      suffix = "";
+    if (suffix !== '' &&  suffix !== '*' && suffix !== '#' && suffix !== '[#]') {
+      console.warn(`processSpecies: invalid value in ${field}`, suffix);
+      suffix = "";
     }
 
     // Remove completely broken entries
@@ -328,12 +328,12 @@ function processSpecies(species) {
       scientific = "[no scientific name]";
     }
     // Normalize back into object
-    s.status = status;
+    s.status = suffix;
     s.scientificName = scientific;
     s.scientificNorm = normalizeScientific(scientific);
     s;scientificWords = s.scientificNorm.split(" ");
     s.commonName = common;
-    s.displayCommon = common + (s.status || "");
+    s.displayCommon = common + suffix;
     s.commonNorm = normalizeCommon(common);
     s.commonWords = s.commonNorm.split(" ");
     s.commonJoined = s.commonWords.join("");
