@@ -284,7 +284,7 @@ function processSpecies(species) {
     } else if (common.split(' ').some(t => t.length < 2)) {
         console.warn(`processSpecies: ${field} short token`, common);
         common = null;
-    } else if (!/^[a-zA-Z '()\-]+$/.test(common)) {
+    } else if (!/^[a-zA-Z '()\-\/]+$/.test(common)) {
         console.warn(`processSpecies: invalid characters in ${field}`, common);
         common = null;
     }
@@ -296,7 +296,7 @@ function processSpecies(species) {
     } else if (scientific.split(' ').some(t => t.length < 2)) {
       console.warn(`processSpecies: ${field} short token`, scientific);
       scientific = null;
-    } else if (!/^[a-zA-Z .]+$/.test(scientific)) {
+    } else if (!/^[a-zA-Z .\-]+$/.test(scientific)) {
       console.warn(`processSpecies: invalid characters in ${field}`,
         scientific);
       scientific = null;
@@ -331,10 +331,11 @@ function processSpecies(species) {
     s.status = status;
     s.scientificName = scientific;
     s.scientificNorm = normalizeScientific(scientific);
+    s;scientificWords = s.scientificNorm.split(" ");
     s.commonName = common;
     s.displayCommon = common + (s.status || "");
-    s.commonNorm = normalizeCommon(common);
-    s.commonTokens = s.commonNorm.split(" ");
+    s.\/commonNorm = normalizeCommon(common);
+    s.commonWords = s.commonNorm.split(" ");
     s.commonJoined = s.commonTokens.join("");
 
     return true;
@@ -392,6 +393,7 @@ function normalizeCommon(str) {
   return (str)
     .toLowerCase()
     .replace(/(\w+)-(\w+)/g, "$1 $2")
+    .replace(/(\w+)\\(\w+)/, "$1 $2")
     .replace(/(\w+)'s/, "$1s")
     .replace(/(\w+)s'/, "$1s");
 }
@@ -957,7 +959,6 @@ function search(q) {
   const joined = [];
   const contains = [];
  
-// create " q" and "q " for use in exactWord and wordStarts
   for (const item of species) {
     const common = item.commonNorm;
     const scientific = item.scientificNorm;
@@ -978,7 +979,6 @@ function search(q) {
   }
 
   return [
-    ...exactWord,   // 👈 highest priority
     ...starts,
     ...wordStarts,
     ...joined,
