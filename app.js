@@ -1070,32 +1070,37 @@ function renderLog() {
 
   note.rows = 1;
 
-  note.style.flex = '0 1 120px';
-  note.style.minWidth = '60px';
+  note.style.flex = '0 1 auto';
+
+  note.style.minWidth = '5ch';
   note.style.maxWidth = '50%';
-  note.style.width = '120px';
 
   note.style.resize = 'none';
   note.style.overflow = 'hidden';
   note.style.font = 'inherit';
   note.style.lineHeight = '1.3';
+  // wrap nicely
+  note.style.whiteSpace = 'pre-wrap';
+  note.style.wordBreak = 'break-word';
 
 // initial size AFTER attachment/layout
-setTimeout(() => {
-  note.style.height = 'auto';
-  note.style.height = note.scrollHeight + 'px';
-}, 0);
+setTimeout(() => resizeNote(note), 0);
 
 
-    // auto-grow
-    note.addEventListener('input', () => {
-      note.style.height = 'auto';
-      note.style.height = note.scrollHeight + 'px';
+// auto-grow + save
+note.addEventListener('input', () => {
+  resizeNote(note, true);
+  entry.note = note.value;
+  saveSurvey(survey);
+});
 
-      entry.note = note.value;
-      saveSurvey(survey);
-    });
+note.addEventListener('focus', () => {
+  resizeNote(note, true);
+});
 
+note.addEventListener('blur', () => {
+  resizeNote(note, false);
+});
 
     row.appendChild(label);
     row.appendChild(note);
@@ -1131,6 +1136,19 @@ setTimeout(() => {
   container.scrollTop = container.scrollHeight;
 }
 
+function resizeNote(note, expanded = false) {
+
+  // width
+  if (expanded) {
+    note.style.width = '24ch';
+  } else {
+    const len = note.value.trim().length;
+    note.style.width = `${Math.min(Math.max(len + 2, 6), 20)}ch`;
+  }
+  // height
+  note.style.height = 'auto';
+  note.style.height = note.scrollHeight + 'px';
+}
 
 function downloadSurvey() {
   const data = localStorage.getItem('survey');
