@@ -12,8 +12,9 @@ let species = [];
 let trails = [];
 let survey = null;
 let currentTrail = null;
-let currentMode = 'log';
-let currentNotePanel = 'start';
+let currentMode = "log";
+let currentNotePanel = "start";
+let version = null;
 
 function debounce(fn, delay = 300) {
   let timer = null;
@@ -27,7 +28,7 @@ function debounce(fn, delay = 300) {
   };
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener("DOMContentLoaded", init);
 
 // --- INIT ---
 
@@ -35,35 +36,88 @@ async function init() {
 
   initUI();
 
+  // Validate DOM
   const missing = validateUI(ui);
   if (missing.length) {
-    console.error('Missing DOM elements:\n' + missing.join('\n'));
+    console.error("Missing DOM elements:\n" + missing.join("\n"));
     return;
   }
 
-  const ok = loadLocalData();
+  // Load running version info
+  try {
+    version = await loadVersion();
+    updateStatus();
+  } catch (e) {
+    console.error("Version load failed", e);
+    if (ui.header.status)
+      ui.header.status.textContent = "Unknown version";
+  }
+
+  // Async update check
+  checkForUpdate().catch(e => console.warn("Version check failed", e));
+
+  // Load datasets
+  const ok = await loadLocalData();
+
   if (!ok) {
     enterLimitedMode();
     return;
   }
 
+  //
+  // Restore state
+  //
   initializeCurrentTrail();
+
   survey = loadSurvey();
+
   determineInitialMode();
 
+  // Initialize UI
   initHeader();
   initLogView();
   initNotesView();
 
   syncTrailSelectors();
+
   renderMode();
+}
 
-  // Optional: show last updated time
-  const last = localStorage.getItem('lastUpdated');
+async function loadVersion() {
+  const response = await fetch("./version.json");
 
-  if (ui.header.status && last) {
+  if (!response.ok)
+    throw new Error("Failed to load version");
+
+  const data = await response.json();
+
+  if (!data.version || !data.cacheName)
+    throw new Error( "Invalid version.json");
+
+  return data;
+}
+
+function updateStatus() {
+  if (!ui.header.status || !version)
+    return;
+  ui.header.status.textContent = `Vers: ${version.version}`;
+}
+
+async function checkForUpdate() {
+
+  if (!navigator.onLine)
+    return;
+
+  const response = await fetch("./version.json", {cache: "no-store"});
+
+  if (!response.ok)
+    return;
+
+  const latest = await response.json();
+
+  if (latest.version !== version.version) {
     ui.header.status.textContent =
-      'Data updated: ' + new Date(last).toLocaleString();
+       `Vers: ${version.version} (Update available)`;
   }
 }
 
@@ -71,28 +125,28 @@ function enterLimitedMode() {
 
   ui.header.refreshBtn.onclick = refreshApp;
 
-  ui.header.modeBtn.style.display = 'none';
-  ui.header.newBtn.style.display = 'none';
-  ui.header.downloadBtn.style.display = 'none';
+  ui.header.modeBtn.style.display = "none";
+  ui.header.newBtn.style.display = "none";
+  ui.header.downloadBtn.style.display = "none";
 
-  ui.log.panel.style.display = 'none';
-  ui.notes.panel.style.display = 'none';
+  ui.log.panel.style.display = "none";
+  ui.notes.panel.style.display = "none";
 
   ui.header.status.textContent =
-    'No local data. Connect to network and tap Refresh.';
+    "No local data. Connect to network and tap Refresh.";
 
   const status = ui.header.status;
   if (status) {
-    status.textContent = 'No data loaded. Tap Refresh while online.';
+    status.textContent = "No data loaded. Tap Refresh while online.";
   }
 
-  return; // 🚨 STOP HERE
+  return; // STOP HERE
 }
 
 function initializeCurrentTrail() {
 
   const saved =
-    localStorage.getItem('lastTrail');
+    localStorage.getItem("lastTrail");
 
   const valid =
     trails.some(t => t.id === saved);
@@ -106,9 +160,9 @@ function initializeCurrentTrail() {
 
 function initUI() {
   ui.header = {
-    modeBtn: document.getElementById('modeBtn'),
-    newBtn: document.getElementById('newBtn'),
-    refreshBtn: document.getElementById('refreshBtn'),
+    modeBtn: document.getElementById("modeBtn"),
+    newBtn: document.getElementById("newBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
     downloadBtn: document.getElementById('downloadBtn'),
     status: document.getElementById('status')
   };
@@ -153,7 +207,7 @@ function validateUI(obj, path = 'ui') {
 
   for (const [key, value] of Object.entries(obj)) {
     const currentPath = `${path}.${key}`;
-    if ( value && typeof value === 'object' &&
+    if (value && typeof value === 'object' &&
         !(value instanceof HTMLElement)) {
       missing.push(
         ...validateUI(value, currentPath)
@@ -174,103 +228,255 @@ function initHeader() {
 }
 
 // --- LOAD LOCAL DATA ---
-function loadLocalData() {
+async function loadLocalData() {
+
   try {
-    const plants = JSON.parse(localStorage.getItem('plants'));
-    const trailData = JSON.parse(localStorage.getItem('trails'));
 
-    if (!plants || !trailData) {
-      console.warn('No local data found');
-      return false;
-    }
+    const dataFiles = [
+      'plants',
+      'trails'
+    ];
 
-    trails = trailData.trails || trailData;
-    species = plants.species || plants;
+    const responses = await Promise.all(
+        dataFiles.map(name => fetch(`./${name}.json`))
+    );
 
-    let dropped = 0;
-    let missingCommon = 0;
-    let missingScientific = 0;
-
-    // 🔥 Normalize once
-    species = species.filter(s => {
-      let common = s.commonName?.trim();
-      let scientific = s.scientificName?.trim();
-
-      // Remove completely broken entries
-      if (!common && !scientific) {
-        dropped++;
-        console.warn( 'Dropped empty species record', s);
-        return false;
+    responses.forEach(
+      (response, i) => {
+        if (!response.ok) throw new Error(`Failed to load ${dataFiles[i]}`);
       }
+    );
 
-      // Repair partial entries
-      if (!common) {
-        missingCommon++;
-        common = '[no common name]';
-      }
-      if (!scientific) {
-        missingScientific++;
-        scientific = '[no scientific name]';
-      }
-      // Normalize back into object
-      s.commonName = common;
-      s.scientificName = scientific;
-      s._common = common.toLowerCase();
-      s._scientific = scientific.toLowerCase();
-      s.displayCommon = common + (s.status || '');
+    const parsed = await Promise.all(responses.map(r => r.json()));
 
-      return true;
-    });
+    const loaded =
+      Object.fromEntries(dataFiles.map((name, i) => [name, parsed[i]]));
 
-    if (missingCommon || missingScientific) {
-      let msg = 'Plant data warning: ';
-      if (missingCommon) {
-        msg += `${missingCommon} missing common names`;
-      }
-      if (missingCommon && missingScientific) {
-        msg += ', ';
-      }
-      if (missingScientific) {
-        msg += `${missingScientific} missing scientific names`;
-      }
-      console.warn(msg);
+    species = requireArray(loaded.plants, 'species', 'plants.json');
+    species = processSpecies(species);
+    trails = requireArray(loaded.trails, 'trails', 'trails.json');
 
-      const status = ui.header.status;
-      if (status) {
-        status.textContent = msg;
-      }
-    }
-    console.log(`Loaded ${trails.length} trails, ${species.length} species`);
     return true;
-
   } catch (e) {
     console.error('Failed to load local data', e);
     return false;
   }
 }
 
-function initLogView() {
-  // Hook search
-  let searchTimer;
-  ui.log.search.addEventListener('input', e => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      const results = search(e.target.value);
-      renderResults(results);
-    }, 100);
+function processSpecies(species) {
+  let dropped = 0;
+  let missingCommon = 0;
+  let missingScientific = 0;
+
+  // Normalize once at load
+  species = species.filter(s => {
+
+    if (!s || typeof s !== 'object') {
+      dropped++;
+      console.warn('processSpecies: invalid record', s);
+      return false;
+    }
+
+    let field = 'common name';
+    let common = cleanData(s.commonName, field);
+    if (common === null) {
+      // already eliminated
+    } else if (common.split(' ').some(t => t.length < 2)) {
+        console.warn(`processSpecies: ${field} short token`, common);
+        common = null;
+    } else if (!/^[a-zA-Z '()\-\/]+$/.test(common)) {
+        console.warn(`processSpecies: invalid characters in ${field}`, common);
+        common = null;
+    }
+
+    field = 'scientific name';
+    let scientific = cleanData(s.scientificName, field);
+    if (scientific === null) {
+      // already eliminated
+    } else if (scientific.split(' ').some(t => t !== "x" && t.length < 2)) {
+      console.warn(`processSpecies: ${field} short token`, scientific);
+      scientific = null;
+    } else if (!/^[a-zA-Z .\-]+$/.test(scientific)) {
+      console.warn(`processSpecies: invalid characters in ${field}`,
+        scientific);
+      scientific = null;
+    }
+
+    field = "status";
+    let suffix = cleanData(s.status, field);
+    if (suffix === null)
+      suffix = "";
+    if (suffix !== '' &&  suffix !== '*' && suffix !== '#' && suffix !== '[#]') {
+      console.warn(`processSpecies: invalid value in ${field}`, suffix);
+      suffix = "";
+    }
+
+    // Remove completely broken entries
+    if (common === null && scientific === null) {
+      dropped++;
+      console.warn(`processSpecies: Dropped species record`, s);
+      return false;
+    }
+
+    // Repair partial entries
+    if (common === null) {
+      missingCommon++;
+      common = "[no common name]";
+    }
+    if (scientific === null) {
+      missingScientific++;
+      scientific = "[no scientific name]";
+    }
+    // Normalize back into object
+    s.status = suffix;
+    s.scientificName = scientific;
+    s.scientificNorm = normalizeScientific(scientific);
+    s;scientificWords = s.scientificNorm.split(" ");
+    s.commonName = common;
+    s.displayCommon = common + suffix;
+    s.commonNorm = normalizeCommon(common);
+    s.commonWords = s.commonNorm.split(" ");
+    s.commonJoined = s.commonWords.join("");
+
+    return true;
   });
+
+  if (dropped) console.warn(`Dropped ${dropped} invalid species`);
+
+  if (missingCommon || missingScientific) {
+    let msg = "Plant data warning: ";
+    if (missingCommon)
+      msg += `${missingCommon} missing common names`;
+    if (missingCommon && missingScientific)
+      msg += ", ";
+    if (missingScientific)
+      msg += `${missingScientific} missing scientific names`;
+
+    console.warn(msg);
+
+    const status = ui.header.status;
+    if (status) {
+      status.textContent = msg;
+    }
+  }
+  console.log(
+    `Loaded ${trails.length} trails, ${species.length} species`
+  );
+
+  return species;
+}
+
+function requireArray(obj, key, filename) {
+  if (!obj || !Array.isArray(obj[key]))
+    throw new Error(`Invalid data: ${filename}`);
+  return obj[key];
+}
+
+function cleanData(s,Fieldname = "field") {
+  if (typeof s !== "string") {
+    console.warn(`cleanData: expected string for ${fieldName}`, s);
+    return null;
+  }
+
+  if (/[\n\r\v\f\u00A0]/.test(s))
+    console.warn(`cleanData: illegal whitespace in ${fieldName}`, s);
+
+  const cleaned = s
+    .replace(/[\s\u00A0]+/g, " ")
+    .trim();
+  if (cleaned !== s)
+    console.warn(`cleanData: normalized whitespace in ${fieldName}`, s);
+  return cleaned;
+}
+
+function normalizeCommon(str) {
+  return (str)
+    .toLowerCase()
+    .replace(/(\w+)-(\w+)/g, "$1 $2")
+    .replace(/(\w+)\/(\w+)/, "$1 $2")
+    .replace(/(\w+)'s/, "$1s")
+    .replace(/(\w+)s'/, "$1s");
+}
+
+function normalizeScientific(str) {
+  return (str || null)
+    .toLowerCase()
+    .trim()
+    .replace(/ssp\./, "ssp")
+    .replace(/var\./, "var");
+}
+
+function normalizeQuery(str) {
+  return (str || "")
+    .toLowerCase()
+    .trim()
+    // remove punctuation that commonly breaks plant names
+    .replace(/-/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/(\w+)'s/, '$1s')
+    .replace(/(\w+)s'/, '$1s')
+    // collapse all whitespace (including trailing spaces inside query)
+    .replace(/\s+/g, ' ');
+}
+
+function validateSearchInput(event) {
+
+  // allow deletes/backspace
+  if ( event.inputType?.startsWith( 'delete'))
+    return;
+
+  // IME / autocomplete / weird cases
+  if (!event.data) 
+     return;
+
+  const allowed = /^[a-zA-Z\s\-\/'.’]+$/;
+
+  if (!allowed.test(event.data)) {
+    event.preventDefault();
+    flashInvalidSearch();
+  }
+}
+
+function flashInvalidSearch() {
+  const input = ui.log.search;
+
+  input.classList.add("inputRejected");
+  setTimeout(() => {input.classList.remove( "inputRejected"); }, 120);
+}
+
+
+function initLogView() {
+
+  ui.log.search.addEventListener("beforeinput", validateSearchInput);
+
+  let searchTimer;
+
+  ui.log.search.addEventListener("input", e => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        const results = search(e.target.value);
+        renderResults(results);
+      }, 100);
+    }
+  );
+
+  window.addEventListener("resize", debounce(positionResults, 50));
+  window.visualViewport?.addEventListener(
+    "resize",debounce(positionResults, 50)
+  );
+
   populateTrailSelector(ui.log.trailSelect);
 }
 
 function initNotesView() {
-  ui.notes.buttons.start.addEventListener('click', () => {
-    showNotesPanel('start');
+  ui.notes.buttons.start.addEventListener("click", () => {
+    showNotesPanel("start");
   });
-  ui.notes.buttons.trail.addEventListener('click', () => {
-    showNotesPanel('trail');
+  ui.notes.buttons.trail.addEventListener("click", () => {
+    showNotesPanel("trail");
   });
-  ui.notes.buttons.close.addEventListener('click', () => {
-    showNotesPanel('close');
+  ui.notes.buttons.close.addEventListener("click", () => {
+    showNotesPanel("close");
   });
 
   populateTrailSelector(ui.notes.trail.trailSelect);
@@ -279,50 +485,50 @@ function initNotesView() {
   initTrailNote();
   initCloseNote();
 
-  showNotesPanel('start'); // or whatever default
+  showNotesPanel("start"); // or whatever default
 }
 
 function initStartNote() {
 
   const s = ui.notes.start;
 
-  s.date.addEventListener('input', debounce(saveStartNote, 300));
-  s.time.addEventListener('input', debounce(saveStartNote, 300));
-  s.weather.addEventListener('input', debounce(saveStartNote, 300));
-  s.participants.addEventListener('input', debounce(saveStartNote, 300));
-  s.notes.addEventListener('input', debounce(saveStartNote, 300));
+  s.date.addEventListener("input", debounce(saveStartNote, 300));
+  s.time.addEventListener("input", debounce(saveStartNote, 300));
+  s.weather.addEventListener("input", debounce(saveStartNote, 300));
+  s.participants.addEventListener("input", debounce(saveStartNote, 300));
+  s.notes.addEventListener("input", debounce(saveStartNote, 300));
 }
 
 function initTrailNote() {
 
   const t = ui.notes.trail;
 
-  t.notes.addEventListener('input', debounce(saveTrailNote, 300));
+  t.notes.addEventListener("input", debounce(saveTrailNote, 300));
 }
 
 function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener('input', debounce(saveCloseNote, 300));
-  c.weather.addEventListener('input', debounce(saveCloseNote, 300));
-  c.notes.addEventListener('input', debounce(saveCloseNote, 300));
+  c.time.addEventListener("input", debounce(saveCloseNote, 300));
+  c.weather.addEventListener("input", debounce(saveCloseNote, 300));
+  c.notes.addEventListener("input", debounce(saveCloseNote, 300));
 }
 
 function determineInitialMode() {
   if (survey) {
-    currentMode = 'log';
+    currentMode = "log";
   } else {
-    currentMode = 'notes';
-    currentNotePanel = 'start';
+    currentMode = "notes";
+    currentNotePanel = "start";
   }
 }
 
 function populateTrailSelector(select) {
-  select.innerHTML = '';
+  select.innerHTML = "";
 
   trails.forEach(t => {
-    const opt = document.createElement('option');
+    const opt = document.createElement("option");
     opt.value = t.id;
     opt.textContent = t.name;
     select.appendChild(opt);
@@ -376,6 +582,24 @@ function renderMode() {
   }
 }
 
+function positionResults() {
+
+  if (!ui.log.search || !ui.log.results)
+    return;
+
+  const searchRect = ui.log.search.getBoundingClientRect();
+
+  const panelRect = ui.log.panel.getBoundingClientRect();
+
+  // distance from top of logView
+  const top = searchRect.bottom - panelRect.top;
+
+  ui.log.results.style.top = `${top}px`;
+
+  // make it cover everything below search
+  ui.log.results.style.height = `${panelRect.bottom - searchRect.bottom}px`;
+}
+
 function renderLogView() {
 
   if (!survey) {
@@ -395,6 +619,9 @@ function renderLogView() {
 
   // clear search UI state (optional but clean)
   ui.log.results.innerHTML = '';
+
+  // position results overlay
+  requestAnimationFrame(positionResults);
 }
 
 function renderNotesView() {
@@ -429,8 +656,8 @@ function renderNotesView() {
 function createEmptySurvey() {
   return {
     meta: {
-      created: new Date().toISOString(),
-      updated: new Date().toISOString()
+      created: formatTimestamp(),
+      updated: formatTimestamp()
     },
     startNote: {
       date: '',
@@ -448,74 +675,55 @@ function createEmptySurvey() {
   };
 }
 
-// --- REFRESH APP (ONLINE ONLY ACTION) ---
+// --- REFRESH APP ---
 async function refreshApp() {
   const status = ui.header.status;
   status.textContent = 'Refreshing…';
 
   try {
-    if (!navigator.onLine) {
-      throw new Error('Offline');
-    }
+    if (!navigator.onLine) { throw new Error('Offline'); }
 
-    //
-    // fetch fresh datasets
-    //
-    const [plantsRes, trailsRes] = await Promise.all([
-      fetch('./plants.json', { cache: 'reload' }),
-      fetch('./trails.json', { cache: 'reload' })
-    ]);
+    const cacheName = version.cacheName;
 
-    if (!plantsRes.ok || !trailsRes.ok) {
-      throw new Error('Dataset fetch failed');
-    }
+    if (!cacheName) { throw new Error('Missing cache name'); }
 
-    const plants = await plantsRes.json();
-    const trailData = await trailsRes.json();
-
-    localStorage.setItem('plants', JSON.stringify(plants));
-    localStorage.setItem('trails', JSON.stringify(trailData));
-    localStorage.setItem( 'lastUpdated', new Date().toISOString());
-
-    //
-    // refresh shell cache
-    //
-
-    const cache = await caches.open('edgewood-shell');
+    const cache = await caches.open(cacheName);
 
     const APP_SHELL = [
       './',
       './index.html',
       './app.js',
-      './manifest.json',
+      './sw.js',
       './version.json',
-      './sw.js'
+      './plants.json',
+      './trails.json',
+      './manifest.json',
+      './icons/foe-icon-512.png',
+      './foe-logo.png'
     ];
 
+    // refresh cached files
     for (const file of APP_SHELL) {
       console.log('refreshing:', file);
       const request = new Request(file, { cache: 'reload' });
 
       const response = await fetch(request);
-
       console.log(file, response.status, response.type);
 
       if (!response.ok) {
         throw new Error(`Failed to refresh ${file}`);
       }
-      await cache.put(request, response.clone());
+      await cache.put(file, response.clone());
     }
 
     status.textContent = 'Refresh complete';
 
-    //
-    // reload app
-    //
+    // restart app
     location.reload();
 
   } catch (e) {
-    console.error('REFRESH FAILED:', e);
-    alert('Refresh failed:\n' + e.message);
+    console.error( 'REFRESH FAILED:', e);
+    alert( 'Refresh failed:\n' + e.message);
     status.textContent = 'Offline mode using cached app';
   }
 }
@@ -555,8 +763,8 @@ function loadSurvey() {
     }
 
   // Ensure required top-level fields exist
-  survey.startNote ??= '';
-  survey.endNote ??= '';
+  survey.startNote ??= {};
+  survey.endNote ??= {};
   survey.trails ??= {};
 
   return survey;
@@ -570,7 +778,7 @@ function loadSurvey() {
 function ensureTrail(survey, trailId) {
   if (!survey.trails[trailId]) {
     survey.trails[trailId] = {
-      firstEntered: new Date().toISOString(),
+      firstEntered: formatTimestamp(),
       notes: '',
       entries: []
     };
@@ -579,7 +787,7 @@ function ensureTrail(survey, trailId) {
   return survey.trails[trailId];
 }
 
-function saveSurvey() {
+function saveSurvey(survey) {
   localStorage.setItem('survey', JSON.stringify(survey));
 }
 
@@ -599,9 +807,9 @@ function saveStartNote() {
     notes: s.notes.value
   };
 
-  survey.meta.updated = new Date().toISOString();
+  survey.meta.updated = formatTimestamp();
 
-  saveSurvey();
+  saveSurvey(survey);
 }
 
 function renderStartNote() {
@@ -630,9 +838,9 @@ function saveTrailNote() {
 
   trail.notes = ui.notes.trail.notes.value;
 
-  survey.meta.updated = new Date().toISOString();
+  survey.meta.updated = formatTimestamp();
 
-  saveSurvey();
+  saveSurvey(survey);
 }
 
 function renderTrailNotes() {
@@ -658,9 +866,9 @@ function saveCloseNote() {
     notes: c.notes.value
   };
 
-  survey.meta.updated = new Date().toISOString();
+  survey.meta.updated = formatTimestamp();
 
-  saveSurvey();
+  saveSurvey(survey);
 }
 
 function renderCloseNote() {
@@ -687,7 +895,7 @@ function addSighting(item) {
   const trail = ensureTrail(survey, currentTrail);
   const entries = trail.entries;
 
-  const duplicate = entries.some( e => e.speciesId == item.speciesId );
+  const duplicate = entries.some(e => e.speciesId === item.speciesId);
   if (duplicate) {
     if (!confirm('Already recorded on this trail. Add again?')) {
       return;
@@ -700,7 +908,7 @@ function addSighting(item) {
     commonName: item.displayCommon,
     scientificName: item.scientificName,
     note: '', 
-    time: new Date().toISOString()
+    time: formatTimestamp()
   });
 
   saveSurvey(survey);
@@ -735,64 +943,45 @@ function clearSurvey() {
 
 // --- SEARCH ---
 function search(q) {
-  if (!Array.isArray(species)) return [];
 
-  q = (q || '').toLowerCase();
+  q = normalizeQuery(q);
 
   if (q.length < 2) return [];
 
-  if (q.length < 3) {
-    return species.filter(item => {
-      return item._common.startsWith(q) || item._scientific.startsWith(q);
-    });
-  }
 
-  const exactWord = [];   // NEW
+  if (q.length < 2) return [];
+  
+  const qWord = " " + q;
+  const qJoined = q.replace(/\s+/g, "");
+
   const starts = [];
   const wordStarts = [];
+  const joined = [];
   const contains = [];
+ 
+  for (const item of species) {
+    const common = item.commonNorm;
+    const scientific = item.scientificNorm;
+    const commonJoined = item.commonJoined;
 
-  species.forEach(item => {
-    const common = (item._common || '');
-    const scientific = (item._scientific || '');
-
-    //  Exact match on starting word (best)
-    if (
-      common.startsWith(q + ' ') ||
-      scientific.startsWith(q + ' ')
-    ) {
-      exactWord.push(item);
-      return;
-    }
-
-    // starts with q
-    if (common.startsWith(q) || scientific.startsWith(q)) {
+    if (common.startsWith(q) || scientific.startsWith(q))
       starts.push(item);
-      return;
-    }
 
-    // a non-leading word starts with q
-    if (
-      common.includes(' ' + q) ||
-      scientific.includes(' ' + q)
-    ) {
+    else if (common.includes(qWord) || scientific.includes(qWord))
       wordStarts.push(item);
-      return;
-    }
 
-    // q is in there
-    if (
-      common.includes(q) ||
-      scientific.includes(q)
-    ) {
+    else if (commonJoined.includes(qJoined))
+      joined.push(item);
+
+    else if (common.includes(q) || scientific.includes(q))
       contains.push(item);
-    }
-    });
+
+  }
 
   return [
-    ...exactWord,   // 👈 highest priority
     ...starts,
     ...wordStarts,
+    ...joined,
     ...contains
   ].slice(0, 30);
 }
@@ -877,36 +1066,48 @@ function renderLog() {
   const note = document.createElement('textarea');
 
   note.value = entry.note || '';
-  note.placeholder = 'note...';
+  note.placeholder = 'note';
 
   note.rows = 1;
 
-  note.style.flex = '0 1 120px';
-  note.style.minWidth = '60px';
+  note.style.flex = '0 1 auto';
+
+  note.style.minWidth = '5ch';
   note.style.maxWidth = '50%';
-  note.style.width = '120px';
 
   note.style.resize = 'none';
   note.style.overflow = 'hidden';
   note.style.font = 'inherit';
-  note.style.lineHeight = '1.3';
+  note.style.lineHeight = 'inherit';
+  // wrap nicely
+  note.style.whiteSpace = 'pre-wrap';
+  note.style.wordBreak = 'break-word';
+note.style.paddingTop = '0';
+note.style.paddingBottom = '0';
+note.style.paddingLeft = '4px';
+note.style.paddingRight = '4px';
+
+note.style.boxSizing = 'border-box';
+note.style.verticalAlign = 'top';
 
 // initial size AFTER attachment/layout
-setTimeout(() => {
-  note.style.height = 'auto';
-  note.style.height = note.scrollHeight + 'px';
-}, 0);
+setTimeout(() => resizeNote(note), 0);
 
 
-    // auto-grow
-    note.addEventListener('input', () => {
-      note.style.height = 'auto';
-      note.style.height = note.scrollHeight + 'px';
+// auto-grow + save
+note.addEventListener('input', () => {
+  resizeNote(note, true);
+  entry.note = note.value;
+  saveSurvey(survey);
+});
 
-      entry.note = note.value;
-      saveSurvey(survey);
-    });
+note.addEventListener('focus', () => {
+  resizeNote(note, true);
+});
 
+note.addEventListener('blur', () => {
+  resizeNote(note, false);
+});
 
     row.appendChild(label);
     row.appendChild(note);
@@ -942,6 +1143,20 @@ setTimeout(() => {
   container.scrollTop = container.scrollHeight;
 }
 
+function resizeNote(note, expanded = false) {
+
+  // width
+  minCh = note.placeholder.length + 1;
+  if (expanded) {
+    note.style.width = '24ch';
+  } else {
+    const len = note.value.trim().length;
+    note.style.width = `${Math.min(Math.max(len + 2, minCh), 20)}ch`;
+  }
+  // height
+  note.style.height = 'auto';
+  note.style.height = note.scrollHeight + 'px';
+}
 
 function downloadSurvey() {
   const data = localStorage.getItem('survey');
@@ -957,10 +1172,47 @@ function downloadSurvey() {
   const a = document.createElement('a');
   a.href = url;
 
-  const date = new Date().toISOString().slice(0, 10);
+  const date = formatTimestamp().slice(0, 10);
   a.download = `edgewood-survey-${date}.json`;
 
   a.click();
 
   URL.revokeObjectURL(url);
 }
+//
+// local timestamp
+// YYYY-MM-DD HH:MM:SS
+//
+function formatTimestamp(date = new Date()) {
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+
+  return (`${yyyy}-${mm}-${dd} ` + `${hh}:${min}:${ss}`);
+}
+
+//
+// display date
+// MM/DD/YYYY
+//
+function formatDate(date) {
+  return date.toLocaleDateString(
+    'en-US', {year: 'numeric', month: '2-digit', day: '2-digit' }
+  );
+}
+
+//
+// display time
+// HH:MM
+//
+function formatTime(date) {
+  return date.toLocaleTimeString(
+    'en-US',
+    {hour: '2-digit', minute: '2-digit', hour12: false }
+  );
+}
+
