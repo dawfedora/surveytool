@@ -334,7 +334,7 @@ function processSpecies(species) {
     s;scientificWords = s.scientificNorm.split(" ");
     s.commonName = common;
     s.displayCommon = common + (s.status || "");
-    s.\/commonNorm = normalizeCommon(common);
+    s.commonNorm = normalizeCommon(common);
     s.commonWords = s.commonNorm.split(" ");
     s.commonJoined = s.commonTokens.join("");
 
@@ -393,7 +393,7 @@ function normalizeCommon(str) {
   return (str)
     .toLowerCase()
     .replace(/(\w+)-(\w+)/g, "$1 $2")
-    .replace(/(\w+)\\(\w+)/, "$1 $2")
+    .replace(/(\w+)\/(\w+)/, "$1 $2")
     .replace(/(\w+)'s/, "$1s")
     .replace(/(\w+)s'/, "$1s");
 }
@@ -429,7 +429,7 @@ function validateSearchInput(event) {
   if (!event.data) 
      return;
 
-  const allowed = /^[a-zA-Z\s\-'.’]+$/;
+  const allowed = /^[a-zA-Z\s\-\/'.’]+$/;
 
   if (!allowed.test(event.data)) {
     event.preventDefault();
