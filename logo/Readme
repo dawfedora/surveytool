@@ -1,0 +1,15 @@
+Logo working files
+
+The final files are elsewhere
+
+FOE.Logo.png - original logo png
+
+foe-logo-rect.png - rectangular logo cropped to display on header lne of app
+magick FOE.logo.png -trim foe-logo-rect.png
+
+icons/foe-icon512.png  - full size icon
+magick FOE.Logo.png resize 580x580 -background white -gravity center -extent 512x512 foe-icon-512.png
+
+icons/foe-icon192.png -  small starter icon
+magick foe-icon-512.png -resize 192x192 foe-icon-192.png
+
