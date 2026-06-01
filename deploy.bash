@@ -3,16 +3,14 @@ set -e
 
 BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
 echo "Branch = $BRANCH"
-
-STAMP=$(date +"%Y.%m.%d-%H%M%S")
-
 if [ "$BRANCH" = "main" ]; then
-  VERSION="$STAMP"
-  CACHE_NAME="edgewood-prod-$VERSION"
-else
-  VERSION="${BRANCH}-${STAMP}"
-  CACHE_NAME="edgewood-dev"
+  BRANCH="prod"
 fi
+
+STAMP=$(TZ=America/Los_Angeles date +%Y.%m.%d.%H%M)
+
+VERSION="${BRANCH}-${STAMP}"
+CACHE_NAME="edgewood-$VERSION"
 
 cat > version.json <<EOF
 {
@@ -21,3 +19,7 @@ cat > version.json <<EOF
   "cacheName": "$CACHE_NAME"
 }
 EOF
+
+sed \
+  "s/^\(const CACHE_NAME = \)'__CACHE_NAME__';/\1'${CACHE_NAME}';/" \
+  sw.js.in > sw.js
