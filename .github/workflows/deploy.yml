@@ -16,6 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Check ImageMagick
+        run: |
+          magick --version || true
+          convert --version || true
+
       - name: Generate version.json and sw.js
         run: |
           bash deploy.bash
