@@ -23,3 +23,21 @@ EOF
 sed \
   "s/^\(const CACHE_NAME = \)'__CACHE_NAME__';/\1'${CACHE_NAME}';/" \
   sw.js.in > sw.js
+
+if [ "$BRANCH" = "dev" ]; then
+  magick icons/foe-icon-192-base.png \
+    -fill orange \
+    -stroke white \
+    -strokewidth 1.5 \
+    -draw "circle 168,24 168,12" \
+    icons/foe-icon-192.png
+  magick icons/foe-icon-512-base.png \
+    -fill orange \
+    -stroke white \
+    -strokewidth 4 \
+    -draw "circle 448,64 448,32" \
+    icons/foe-icon-512.png
+else
+  cp icons/foe-icon-192-base.png icons/foe-icon-192.png
+  cp icons/foe-icon-512-base.png icons/foe-icon-512.png
+fi
