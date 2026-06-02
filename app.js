@@ -319,7 +319,7 @@ async function loadLocalData() {
     species = processSpecies(species);
     trails = requireArray(loaded.trails, 'trails', 'trails.json');
     trails = processTrails(trails);
-    participants = requireArray(loaded.participants, 'participants.json');
+    participants = requireArray(loaded.participants, 'participants', 'participants.json');
     participants = processParticipants(participants);
 
     return true;
@@ -453,8 +453,18 @@ function processParticipants(pIn) {
 }
 
 function requireArray(obj, key, filename) {
-  if (!obj || !Array.isArray(obj[key]))
-    throw new Error(`Invalid data: ${filename}`);
+  if (!obj) {
+    throw new Error(`Missing data object: ${filename}`);
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+    throw new Error(`Missing key "${key}" in ${filename}`);
+  }
+
+  if (!Array.isArray(obj[key])) {
+    throw new Error(`Expected array at "${key}" in ${filename}`);
+  }
+
   return obj[key];
 }
 
