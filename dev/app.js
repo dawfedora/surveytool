@@ -1,4 +1,11 @@
 // --- GLOBAL STATE ---
+const APP_STATE = {
+  BOOT: "BOOT",
+  EMPTY: "EMPTY",
+  ACTIVE: "ACTIVE",
+  LIMITED: "LIMITED"
+};
+
 const ui = {
   header: {},
   log: {},
@@ -8,6 +15,9 @@ const ui = {
     close: {}
   }
 };
+
+let appState = APP_STATE.BOOT;
+
 let species = [];
 let trails = [];
 let survey = null;
@@ -43,44 +53,46 @@ async function init() {
     return;
   }
 
-  // Load running version info
+  // wire the buttons, especially refresh
+  initHeader();
+  ui.header.refreshBtn.style.display = "";
+
+  // Version
   try {
-    version = await loadVersion();
+    version = await loadVersion()
     updateStatus();
-  } catch (e) {
+  } catch(e) {
     console.error("Version load failed", e);
-    if (ui.header.status)
-      ui.header.status.textContent = "Unknown version";
   }
 
-  // Async update check
-  checkForUpdate().catch(e => console.warn("Version check failed", e));
+  // Update Check
+  const updateAvailable = await checkForUpdate();
+  if (updateAvailable) {
+    const doUpdate = confirm(
+      `Newer version ${latest.version} is available.\n\nRefresh now?`
+    );
+    if (doUpdate) {
+      refreshApp();
+      return;
+    }
+  }
 
   // Load datasets
   const ok = await loadLocalData();
-
   if (!ok) {
-    enterLimitedMode();
+    setAppState(APP_STATE.LIMITED);
     return;
   }
 
-  //
-  // Restore state
-  //
   initializeCurrentTrail();
-
   survey = loadSurvey();
 
-  determineInitialMode();
+  if (!survey) {
+    setAppState(APP_STATE.EMPTY);
+    return;
+  }
 
-  // Initialize UI
-  initHeader();
-  initLogView();
-  initNotesView();
-
-  syncTrailSelectors();
-
-  renderMode();
+  setAppState(APP_STATE.ACTIVE);
 }
 
 async function loadVersion() {
@@ -100,25 +112,56 @@ async function loadVersion() {
 function updateStatus() {
   if (!ui.header.status || !version)
     return;
-  ui.header.status.textContent = `Vers: ${version.version}`;
+  ui.header.status.textContent = `V. ${version.version}`;
 }
 
 async function checkForUpdate() {
 
-  if (!navigator.onLine)
-    return;
+  if (!navigator.onLine || !version)
+    return null;
 
   const response = await fetch("./version.json", {cache: "no-store"});
 
   if (!response.ok)
-    return;
+    return null;
 
   const latest = await response.json();
 
-  if (latest.version !== version.version) {
-    ui.header.status.textContent =
-       `Vers: ${version.version} (Update available)`;
+  if (latest.version === version.version)
+    return null;
+
+  return latest;
+}
+
+function setAppState(state) {
+  appState = state;
+
+  switch (state) {
+    case APP_STATE.EMPTY:
+      renderEmptyState();
+      break;
+    case APP_STATE.ACTIVE:
+      renderActiveState();
+      break;
+    case APP_STATE.LIMITED:
+      renderLimitedState();
+      break;
   }
+}
+
+function renderEmptyState() {
+  ui.header.modeBtn.style.display = "none";
+  ui.header.downloadBtn.style.display = "none";
+
+  ui.log.panel.style.display = "none";
+  ui.notes.panel.style.display = "none";
+
+  ui.header.status.textContent =
+    "No survey in progress. Press 'New Survey' to start.";
+}
+
+function renderLimitedState() {
+  enterLimitedMode();
 }
 
 function enterLimitedMode() {
@@ -141,6 +184,24 @@ function enterLimitedMode() {
   }
 
   return; // STOP HERE
+}
+
+function renderActiveState() {
+
+
+  ui.header.modeBtn.style.display = "";
+  ui.header.newBtn.style.display = "";
+  ui.header.downloadBtn.style.display = "";
+
+  initHeader();
+  initLogView();
+  initNotesView();
+
+  syncTrailSelectors();
+  renderMode();
+
+  ui.log.panel.style.display = "";
+  ui.notes.panel.style.display = "";
 }
 
 function initializeCurrentTrail() {
@@ -653,26 +714,46 @@ function renderNotesView() {
   }
 }
 
-function createEmptySurvey() {
+function createSurvey() {
+
+  const now = new Date();
+
   return {
-    meta: {
-      created: formatTimestamp(),
-      updated: formatTimestamp()
-    },
     startNote: {
-      date: '',
-      startTime: '',
-      weather: '',
-      participants: '',
-      notes: ''
+      date: formatDate(now),
+      startTime: formatTime(now),
+      weather: "",
+      participants: "",
+      notes: ""
     },
     endNote: {
-      endTime: '',
-      weather: '',
-      notes: ''
+      time: "",
+      weather: "",
+      notes: ""
     },
-    trails: {}
+    entries: []
   };
+}
+
+function formatDate(date) {
+  return date.toLocaleDateString(
+    "en-US",
+    {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric"
+    }
+  );
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString(
+    "en-US",
+    {
+      hour: "numeric",
+      minute: "2-digit"
+    }
+  );
 }
 
 // --- REFRESH APP ---
@@ -729,26 +810,35 @@ async function refreshApp() {
 }
 
 function newSurvey() {
-  const ok = confirm(
-    'Start a new survey?'
-  );
 
-  if (!ok) {
-    return;
+  // Existing Survey - ask first
+  if (survey) {
+
+    const ok = confirm( "Delete current survey and start a new one?");
+    if (!ok)
+      return;
   }
 
-  survey = createEmptySurvey();
+  // Create new survey and save it
+  survey = createSurvey();
   saveSurvey(survey);
-  currentMode = 'notes';
-  currentNotePanel = 'start';
+
+  // Go to start note
+  currentMode = "notes";
+  currentNotePanel = "start";
+
+  // now we're in active state
+  setAppState(APP_STATE.ACTIVE);
+
+  // Populate UI
   renderMode();
-  showNotesPanel('start');
+
+  // put cursor in weather, we'll have populated time and date
+    requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
 }
 
 function showNotesPanel(panel) {
-
   currentNotePanel = panel;
-
   renderNotesView();
 }
 
