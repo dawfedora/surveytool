@@ -522,7 +522,7 @@ function validateSearchInput(event) {
 
 function validateParticipantInput(event) {
 
-  valdiateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+  validateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
 }
 
 function validateTextInput(event, allowed) {
