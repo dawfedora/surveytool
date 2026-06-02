@@ -20,6 +20,7 @@ let appState = APP_STATE.BOOT;
 
 let species = [];
 let trails = [];
+let participants = [];
 let survey = null;
 let currentTrail = null;
 let currentMode = "log";
@@ -295,7 +296,8 @@ async function loadLocalData() {
 
     const dataFiles = [
       'plants',
-      'trails'
+      'trails',
+      'participants'
     ];
 
     const responses = await Promise.all(
@@ -316,6 +318,9 @@ async function loadLocalData() {
     species = requireArray(loaded.plants, 'species', 'plants.json');
     species = processSpecies(species);
     trails = requireArray(loaded.trails, 'trails', 'trails.json');
+    trails = processTrails(trails);
+    participants = requireArray(loaded.participants, 'participants.json');
+    participants = processParticipants(participants);
 
     return true;
   } catch (e) {
@@ -427,13 +432,33 @@ function processSpecies(species) {
   return species;
 }
 
+function processTrails (trails) {
+  // no processing yet
+  return trails;
+}
+
+function processParticipants(pIn) {
+
+  let pOut = [];
+
+  for (let person of pIn) {
+    person = cleanData(person, "name");
+    if (person == null)
+      continue;
+    if (!/^[A-Za-z .,'-]+$/.test(person))
+      console.warn(`processParticipants: Unexpected character`, person);
+    pOut.push(person);
+  }
+  return pOut;
+}
+
 function requireArray(obj, key, filename) {
   if (!obj || !Array.isArray(obj[key]))
     throw new Error(`Invalid data: ${filename}`);
   return obj[key];
 }
 
-function cleanData(s,Fieldname = "field") {
+function cleanData(s,fieldName = "field") {
   if (typeof s !== "string") {
     console.warn(`cleanData: expected string for ${fieldName}`, s);
     return null;
@@ -482,29 +507,113 @@ function normalizeQuery(str) {
 
 function validateSearchInput(event) {
 
-  // allow deletes/backspace
-  if ( event.inputType?.startsWith( 'delete'))
+  validateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+}
+
+function validateParticipantInput(event) {
+
+  valdiateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+}
+
+function validateTextInput(event, allowed) {
+
+  // deletes/backspace
+  if (event.inputType?.startsWith("delete"))
     return;
 
-  // IME / autocomplete / weird cases
-  if (!event.data) 
-     return;
+  // IME/autocomplete
+  if (!event.data)
+    return;
 
-  const allowed = /^[a-zA-Z\s\-\/'.’]+$/;
+  // what input field?
+  const input = event.target;
 
-  if (!allowed.test(event.data)) {
+  // normalize punctuation
+  const c = normalizeInputChar(event.data);
+
+  if (c !== event.data) {
     event.preventDefault();
-    flashInvalidSearch();
+    input.setRangeText(c, input.selectionStart, input.selectionEnd, "end");
+  }
+
+  // validate normalized char against allowed regex
+  if (!allowed.test(c)) {
+    event.preventDefault();
+    flashInvalidTextInput(input);
   }
 }
 
-function flashInvalidSearch() {
-  const input = ui.log.search;
+function normalizeInputChar(c) {
+  switch (c) {
 
-  input.classList.add("inputRejected");
-  setTimeout(() => {input.classList.remove( "inputRejected"); }, 120);
+    case "‘":
+    case "’":
+      return "'";
+
+    case "‐": // hyphen
+    case "-": // non-breaking hyphen
+    case "–": // en dash
+    case "—": // em dash
+      return "-";
+
+    default:
+      return c;
+  }
 }
 
+function flashInvalidTextInput(input) {
+
+  input.classList.add("inputRejected");
+
+  setTimeout(() => {input.classList.remove("inputRejected");}, 120);
+}
+
+function handleParticipantInput(e) {
+  const input = e.target;
+  // only autocomplete at end
+  if (
+    input.selectionStart !== input.value.length ||
+    input.selectionEnd !== input.value.length
+   ) {
+    hideParticipantResults();
+    return;
+   }
+
+  const matches = matchParticipants(input.value);
+
+  renderParticipantResults(matches);
+}
+
+function hideParticipantResults(e) {
+  const box = document.getElementById("participantResults");
+  const input = ui.notes.start.participants;
+  if (box.contains(e.target) || input.contains(e.target)) return;
+  box.innerHTML = "";
+}
+
+function renderParticipantResults(list) {
+  const box = ui.notes.start.participants.parentElement.querySelector("#participantResults");
+  box.innerHTML = "";
+
+  if (!list.length) {
+    box.style.display = "none";
+    return;
+  }
+
+  box.style.display = "block";
+
+  for (const name of list) {
+    const div = document.createElement("div");
+    div.textContent = name;
+    div.onclick = () => {
+      ui.notes.start.participants.value = name;
+      box.innerHTML = "";
+      box.style.display = "none";
+      saveStartNote();
+    };
+    box.appendChild(div);
+  }
+}
 
 function initLogView() {
 
@@ -556,7 +665,9 @@ function initStartNote() {
   s.date.addEventListener("input", debounce(saveStartNote, 300));
   s.time.addEventListener("input", debounce(saveStartNote, 300));
   s.weather.addEventListener("input", debounce(saveStartNote, 300));
-  s.participants.addEventListener("input", debounce(saveStartNote, 300));
+  s.participants.addEventListener("beforeinput", validateParticipantInput);
+  s.participants.addEventListener("input", debounce(handleParticipantInputi, 50));
+  document.addEventListener("click", hideParticipantResults);
   s.notes.addEventListener("input", debounce(saveStartNote, 300));
 }
 
@@ -778,6 +889,7 @@ async function refreshApp() {
       './version.json',
       './plants.json',
       './trails.json',
+      './participants.json',
       './manifest.json',
       './icons/foe-icon-512.png',
       './foe-logo.png'
@@ -897,8 +1009,6 @@ function saveStartNote() {
     notes: s.notes.value
   };
 
-  survey.meta.updated = formatTimestamp();
-
   saveSurvey(survey);
 }
 
@@ -928,8 +1038,6 @@ function saveTrailNote() {
 
   trail.notes = ui.notes.trail.notes.value;
 
-  survey.meta.updated = formatTimestamp();
-
   saveSurvey(survey);
 }
 
@@ -955,8 +1063,6 @@ function saveCloseNote() {
     weather: c.weather.value,
     notes: c.notes.value
   };
-
-  survey.meta.updated = formatTimestamp();
 
   saveSurvey(survey);
 }
@@ -1074,6 +1180,23 @@ function search(q) {
     ...joined,
     ...contains
   ].slice(0, 30);
+}
+
+function matchParticipants(input) {
+
+  const current =
+    input
+      .split(/\s*,\s*/)
+      .at(-1)
+      .trim()
+      .toLowerCase();;
+
+  if (current.length < 1)
+    return [];
+
+  return participants.filter(
+      person => person.toLowerCase().startsWith(current)
+    ).slice(0, 6);
 }
 
 // --- Render results ---
