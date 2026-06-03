@@ -731,7 +731,7 @@ function createSurvey() {
       weather: "",
       notes: ""
     },
-    entries: []
+    trails: {}
   };
 }
 
