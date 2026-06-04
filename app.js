@@ -1167,32 +1167,6 @@ function addSighting(item) {
   renderLog();
 }
 
-function clearSurvey() {
-  const confirmClear = confirm('Clear all survey data?');
-
-  if (!confirmClear) return;
-
-  survey = null;
-  localStorage.removeItem('survey');
-
-  determineInitialMode();
-  renderMode();
-
-  const status = ui.header.status;
-  if (status) {
-    status.textContent = 'Survey cleared';
-    setTimeout(() => {
-      const last = localStorage.getItem('lastUpdated');
-      if (last) {
-        status.textContent =
-          'Data updated: ' + new Date(last).toLocaleString();
-      } else {
-        status.textContent = '';
-      }
-    }, 1500);
-  }
-}
-
 // --- SEARCH ---
 function search(q) {
 
