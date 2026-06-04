@@ -180,6 +180,19 @@ body {
       line-height: 1.3;
     }
 
+.participantResults {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #eef5ff;
+  border: 1px solid #ccc;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 2000;
+}
+.participantWrapper {
+  position: relative;
+}
     .resultItem {
       padding: 12px 10px;
       line-height: 1.25;
@@ -308,9 +321,12 @@ textarea {
       <input id="startDate" />
       <input id="startTime" />
       <input id="startWeather" placeholder="75 F, partly cloudy" />
-      <textarea
-        id="participants" class="longNote" placeholder="Participants">
-      </textarea>
+      <div class="participantWrapper">
+        <input id="participants" placeholder="Participants">>
+        <div id="participantResults"
+          class="participantResults">
+        </div>
+      </div>
       <textarea
         id="startNote" class="longNote" placeholder="Starting notes">
       </textarea>
