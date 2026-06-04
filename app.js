@@ -1316,7 +1316,7 @@ function renderLog() {
   const container = ui.log.log;
   container.innerHTML = '';
 
-  entries.forEach((entry, index) => {
+  entries.reverse().forEach((entry, reverseIndex) => {
 
     const div = document.createElement('div');
     div.className = 'item';
@@ -1405,15 +1405,13 @@ note.addEventListener('blur', () => {
     div.appendChild(row);
 
     // Highlight most recent (last item)
-    if (index === entries.length - 1) {
+    if (reverseIndex === 0) {
       div.style.background = '#e6ffe6';
       setTimeout(() => div.style.background = '', 400);
     }
 
     container.appendChild(div);
   });
-
-  container.scrollTop = container.scrollHeight;
 }
 
 function resizeNote(note, expanded = false) {
