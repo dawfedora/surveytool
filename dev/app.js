@@ -589,7 +589,13 @@ function handleParticipantInput(e) {
     return;
    }
 
-  const matches = matchParticipants(input.value);
+  const current =
+    input.value
+      .split(/\s*/,/\s*/)
+      .at(-1)
+      .trim();
+
+  const matches = matchParticipants(current);
 
   renderParticipantResults(matches);
 }
@@ -597,12 +603,22 @@ function handleParticipantInput(e) {
 function hideParticipantResults(e) {
   const box = document.getElementById("participantResults");
   const input = ui.notes.start.participants;
-  if (box.contains(e.target) || input.contains(e.target)) return;
+  if (!box)
+    returnl
+
+  if (e && box.contains(e.target) || input.contains(e.target)) return;
   box.innerHTML = "";
+  box.style.display = "none";
 }
 
 function renderParticipantResults(list) {
-  const box = ui.notes.start.participants.parentElement.querySelector("#participantResults");
+
+  const box =
+    ui.notes.start
+      .participants
+      .parentElement
+      .querySelector("#participantResults");
+
   box.innerHTML = "";
 
   if (!list.length) {
@@ -613,16 +629,48 @@ function renderParticipantResults(list) {
   box.style.display = "block";
 
   for (const name of list) {
-    const div = document.createElement("div");
+
+    const div =
+      document.createElement("div");
+
     div.textContent = name;
+    div.className = "resultItem";
+
     div.onclick = () => {
-      ui.notes.start.participants.value = name;
-      box.innerHTML = "";
-      box.style.display = "none";
-      saveStartNote();
+      insertParticipant(name);
     };
+
     box.appendChild(div);
   }
+}
+
+function insertParticipant(name) {
+
+  const input =
+    ui.notes.start.participants;
+
+  const pieces =
+    input.value
+      .split(",")
+      .map(s => s.trim());
+
+  // replace current token
+  pieces[pieces.length - 1] = name;
+
+  input.value =
+    pieces.join(", ") + ", ";
+
+  saveStartNote();
+
+  input.focus();
+
+  // move caret to end (important on mobile)
+  input.setSelectionRange(
+    input.value.length,
+    input.value.length
+  );
+
+  hideParticipantResults();
 }
 
 function initLogView() {
@@ -1196,17 +1244,19 @@ function matchParticipants(input) {
 
   const current =
     input
-      .split(/\s*,\s*/)
-      .at(-1)
       .trim()
       .toLowerCase();;
 
   if (current.length < 1)
     return [];
 
-  return participants.filter(
-      person => person.toLowerCase().startsWith(current)
-    ).slice(0, 6);
+  return participants
+    .filter(person =>
+      person
+        .toLowerCase()
+        .startsWith(current)
+    )
+    .slice(0, 6);
 }
 
 // --- Render results ---
