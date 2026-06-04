@@ -200,9 +200,6 @@ function renderActiveState() {
 
   syncTrailSelectors();
   renderMode();
-
-  ui.log.panel.style.display = "";
-  ui.notes.panel.style.display = "";
 }
 
 function initializeCurrentTrail() {
