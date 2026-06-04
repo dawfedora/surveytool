@@ -604,9 +604,9 @@ function hideParticipantResults(e) {
   const box = document.getElementById("participantResults");
   const input = ui.notes.start.participants;
   if (!box)
-    returnl
+    return;
 
-  if (e && box.contains(e.target) || input.contains(e.target)) return;
+  if (e && (box.contains(e.target) || input.contains(e.target))) return;
   box.innerHTML = "";
   box.style.display = "none";
 }
