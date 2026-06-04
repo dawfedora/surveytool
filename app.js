@@ -85,13 +85,14 @@ async function init() {
     return;
   }
 
-  initializeCurrentTrail();
   survey = loadSurvey();
 
   if (!survey) {
     setAppState(APP_STATE.EMPTY);
     return;
   }
+
+  initializeCurrentTrail();
 
   setAppState(APP_STATE.ACTIVE);
 }
@@ -205,7 +206,7 @@ function renderActiveState() {
 function initializeCurrentTrail() {
 
   const saved =
-    localStorage.getItem("lastTrail");
+    localStorage.getItem("survey:lastTrail");
 
   const valid =
     trails.some(t => t.id === saved);
@@ -770,7 +771,7 @@ function populateTrailSelector(select) {
 
 function setCurrentTrail(id) {
   currentTrail = id;
-  localStorage.setItem('lastTrail', id);
+  localStorage.setItem('survey:lastTrail', id);
 
   syncTrailSelectors();
 
@@ -837,7 +838,7 @@ function renderLogView() {
 
   // restore last trail if needed
   if (!currentTrail) {
-    currentTrail = localStorage.getItem('lastTrail')
+    currentTrail = localStorage.getItem('survey:lastTrail')
       || trails?.[0]?.id
       || null;
   }
@@ -990,6 +991,8 @@ function newSurvey() {
   // Create new survey and save it
   survey = createSurvey();
   saveSurvey(survey);
+
+  setCurrentTrail(trails[0].id);
 
   // Go to start note
   currentMode = "notes";
