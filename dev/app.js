@@ -725,6 +725,7 @@ function initStartNote() {
   s.weather.addEventListener("input", debounce(saveStartNote, 300));
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
+  s.participants.addEventListener( "input", debounce(saveStartNote, 300));
   document.addEventListener("click", hideParticipantResults);
   s.notes.addEventListener("input", debounce(saveStartNote, 300));
 }
