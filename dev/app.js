@@ -591,7 +591,7 @@ function handleParticipantInput(e) {
 
   const current =
     input.value
-      .split(/\s*/,/\s*/)
+      .split(/\s*,\s*/)
       .at(-1)
       .trim();
 
