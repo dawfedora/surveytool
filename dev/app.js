@@ -1371,7 +1371,10 @@ note.addEventListener('blur', () => {
       if (!ok) {
         return;
       }
-      entries.splice(index, 1);
+      const i = entries.indexOf(entry);
+      if (i >= 0) {
+        entries.splice(i, 1);
+      }
       saveSurvey(survey);
       renderLog();
     };
