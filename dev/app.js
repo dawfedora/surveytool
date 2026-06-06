@@ -1398,7 +1398,7 @@ note.addEventListener('blur', () => {
 function resizeNote(note, expanded = false) {
 
   // width
-  minCh = note.placeholder.length + 1;
+  const minCh = note.placeholder.length + 1;
   if (expanded) {
     note.style.width = '24ch';
     note.style.whiteSpace = 'pre-wrap';
