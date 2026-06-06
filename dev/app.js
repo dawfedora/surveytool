@@ -80,6 +80,10 @@ async function init() {
     }
   }
 
+  if (version.build !== "prod") {
+    document.title += ` [${version.build.toUpperCase()}]`;
+  }
+
   // Load datasets
   const ok = await loadLocalData();
   if (!ok) {
@@ -1020,7 +1024,7 @@ function showNotesPanel(panel) {
 function loadSurvey() {
   try {
     const survey = JSON.parse(
-      localStorage.getItem('survey')
+      localStorage.getItem(`survey`)
     );
     if (!survey) {
       return null;

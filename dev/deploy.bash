@@ -11,11 +11,13 @@ STAMP=$(TZ=America/Los_Angeles date +%Y.%m.%d.%H%M)
 
 VERSION="${BRANCH}-${STAMP}"
 CACHE_NAME="edgewood-$VERSION"
+STORAGE_TAG="FoE:surveytool:${BRANCH}"
 
 cat > version.json <<EOF
 {
-  "version": "$VERSION",
   "branch": "$BRANCH",
+  "version": "$VERSION",
+  "storagePrefix": "$STORAGE_TAG",
   "cacheName": "$CACHE_NAME"
 }
 EOF
