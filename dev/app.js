@@ -1,3 +1,5 @@
+"use strict";
+
 // --- GLOBAL STATE ---
 const APP_STATE = {
   BOOT: "BOOT",
@@ -67,8 +69,8 @@ async function init() {
   }
 
   // Update Check
-  const updateAvailable = await checkForUpdate();
-  if (updateAvailable) {
+  const latest = await checkForUpdate();
+  if (latest) {
     const doUpdate = confirm(
       `Newer version ${latest.version} is available.\n\nRefresh now?`
     );
@@ -395,7 +397,7 @@ function processSpecies(species) {
     s.status = suffix;
     s.scientificName = scientific;
     s.scientificNorm = normalizeScientific(scientific);
-    s;scientificWords = s.scientificNorm.split(" ");
+    s.scientificWords = s.scientificNorm.split(" ");
     s.commonName = common;
     s.displayCommon = common + suffix;
     s.commonNorm = normalizeCommon(common);
@@ -949,6 +951,7 @@ async function refreshApp() {
       './participants.json',
       './manifest.json',
       './icons/foe-icon-512.png',
+      './icons/foe-icon-192.png',
       './foe-logo.png'
     ];
 
@@ -1291,7 +1294,7 @@ function renderLog() {
   const container = ui.log.log;
   container.innerHTML = '';
 
-  entries.reverse().forEach((entry, reverseIndex) => {
+  entries.split.reverse().forEach((entry, reverseIndex) => {
 
     const div = document.createElement('div');
     div.className = 'item';
