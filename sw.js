@@ -1,5 +1,5 @@
 // DO NOT REFORMAT deploy.bash depends on this line
-const CACHE_NAME = 'edgewood-prod-2026.06.04.2255';
+const CACHE_NAME = 'edgewood-prod-2026.06.06.1407';
 
 const APP_SHELL = [
   './',
@@ -9,8 +9,11 @@ const APP_SHELL = [
   './version.json',
   './plants.json',
   './trails.json',
-  './foe-logo.png',
-  './manifest.json'
+  './participants.json',
+  './manifest.json',
+  './icons/foe-icon-512.png',
+  './icons/foe-icon-192.png',
+  './foe-logo.png'
 ];
 
 if (CACHE_NAME === '__CACHE_NAME__') {
