@@ -1294,7 +1294,7 @@ function renderLog() {
   const container = ui.log.log;
   container.innerHTML = '';
 
-  entries.split().reverse().forEach((entry, reverseIndex) => {
+  entries.slice().reverse().forEach((entry, reverseIndex) => {
 
     const div = document.createElement('div');
     div.className = 'item';
