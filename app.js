@@ -8,6 +8,17 @@ const APP_STATE = {
   LIMITED: "LIMITED"
 };
 
+const MODE = {
+  LOG: "log",
+  NOTES: "notes"
+};
+
+const NOTE_PANEL = {
+  START: "start",
+  TRAIL: "trail",
+  END: "end"
+};
+
 const ui = {
   header: {},
   log: {},
@@ -18,28 +29,18 @@ const ui = {
   }
 };
 
+const STORAGE_TAG = null;
+
 let appState = APP_STATE.BOOT;
 
+let version = null;
 let species = [];
 let trails = [];
 let participants = [];
 let survey = null;
 let currentTrail = null;
-let currentMode = "log";
-let currentNotePanel = "start";
-let version = null;
-
-function debounce(fn, delay = 300) {
-  let timer = null;
-
-  return function (...args) {
-    clearTimeout(timer);
-
-    timer = setTimeout(() => {
-      fn.apply(this, args);
-    }, delay);
-  };
-}
+let currentMode = MODE.LOG;
+let currentNotePanel = NOTE_PANEL.START;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -67,6 +68,8 @@ async function init() {
   } catch(e) {
     console.error("Version load failed", e);
   }
+
+  STORAGE_TAG = version.storageTag;
 
   // Update Check
   const latest = await checkForUpdate();
@@ -101,6 +104,22 @@ async function init() {
   initializeCurrentTrail();
 
   setAppState(APP_STATE.ACTIVE);
+}
+
+function storageKey(key) {
+  return `${STORAGE_TAG}:${key}`;
+}
+
+function debounce(fn, delay = 2500) {
+  let timer = null;
+
+  return function (...args) {
+    clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
 }
 
 async function loadVersion() {
@@ -702,13 +721,13 @@ function initLogView() {
 
 function initNotesView() {
   ui.notes.buttons.start.addEventListener("click", () => {
-    showNotesPanel("start");
+    showNotesPanel(NOTE_PANEL.START);
   });
   ui.notes.buttons.trail.addEventListener("click", () => {
-    showNotesPanel("trail");
+    showNotesPanel(NOTE_PANEL.TRAIL);
   });
   ui.notes.buttons.close.addEventListener("click", () => {
-    showNotesPanel("close");
+    showNotesPanel(NOTE_PANEL.END);
   });
 
   populateTrailSelector(ui.notes.trail.trailSelect);
@@ -717,7 +736,7 @@ function initNotesView() {
   initTrailNote();
   initCloseNote();
 
-  showNotesPanel("start"); // or whatever default
+  showNotesPanel(NOTE_PANEL.START); // or whatever default
 }
 
 function initStartNote() {
@@ -752,10 +771,10 @@ function initCloseNote() {
 
 function determineInitialMode() {
   if (survey) {
-    currentMode = "log";
+    currentMode = MODE.LOG;
   } else {
-    currentMode = "notes";
-    currentNotePanel = "start";
+    currentMode = MODE.NOTES;
+    currentNotePanel = NOTE_PANEL.START;
   }
 }
 
@@ -777,7 +796,7 @@ function populateTrailSelector(select) {
 
 function setCurrentTrail(id) {
   currentTrail = id;
-  localStorage.setItem('survey:lastTrail', id);
+  localStorage.setItem(storageKey('survey:lastTrail', id));
 
   syncTrailSelectors();
 
@@ -797,14 +816,14 @@ function syncTrailSelectors() {
 
 function toggleMode() {
   currentMode =
-    currentMode === 'log'
-      ? 'notes'
-      : 'log';
+    currentMode === MODE.LOG
+      ? MODE.NOTES
+      : MODE.LOG;
   renderMode();
 }
 
 function renderMode() {
-  if (currentMode === 'log') {
+  if (currentMode === MODE.LOG) {
     ui.log.panel.style.display = '';
     ui.notes.panel.style.display = 'none';
     ui.header.modeBtn.textContent = 'Notes';
@@ -844,7 +863,7 @@ function renderLogView() {
 
   // restore last trail if needed
   if (!currentTrail) {
-    currentTrail = localStorage.getItem('survey:lastTrail')
+    currentTrail = localStorage.getItem(storageKey('survey:lastTrail'))
       || trails?.[0]?.id
       || null;
   }
@@ -869,19 +888,19 @@ function renderNotesView() {
   ui.notes.buttons.trail.classList.remove('activeNoteBtn');
   ui.notes.buttons.close.classList.remove('activeNoteBtn');
 
-  if (currentNotePanel === 'start') {
+  if (currentNotePanel === NOTE_PANEL.START) {
     ui.notes.start.panel.style.display = '';
     ui.notes.buttons.start.classList.add('activeNoteBtn');
     renderStartNote();
   }
 
-  if (currentNotePanel === 'trail') {
+  if (currentNotePanel === NOTE_PANEL.TRAIL) {
     ui.notes.trail.panel.style.display = '';
     ui.notes.buttons.trail.classList.add('activeNoteBtn');
     renderTrailNotes();
   }
 
-  if (currentNotePanel === 'close') {
+  if (currentNotePanel === NOTE_PANEL.END) {
     ui.notes.close.panel.style.display = '';
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
@@ -1002,8 +1021,8 @@ function newSurvey() {
   setCurrentTrail(trails[0].id);
 
   // Go to start note
-  currentMode = "notes";
-  currentNotePanel = "start";
+  currentMode = MODE.NOTES;
+  currentNotePanel = NOTE_PANEL.START;
 
   // now we're in active state
   setAppState(APP_STATE.ACTIVE);
@@ -1056,7 +1075,7 @@ function ensureTrail(survey, trailId) {
 }
 
 function saveSurvey(survey) {
-  localStorage.setItem('survey', JSON.stringify(survey));
+  localStorage.setItem(storageKey('survey'), JSON.stringify(survey));
 }
 
 function saveStartNote() {
@@ -1181,9 +1200,6 @@ function addSighting(item) {
 function search(q) {
 
   q = normalizeQuery(q);
-
-  if (q.length < 2) return [];
-
 
   if (q.length < 2) return [];
   
@@ -1417,7 +1433,7 @@ function resizeNote(note, expanded = false) {
 }
 
 function downloadSurvey() {
-  const data = localStorage.getItem('survey');
+  const data = localStorage.getItem(storageKey('survey'));
 
   if (!data) {
     alert('No survey data to download.');
