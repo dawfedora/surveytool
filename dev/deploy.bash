@@ -17,7 +17,7 @@ cat > version.json <<EOF
 {
   "branch": "$BRANCH",
   "version": "$VERSION",
-  "storagePrefix": "$STORAGE_TAG",
+  "storageTag": "$STORAGE_TAG",
   "cacheName": "$CACHE_NAME"
 }
 EOF
