@@ -29,7 +29,7 @@ const ui = {
   }
 };
 
-const STORAGE_TAG = null;
+let  STORAGE_TAG = null;
 
 let appState = APP_STATE.BOOT;
 
