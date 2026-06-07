@@ -796,7 +796,7 @@ function populateTrailSelector(select) {
 
 function setCurrentTrail(id) {
   currentTrail = id;
-  localStorage.setItem(storageKey('survey:lastTrail', id));
+  localStorage.setItem(storageKey('survey:lastTrail'), id);
 
   syncTrailSelectors();
 
