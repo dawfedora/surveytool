@@ -231,7 +231,7 @@ function renderActiveState() {
 function initializeCurrentTrail() {
 
   const saved =
-    localStorage.getItem("survey:lastTrail");
+    localStorage.getItem(storageKey("lastTrail"));
 
   const valid =
     trails.some(t => t.id === saved);
@@ -796,7 +796,7 @@ function populateTrailSelector(select) {
 
 function setCurrentTrail(id) {
   currentTrail = id;
-  localStorage.setItem(storageKey('survey:lastTrail'), id);
+  localStorage.setItem(storageKey('lastTrail'), id);
 
   syncTrailSelectors();
 
@@ -863,7 +863,7 @@ function renderLogView() {
 
   // restore last trail if needed
   if (!currentTrail) {
-    currentTrail = localStorage.getItem(storageKey('survey:lastTrail'))
+    currentTrail = localStorage.getItem(storageKey('lastTrail'))
       || trails?.[0]?.id
       || null;
   }
@@ -1043,7 +1043,7 @@ function showNotesPanel(panel) {
 function loadSurvey() {
   try {
     const survey = JSON.parse(
-      localStorage.getItem(`survey`)
+      localStorage.getItem(storageKey('survey'))
     );
     if (!survey) {
       return null;
