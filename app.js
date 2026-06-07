@@ -80,8 +80,8 @@ async function init() {
     }
   }
 
-  if (version.build !== "prod") {
-    document.title += ` [${version.build.toUpperCase()}]`;
+  if (version.branch !== "prod") {
+    document.title += ` [${version.branch.toUpperCase()}]`;
   }
 
   // Load datasets
