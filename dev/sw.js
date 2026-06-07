@@ -1,5 +1,5 @@
 // DO NOT REFORMAT deploy.bash depends on this line
-const CACHE_NAME = 'edgewood-dev-2026.06.06.1626';
+const CACHE_NAME = 'edgewood-dev-2026.06.06.1818';
 
 const APP_SHELL = [
   './',
