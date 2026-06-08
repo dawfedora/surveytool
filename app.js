@@ -64,7 +64,7 @@ async function init() {
   // Version
   try {
     version = await loadVersion()
-    updateStatus();
+    updateVersion();
   } catch(e) {
     console.error("Version load failed", e);
   }
@@ -136,10 +136,13 @@ async function loadVersion() {
   return data;
 }
 
-function updateStatus() {
-  if (!ui.header.status || !version)
-    return;
-  ui.header.status.textContent = `V. ${version.version}`;
+function updateVersion() {
+  ui.header.version.textContent =
+    `V:${version.version}`;
+}
+
+function setStatus(text) {
+  ui.header.status.textContent = text;
 }
 
 async function checkForUpdate() {
@@ -183,8 +186,7 @@ function renderEmptyState() {
   ui.log.panel.style.display = "none";
   ui.notes.panel.style.display = "none";
 
-  ui.header.status.textContent =
-    "No survey in progress. Press 'New Survey' to start.";
+  setStatus("No Survey");
 }
 
 function renderLimitedState() {
@@ -203,12 +205,7 @@ function enterLimitedMode() {
   ui.notes.panel.style.display = "none";
 
   ui.header.status.textContent =
-    "No local data. Connect to network and tap Refresh.";
-
-  const status = ui.header.status;
-  if (status) {
-    status.textContent = "No data loaded. Tap Refresh while online.";
-  }
+    "Refresh required local data. Connect to network and tap Refresh.";
 
   return; // STOP HERE
 }
@@ -226,7 +223,7 @@ function renderActiveState() {
 
   syncTrailSelectors();
   renderMode();
-  updateStatus();
+  setStatus("Active Survey");
 }
 
 function initializeCurrentTrail() {
@@ -250,6 +247,7 @@ function initUI() {
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     downloadBtn: document.getElementById('downloadBtn'),
+    version: document.getElementById('version'),
     status: document.getElementById('status')
   };
   ui.log ={
@@ -952,8 +950,7 @@ function formatTime(date) {
 
 // --- REFRESH APP ---
 async function refreshApp() {
-  const status = ui.header.status;
-  status.textContent = 'Refreshing…';
+  setStatus("Refreshing...");
 
   try {
     if (!navigator.onLine) { throw new Error('Offline'); }
