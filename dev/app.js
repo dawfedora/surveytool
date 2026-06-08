@@ -204,8 +204,7 @@ function enterLimitedMode() {
   ui.log.panel.style.display = "none";
   ui.notes.panel.style.display = "none";
 
-  ui.header.status.textContent =
-    "Refresh required local data. Connect to network and tap Refresh.";
+  setStatus("Refresh required");
 
   return; // STOP HERE
 }
@@ -442,10 +441,7 @@ function processSpecies(species) {
 
     console.warn(msg);
 
-    const status = ui.header.status;
-    if (status) {
-      status.textContent = msg;
-    }
+    setStatus(msg);
   }
   console.log(
     `Loaded ${trails.length} trails, ${species.length} species`
@@ -989,8 +985,7 @@ async function refreshApp() {
       }
       await cache.put(file, response.clone());
     }
-
-    status.textContent = 'Refresh complete';
+    setStatus("Refresh Complete");
 
     // restart app
     location.reload();
@@ -998,7 +993,7 @@ async function refreshApp() {
   } catch (e) {
     console.error( 'REFRESH FAILED:', e);
     alert( 'Refresh failed:\n' + e.message);
-    status.textContent = 'Offline mode using cached app';
+    setStatus("Offline mode using cached app");
   }
 }
 
