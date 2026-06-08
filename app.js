@@ -226,6 +226,7 @@ function renderActiveState() {
 
   syncTrailSelectors();
   renderMode();
+  updateStatus();
 }
 
 function initializeCurrentTrail() {
