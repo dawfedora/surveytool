@@ -21,6 +21,7 @@ const NOTE_PANEL = {
 
 const ui = {
   header: {},
+  message: {},
   log: {},
   notes: {
     start:{},
@@ -131,7 +132,7 @@ async function loadVersion() {
   const data = await response.json();
 
   if (!data.version || !data.cacheName)
-    throw new Error( "Invalid version.json");
+    throw new Error("Invalid version.json");
 
   return data;
 }
@@ -249,6 +250,13 @@ function initUI() {
     version: document.getElementById('version'),
     status: document.getElementById('status')
   };
+
+  ui.message = {
+    panel: document.getElementById("messagePanel"),
+    text: document.getElementById("messageText"),
+    dismissBtn: document.getElementById("dismissMessageBtn")
+  };
+
   ui.log ={
     panel: document.getElementById('logView'),
     trailSelect: document.getElementById('logTrailSelect'),
@@ -256,6 +264,7 @@ function initUI() {
     results: document.getElementById('results'),
     log:  document.getElementById('log'),
   };
+
   ui.notes = {
     panel: document.getElementById('notesView'),
     buttons: {
@@ -308,6 +317,7 @@ function initHeader() {
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
   ui.header.downloadBtn.addEventListener('click', downloadSurvey);
+  ui.message.dismissBtn.addEventListener("click", clearMessage);
 }
 
 // --- LOAD LOCAL DATA ---
@@ -441,7 +451,7 @@ function processSpecies(species) {
 
     console.warn(msg);
 
-    setStatus(msg);
+    showMessage(msg);
   }
   console.log(
     `Loaded ${trails.length} trails, ${species.length} species`
@@ -743,7 +753,7 @@ function initStartNote() {
   s.weather.addEventListener("input", debounce(saveStartNote, 300));
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
-  s.participants.addEventListener( "input", debounce(saveStartNote, 300));
+  s.participants.addEventListener("input", debounce(saveStartNote, 300));
   document.addEventListener("click", hideParticipantResults);
   s.notes.addEventListener("input", debounce(saveStartNote, 300));
 }
@@ -902,8 +912,27 @@ function renderNotesView() {
   }
 }
 
-function createSurvey() {
+function showMessage(text, duration = 30000) {
+  if (messageTimeoutId) 
+    clearTimeout(messageTimeoutId);
 
+  ui.message.text.textContent = text;
+  ui.message.panel.hidden = false;
+
+  if (duration > 0)
+    messageTimeoutId = setTimeout(() => { clearMessage(); },duration);
+}
+
+function clearMessage() {
+  if (messageTimeoutId) {
+    clearTimeout(messageTimeoutId);
+    messageTimeoutId = null;
+  }
+  ui.message.panel.hidden = true;
+  ui.message.text.textContent = "";
+}
+
+function createSurvey() {
   const now = new Date();
 
   return {
@@ -945,17 +974,19 @@ function formatTime(date) {
 }
 
 // --- REFRESH APP ---
+
 async function refreshApp() {
-  setStatus("Refreshing...");
+
+  showMessage("Refreshing...");
 
   try {
-    if (!navigator.onLine) { throw new Error('Offline'); }
+
+    if (!navigator.onLine)
+      throw new Error("Offline");
 
     const cacheName = version.cacheName;
-
-    if (!cacheName) { throw new Error('Missing cache name'); }
-
-    const cache = await caches.open(cacheName);
+    if (!cacheName)
+      throw new Error("Missing cache name");
 
     const APP_SHELL = [
       './',
@@ -972,28 +1003,38 @@ async function refreshApp() {
       './foe-logo.png'
     ];
 
-    // refresh cached files
+    const refreshed = new Map();
+
+    // Fetch everything first
     for (const file of APP_SHELL) {
-      console.log('refreshing:', file);
-      const request = new Request(file, { cache: 'reload' });
+      console.log("refreshing:", file);
+      const request = new Request(file, { cache: "reload" });
 
       const response = await fetch(request);
       console.log(file, response.status, response.type);
 
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`Failed to refresh ${file}`);
-      }
-      await cache.put(file, response.clone());
+
+      refreshed.set(file, response.clone());
     }
-    setStatus("Refresh Complete");
+
+    // Commit only after success
+    const cache = await caches.open(cacheName);
+
+    for (const [file, response] of refreshed) {
+      await cache.put(file, response);
+    }
+
+    showMessage("Refresh complete", 5000);
 
     // restart app
     location.reload();
 
   } catch (e) {
-    console.error( 'REFRESH FAILED:', e);
-    alert( 'Refresh failed:\n' + e.message);
-    setStatus("Offline mode using cached app");
+    console.error("REFRESH FAILED:", e);
+    alert("Refresh failed:\n" + e.message);
+    showMessage("Refresh failed");
   }
 }
 
@@ -1002,7 +1043,7 @@ function newSurvey() {
   // Existing Survey - ask first
   if (survey) {
 
-    const ok = confirm( "Delete current survey and start a new one?");
+    const ok = confirm("Delete current survey and start a new one?");
     if (!ok)
       return;
   }
