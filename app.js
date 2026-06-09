@@ -42,6 +42,7 @@ let survey = null;
 let currentTrail = null;
 let currentMode = MODE.LOG;
 let currentNotePanel = NOTE_PANEL.START;
+let messageTimeoutId = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
