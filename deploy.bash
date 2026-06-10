@@ -7,9 +7,9 @@ if [ "$BRANCH" = "main" ]; then
   BRANCH="prod"
 fi
 
-STAMP=$(TZ=America/Los_Angeles date +%Y.%m.%d.%H%M)
+STAMP=$(TZ=America/Los_Angeles date +%y%m%d.%H%M)
 
-VERSION="${BRANCH}-${STAMP}"
+VERSION="${BRANCH}:${STAMP}"
 CACHE_NAME="edgewood-$VERSION"
 STORAGE_TAG="FoE:surveytool:${BRANCH}"
 
