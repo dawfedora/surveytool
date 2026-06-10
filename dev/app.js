@@ -987,7 +987,7 @@ async function refreshApp() {
     if (!navigator.onLine)
       throw new Error("Offline");
 
-    freshVersion = await loadVersion({fresh: true});
+    let freshVersion = await loadVersion({fresh: true});
 
     const cacheName = freshVersion.cacheName;
 
