@@ -43,6 +43,9 @@ let currentTrail = null;
 let currentMode = MODE.LOG;
 let currentNotePanel = NOTE_PANEL.START;
 let messageTimeoutId = null;
+let headerInitialized = false;
+let logViewInitialized = false;
+let notesViewInitialized = false;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -69,6 +72,9 @@ async function init() {
     updateVersion();
   } catch(e) {
     console.error("Version load failed", e);
+    showMessage("Version and config data not available\n");
+    setAppState(APP_STATE.LIMITED);
+    return;
   }
 
   STORAGE_TAG = version.storageTag;
@@ -124,16 +130,19 @@ function debounce(fn, delay = 2500) {
   };
 }
 
-async function loadVersion() {
-  const response = await fetch("./version.json");
+async function loadVersion(useFresh = false) {
+
+  const response = await fetch("./version.json",
+    {cache: useFresh ? "reload" : "default"}
+  );
 
   if (!response.ok)
     throw new Error("Failed to load version");
 
   const data = await response.json();
 
-  if (!data.version || !data.cacheName)
-    throw new Error("Invalid version.json");
+  if (!data.version || !data.cacheName || !data.storageTag)
+    throw new Error( "Invalid version.json");
 
   return data;
 }
@@ -149,20 +158,24 @@ function setStatus(text) {
 
 async function checkForUpdate() {
 
-  if (!navigator.onLine || !version)
+  if (!navigator.onLine)
     return null;
 
-  const response = await fetch("./version.json", {cache: "no-store"});
+  try {
+    const latest = await loadVersion({fresh: true});
 
-  if (!response.ok)
+    if (!version)
+      return latest
+
+    if (latest.version === version.version)
+      return null;
+
+    return latest;
+
+  } catch (e) {
+    console.warn("Update check failed", e);
     return null;
-
-  const latest = await response.json();
-
-  if (latest.version === version.version)
-    return null;
-
-  return latest;
+  }
 }
 
 function setAppState(state) {
@@ -197,8 +210,7 @@ function renderLimitedState() {
 
 function enterLimitedMode() {
 
-  ui.header.refreshBtn.onclick = refreshApp;
-
+  ui.header.refreshBtn.style.display = "";
   ui.header.modeBtn.style.display = "none";
   ui.header.newBtn.style.display = "none";
   ui.header.downloadBtn.style.display = "none";
@@ -313,6 +325,10 @@ function validateUI(obj, path = 'ui') {
 }
 
 function initHeader() {
+  if (headerInitialized)
+    return;
+  headerInitialized = true;
+
   // Hook up buttons
   ui.header.modeBtn.addEventListener('click', toggleMode);
   ui.header.newBtn.addEventListener('click', newSurvey);
@@ -353,6 +369,11 @@ async function loadLocalData() {
     trails = processTrails(trails);
     participants = requireArray(loaded.participants, 'participants', 'participants.json');
     participants = processParticipants(participants);
+
+  console.log(
+    `Loaded ${trails.length} trails, ${species.length} species, ${participants.length} participants`
+  );
+
 
     return true;
   } catch (e) {
@@ -454,9 +475,6 @@ function processSpecies(species) {
 
     showMessage(msg);
   }
-  console.log(
-    `Loaded ${trails.length} trails, ${species.length} species`
-  );
 
   return species;
 }
@@ -703,6 +721,9 @@ function insertParticipant(name) {
 }
 
 function initLogView() {
+  if (logViewInitialized)
+    return;
+  logViewInitialized = true;
 
   ui.log.search.addEventListener("beforeinput", validateSearchInput);
 
@@ -726,6 +747,10 @@ function initLogView() {
 }
 
 function initNotesView() {
+  if (logViewInitialized)
+    return;
+  logViewInitialized = true;
+
   ui.notes.buttons.start.addEventListener("click", () => {
     showNotesPanel(NOTE_PANEL.START);
   });
@@ -953,31 +978,8 @@ function createSurvey() {
   };
 }
 
-function formatDate(date) {
-  return date.toLocaleDateString(
-    "en-US",
-    {
-      month: "numeric",
-      day: "numeric",
-      year: "numeric"
-    }
-  );
-}
-
-function formatTime(date) {
-  return date.toLocaleTimeString(
-    "en-US",
-    {
-      hour: "numeric",
-      minute: "2-digit"
-    }
-  );
-}
-
 // --- REFRESH APP ---
-
 async function refreshApp() {
-
   showMessage("Refreshing...");
 
   try {
@@ -985,9 +987,9 @@ async function refreshApp() {
     if (!navigator.onLine)
       throw new Error("Offline");
 
-    const cacheName = version.cacheName;
-    if (!cacheName)
-      throw new Error("Missing cache name");
+    freshVersion = await loadVersion({fresh: true});
+
+    const cacheName = freshVersion.cacheName;
 
     const APP_SHELL = [
       './',
@@ -1504,13 +1506,24 @@ function formatTimestamp(date = new Date()) {
   return (`${yyyy}-${mm}-${dd} ` + `${hh}:${min}:${ss}`);
 }
 
-//
 // display date
 // MM/DD/YYYY
 //
+//function formatDate(date) {
+//  return date.toLocaleDateString(
+//    'en-US', {year: 'numeric', month: '2-digit', day: '2-digit' }
+//  );
+//}
+
 function formatDate(date) {
   return date.toLocaleDateString(
-    'en-US', {year: 'numeric', month: '2-digit', day: '2-digit' }
+    "en-US", { month: "numeric", day: "numeric", year: "numeric" }
+  );
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString(
+    "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
 
@@ -1518,10 +1531,10 @@ function formatDate(date) {
 // display time
 // HH:MM
 //
-function formatTime(date) {
-  return date.toLocaleTimeString(
-    'en-US',
-    {hour: '2-digit', minute: '2-digit', hour12: false }
-  );
-}
+//function formatTime(date) {
+//  return date.toLocaleTimeString(
+//    'en-US',
+//    {hour: '2-digit', minute: '2-digit', hour12: false }
+//  );
+//}
 
