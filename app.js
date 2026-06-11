@@ -747,9 +747,9 @@ function initLogView() {
 }
 
 function initNotesView() {
-  if (logViewInitialized)
+  if (notesViewInitialized)
     return;
-  logViewInitialized = true;
+  notesViewInitialized = true;
 
   ui.notes.buttons.start.addEventListener("click", () => {
     showNotesPanel(NOTE_PANEL.START);
