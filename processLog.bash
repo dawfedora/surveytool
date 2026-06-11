@@ -1,5 +1,6 @@
 #!/bin/bash
 
-base=$(basename "$1" .json)
+INPUT=$1
+OUTPUT="${INPUT%.*}.tsv"
 
-jq -r -f processLog.jq  $1 > $base.csv
+jq -r -f processLog.jq  $INPUT > $OUTPUT
