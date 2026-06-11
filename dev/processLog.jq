@@ -1,33 +1,35 @@
-# Function to turn an object's keys/values into text lines
-def labeled_block(name):
-  "--- \(name) ---", (to_entries[] | "\(.key): \(.value)"), "";
+# 1. Output the Start and End Notes
+"START NOTE:", .startNote, 
+"END NOTE:", .endNote,
+"",
 
+# 2. Trail Notes Section
+"TRAIL NOTES:",
+(.trails | to_entries[] | 
+  [
+    .key, 
+    (.value.notes | gsub("\n"; "; ")) # Replaces newlines with semicolons
+  ] | @tsv
+),
+"",
+
+# 3. Prepare the Columnar Trails
 (
-  # 1. Metadata
-  (.meta | labeled_block("METADATA")),
+  [ .trails | to_entries[] | {
+      name: .key, 
+      # Extract ONLY the "Common Name" field from each entry
+      items: [ .value.entries[] | ."commonName" // "" ]
+    }
+  ] as $cols |
+  
+  # Find the longest trail list to determine row count
+  ($cols | map(.items | length) | max) as $max_rows |
 
-  # 2. Start Note
-  "START NOTE:", .startNote, "",
+  # Output the Header Row (Trail Names)
+  ([$cols[].name] | @tsv),
 
-  # 3. Trails Loop
-  (.trails | to_entries[] | (
-    "TRAIL: \(.key)",
-    "Note: \(.value.note)",
-    "Entries:",
-    # Check if the FIRST entry in the array is an object
-    (.value.entries | if (.[0] | type) == "object" 
-      then 
-        # Capture unsorted keys from the first item to use as a template
-        (.[0] | keys_unsorted) as $cols | 
-        ($cols | @csv),                 # Output the Header Row
-        (.[] | [.[$cols[]]] | @csv)     # Map every row to those exact keys
-      else 
-        "Entry Value", (.[] | [.] | @csv) 
-      end),
-    ""
-  )),
-
-  # 4. End Note
-  "END NOTE:", .endNote
+  # Output the Data Rows (Common Names only)
+  range(0; $max_rows) as $i |
+  ([$cols[] | .items[$i] // ""] | @tsv)
 )
 
