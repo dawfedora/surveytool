@@ -788,7 +788,7 @@ function initTrailNote() {
 
   const t = ui.notes.trail;
 
-  t.notes.addEventListener("input", debounce(saveTrailNote, 300));
+  t.notes.addEventListener("input", debounce(saveTrailNotes, 300));
 }
 
 function initCloseNote() {
