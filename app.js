@@ -494,9 +494,17 @@ function processParticipants(pIn) {
       continue;
     if (!/^[A-Za-z .,'-]+$/.test(person))
       console.warn(`processParticipants: Unexpected character`, person);
+
     pOut.push(person);
   }
   return pOut;
+}
+
+function requireString(value, name) {
+
+  if (typeof value !== "string") 
+    throw new Error(`Invalid ${name}`);
+ 
 }
 
 function requireArray(obj, key, filename) {
@@ -1619,6 +1627,7 @@ function downloadSurvey() {
 
   URL.revokeObjectURL(url);
 }
+
 //
 // local timestamp
 // YYYY-MM-DD HH:MM:SS
@@ -1635,15 +1644,6 @@ function formatTimestamp(date = new Date()) {
   return (`${yyyy}-${mm}-${dd} ` + `${hh}:${min}:${ss}`);
 }
 
-// display date
-// MM/DD/YYYY
-//
-//function formatDate(date) {
-//  return date.toLocaleDateString(
-//    'en-US', {year: 'numeric', month: '2-digit', day: '2-digit' }
-//  );
-//}
-
 function formatDate(date) {
   return date.toLocaleDateString(
     "en-US", { month: "numeric", day: "numeric", year: "numeric" }
@@ -1655,15 +1655,4 @@ function formatTime(date) {
     "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
-
-//
-// display time
-// HH:MM
-//
-//function formatTime(date) {
-//  return date.toLocaleTimeString(
-//    'en-US',
-//    {hour: '2-digit', minute: '2-digit', hour12: false }
-//  );
-//}
 
