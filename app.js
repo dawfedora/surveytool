@@ -1064,10 +1064,8 @@ function newSurvey() {
 
   localStorage.removeItem(storageKey("surveyExists"));
 
+  
   survey = createSurvey();
-
-  saveSurvey(survey);
-
 
   setCurrentTrail(trails[0].id);
 
@@ -1082,6 +1080,8 @@ function newSurvey() {
 
   // Populate UI
   renderMode();
+
+  saveSurvey(survey);
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
