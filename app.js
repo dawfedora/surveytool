@@ -1252,7 +1252,7 @@ function loadTrailNotes() {
   return notes;
 }
 
-function saveTrails(survey) {
+function saveTrails() {
   localStorage.setItem(storageKey('trails'), JSON.stringify(survey.trails));
 }
 
