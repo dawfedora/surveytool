@@ -142,7 +142,7 @@ async function loadVersion(useFresh = false) {
   const data = await response.json();
 
   if (!data.version || !data.cacheName || !data.storageTag)
-    throw new Error( "Invalid version.json");
+    throw new Error("Invalid version.json");
 
   return data;
 }
@@ -964,12 +964,13 @@ function createSurvey() {
   return {
     startNote: {
       date: formatDate(now),
-      startTime: formatTime(now),
+      time: formatTime(now),
       weather: "",
       participants: "",
       notes: ""
     },
-    endNote: {
+    trailNotes: {},
+    closeNote: {
       time: "",
       weather: "",
       notes: ""
@@ -1052,10 +1053,17 @@ function newSurvey() {
   }
 
   // Create new survey and save it
+
+  localStorage.removeItem(storageKey("surveyExists"));
+
   survey = createSurvey();
+
   saveSurvey(survey);
 
+
   setCurrentTrail(trails[0].id);
+
+  localStorage.setItem(storageKey("surveyExists"), "true");
 
   // Go to start note
   currentMode = MODE.NOTES;
@@ -1077,21 +1085,65 @@ function showNotesPanel(panel) {
 }
 
 // --- Storage ---
-function loadSurvey() {
+function loadSection(key) {
+
+  const raw = localStorage.getItem(key);
+
+  // never saved
+  if (raw === null)
+    return null;
+
   try {
-    const survey = JSON.parse(
-      localStorage.getItem(storageKey('survey'))
-    );
-    if (!survey) {
-      return null;
-    }
+    const data = JSON.parse(raw);
 
-  // Ensure required top-level fields exist
-  survey.startNote ??= {};
-  survey.endNote ??= {};
-  survey.trails ??= {};
+    // explicit null
+    if (data === null)
+      throw new Error(`Null data in ${key}`);
 
-  return survey;
+    return data;
+
+  } catch (e) {
+    console.error(`Invalid ${key}`, e);
+    throw new Error(`Corrupt survey data: ${key}`);
+  }
+}
+
+function isObject(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  );
+}
+
+function saveSurvey(survey) {
+  if (!survey)
+    return;
+
+  saveStartNote();
+  saveTrailNotes();
+  saveCloseNote();
+  saveTrails();
+}
+
+function loadSurvey() {
+
+  const surveyExists = localStorage.getItem(storageKey("surveyExists"));
+  if (!surveyExists)
+    return null;
+
+  const survey = {};
+  
+//
+// These should all have been created and saved in createSurvey()
+//
+  try {
+    survey.startNote = loadStartNote();
+    survey.closeNote = loadCloseNote();
+    survey.trailNotes = loadTrailNotes();
+    survey.trails = loadTrails();
+
+    return survey;
 
   } catch(e) {
     console.error('Bad survey data', e);
@@ -1099,39 +1151,142 @@ function loadSurvey() {
   }
 }
 
-function ensureTrail(survey, trailId) {
-  if (!survey.trails[trailId]) {
-    survey.trails[trailId] = {
-      firstEntered: formatTimestamp(),
-      notes: '',
-      entries: []
-    };
-  }
-
-  return survey.trails[trailId];
-}
-
-function saveSurvey(survey) {
-  localStorage.setItem(storageKey('survey'), JSON.stringify(survey));
-}
-
 function saveStartNote() {
-
-  if (!survey) {
+  if (!survey)
     return;
-  }
 
   const s = ui.notes.start;
 
   survey.startNote = {
     date: s.date.value,
-    startTime: s.time.value,
+    time: s.time.value,
     weather: s.weather.value,
     participants: s.participants.value,
     notes: s.notes.value
   };
 
-  saveSurvey(survey);
+  localStorage.setItem(storageKey('startNote'),
+    JSON.stringify(survey.startNote));
+}
+
+
+function loadStartNote() {
+
+  const start = loadSection(storageKey("startNote"));
+
+  if (start === null)
+    throw new Error("Missing startNote");
+
+  if (typeof start !== "object" || Array.isArray(start))
+    throw new Error("Bad format for startNote");
+
+  requireString(start.date, "startNote.date");
+  requireString(start.time, "startNote.time");
+  requireString(start.weather, "startNote.weather");
+  requireString(start.participants, "startNote.participants");
+  requireString(start.notes, "startNote.notes");
+
+  return start;
+}
+
+function saveCloseNote() {
+  if (!survey)
+    return;
+
+  const c = ui.notes.close;
+
+  survey.closeNote = {
+    time: c.time.value,
+    weather: c.weather.value,
+    notes: c.notes.value
+  };
+
+  localStorage.setItem(storageKey('closeNote'),
+    JSON.stringify(survey.closeNote));
+}
+
+function loadCloseNote() {
+
+  const close = loadSection(storageKey("closeNote"));
+
+  if (close === null)
+    throw new Error("Missing closeNote");
+
+  if (typeof close !== "object" || Array.isArray(close))
+    throw new Error("Bad format for closeNote");
+
+  requireString(close.time, "closeNote.time");
+  requireString(close.weather, "closeNote.weather");
+  requireString(close.notes, "closeNote.notes");
+
+  return close;
+}
+
+// We save all trail notes together
+function saveTrailNotes() {
+
+  if (!survey)
+    return;
+
+  // Get current UI value to memory, just in case
+  survey.trailNotes[currentTrail]  = ui.notes.trail.notes.value;
+
+  // Store all the trail notes
+  localStorage.setItem(storageKey("trailNotes"),
+    JSON.stringify(survey.trailNotes));
+}
+
+function loadTrailNotes() {
+  const notes = loadSection(storageKey("trailNotes"));
+
+  if (notes === null)
+    throw new Error("Missing trailNotes");
+
+  if (typeof notes !== "object" || Array.isArray(notes))
+    throw new Error("Bad format for trailNotes");
+
+  for (const trailId in notes) {
+    requireString(notes[trailId], `trailNotes.${trailId}`);
+  }
+
+  return notes;
+}
+
+function saveTrails(survey) {
+  localStorage.setItem(storageKey('trails'), JSON.stringify(survey.trails));
+}
+
+function loadTrails() {
+  const trails = loadSection(storageKey("trails"));
+
+  if (trails === null)
+    throw new Error("Missing trails log");
+
+  if (typeof trails !== "object" || Array.isArray(trails))
+    throw new Error ("Bad format for trails log");
+
+  for (const trailId in trails) {
+    const trail = trails[trailId];
+
+    if (trail === null || typeof trail !== "object" || Array.isArray( trail))
+      throw new Error(`Bad trail: ${trailId}`);
+
+    requireString(trail.firstEntered, `trail ${trailId} .firstEntered`);
+
+    if (!Array.isArray(trail.entries))
+      throw new Error(`Bad entries: ${trailId}`);
+  }
+
+  return trails;
+}
+
+function ensureTrail(survey, trailId) {
+  survey.trails[trailId] ??= {
+    firstEntered: formatTimestamp(),
+    entries: []
+  };
+
+  return survey.trails[trailId];
 }
 
 function renderStartNote() {
@@ -1144,23 +1299,10 @@ function renderStartNote() {
   const data = survey.startNote || {};
 
   s.date.value = data.date || '';
-  s.time.value = data.startTime || '';
+  s.time.value = data.time || '';
   s.weather.value = data.weather || '';
   s.participants.value = data.participants || '';
   s.notes.value = data.notes || '';
-}
-
-function saveTrailNote() {
-
-  if (!survey || !currentTrail) {
-    return;
-  }
-
-  const trail = ensureTrail(survey, currentTrail);
-
-  trail.notes = ui.notes.trail.notes.value;
-
-  saveSurvey(survey);
 }
 
 function renderTrailNotes() {
@@ -1168,25 +1310,8 @@ function renderTrailNotes() {
   if (!survey || !currentTrail) {
     return;
   }
-  const trail = ensureTrail(survey, currentTrail);
-  ui.notes.trail.notes.value = trail.notes || '';
-}
+  ui.notes.trail.notes.value = survey.trailNotes[currentTrail]  || '';
 
-function saveCloseNote() {
-
-  if (!survey) {
-    return;
-  }
-
-  const c = ui.notes.close;
-
-  survey.endNote = {
-    endTime: c.time.value,
-    weather: c.weather.value,
-    notes: c.notes.value
-  };
-
-  saveSurvey(survey);
 }
 
 function renderCloseNote() {
@@ -1196,9 +1321,9 @@ function renderCloseNote() {
   }
 
   const c = ui.notes.close;
-  const data = survey.endNote || {};
+  const data = survey.closeNote || {};
 
-  c.time.value = data.endTime || '';
+  c.time.value = data.time || '';
   c.weather.value = data.weather || '';
   c.notes.value = data.notes || '';
 }
@@ -1470,7 +1595,11 @@ function resizeNote(note, expanded = false) {
 }
 
 function downloadSurvey() {
-  const data = localStorage.getItem(storageKey('survey'));
+
+  if (!survey)
+    return;
+
+  const data = JSON.stringify(survey, null, 2);
 
   if (!data) {
     alert('No survey data to download.');
