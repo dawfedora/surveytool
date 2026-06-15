@@ -745,6 +745,12 @@ function initLogView() {
       }, 100);
     }
   );
+  ui.clearSearch.addEventListener("click", () => {
+      ui.search.value = "";
+      ui.search.dispatchEvent(new Event("input"));
+      ui.search.focus();
+    }
+  );
 
   window.addEventListener("resize", debounce(positionResults, 50));
   window.visualViewport?.addEventListener(

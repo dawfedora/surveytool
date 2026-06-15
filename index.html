@@ -141,13 +141,32 @@
       min-height: 0;
     }
 
-
     #searchArea {
+      position: relative;
       flex: 0 0 auto;
       background: #f5f5f5;
       padding-top: 6px;
       z-index: 100;
-      position: relative;
+    }
+
+    #search {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 16px;
+      padding: 6px 38px 6px 10px;
+      margin-bottom: 6px;
+    }
+
+    #clearSearch {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: none;
+      font-size: 22px;
+      padding: 6px;
+      cursor: pointer;
     }
 
     #logTrailSelect {
@@ -164,12 +183,6 @@
       flex: 1 1 auto;
       overflow-y: auto;
       min-height: 0;
-    }
-
-    #search {
-      font-size: 16px;
-      padding: 6px 10px;
-      margin-bottom: 6px;
     }
 
     #results {
@@ -253,10 +266,6 @@
       background: #ffeaea;
     }
 
-    #search {
-      font-size: 16px;
-    }
-
     .longNote {
       width: 100%;
       min-height: 8em;
@@ -327,7 +336,10 @@
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
-      />
+      >
+      <button id="clearSearch" type="button" aria-label="Clear search">
+        X
+      </button>
     </div>
 
     <!-- normal content -->
