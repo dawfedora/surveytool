@@ -274,7 +274,7 @@ function initUI() {
     panel: document.getElementById('logView'),
     trailSelect: document.getElementById('logTrailSelect'),
     search: document.getElementById('search'),
-    clearSearch: document.getElementById('clearSearch');
+    clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
     log:  document.getElementById('log'),
   };
