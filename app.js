@@ -746,10 +746,10 @@ function initLogView() {
       }, 100);
     }
   );
-  ui.clearSearch.addEventListener("click", () => {
-      ui.search.value = "";
-      ui.search.dispatchEvent(new Event("input"));
-      ui.search.focus();
+  ui.log.clearSearch.addEventListener("click", () => {
+      ui.log.search.value = "";
+      ui.log.search.dispatchEvent(new Event("input"));
+      ui.log.search.focus();
     }
   );
 
