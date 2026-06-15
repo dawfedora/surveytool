@@ -212,6 +212,11 @@
     .participantWrapper {
       position: relative;
     }
+    #participants {
+      widt: 100%;
+      resize: vertical;
+      min-height: 2.5em;
+    }
     .resultItem {
       padding: 12px 10px;
       line-height: 1.25;
@@ -349,7 +354,8 @@
       <input id="startTime" />
       <input id="startWeather" placeholder="75 F, partly cloudy" />
       <div class="participantWrapper">
-        <input id="participants" placeholder="Participants">
+        <textarea id="participants" rows="2" placeholder="Participants">
+        </textarea>
         <div id="participantResults"
           class="participantResults">
         </div>
