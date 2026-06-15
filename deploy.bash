@@ -13,7 +13,7 @@ else
 fi
 
 CACHE_NAME="FoE:survey-$VERSION"
-STORAGE_TAG="FoE:survey:${VERSION}"
+STORAGE_TAG="FoE:survey:${BRANCH}"
 
 cat > version.json <<EOF
 {
