@@ -242,7 +242,7 @@ function renderActiveState() {
 function initializeCurrentTrail() {
 
   const saved =
-    localStorage.getItem(storageKey("lastTrail"));
+    localStorage.getItem(storageKey("currentTrail"));
 
   const valid =
     trails.some(t => t.id === saved);
@@ -835,7 +835,7 @@ function populateTrailSelector(select) {
 
 function setCurrentTrail(id) {
   currentTrail = id;
-  localStorage.setItem(storageKey('lastTrail'), id);
+  localStorage.setItem(storageKey('currentTrail'), id);
 
   syncTrailSelectors();
 
@@ -902,7 +902,7 @@ function renderLogView() {
 
   // restore last trail if needed
   if (!currentTrail) {
-    currentTrail = localStorage.getItem(storageKey('lastTrail'))
+    currentTrail = localStorage.getItem(storageKey('currentTrail'))
       || trails?.[0]?.id
       || null;
   }
