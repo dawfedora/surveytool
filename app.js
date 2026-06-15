@@ -149,7 +149,7 @@ async function loadVersion(useFresh = false) {
 
 function updateVersion() {
   ui.header.version.textContent =
-    `V:${version.version}`;
+    `${version.version}`;
 }
 
 function setStatus(text) {
@@ -782,30 +782,30 @@ function initStartNote() {
 
   const s = ui.notes.start;
 
-  s.date.addEventListener("input", debounce(saveStartNote, 300));
-  s.time.addEventListener("input", debounce(saveStartNote, 300));
-  s.weather.addEventListener("input", debounce(saveStartNote, 300));
+  s.date.addEventListener("input", debounce(saveStartNote, 1500));
+  s.time.addEventListener("input", debounce(saveStartNote, 1500));
+  s.weather.addEventListener("input", debounce(saveStartNote, 1500));
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
   s.participants.addEventListener("input", debounce(saveStartNote, 300));
   document.addEventListener("click", hideParticipantResults);
-  s.notes.addEventListener("input", debounce(saveStartNote, 300));
+  s.notes.addEventListener("input", debounce(saveStartNote, 1500));
 }
 
 function initTrailNote() {
 
   const t = ui.notes.trail;
 
-  t.notes.addEventListener("input", debounce(saveTrailNotes, 300));
+  t.notes.addEventListener("input", debounce(saveTrailNotes, 1500));
 }
 
 function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener("input", debounce(saveCloseNote, 300));
-  c.weather.addEventListener("input", debounce(saveCloseNote, 300));
-  c.notes.addEventListener("input", debounce(saveCloseNote, 300));
+  c.time.addEventListener("input", debounce(saveCloseNote, 1500));
+  c.weather.addEventListener("input", debounce(saveCloseNote, 1500));
+  c.notes.addEventListener("input", debounce(saveCloseNote, 1500));
 }
 
 function determineInitialMode() {
