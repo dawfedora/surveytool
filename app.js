@@ -8,8 +8,20 @@ const APP_STATE = {
   LIMITED: "LIMITED"
 };
 
+const MODE = {
+  LOG: "log",
+  NOTES: "notes"
+};
+
+const NOTE_PANEL = {
+  START: "start",
+  TRAIL: "trail",
+  END: "end"
+};
+
 const ui = {
   header: {},
+  message: {},
   log: {},
   notes: {
     start:{},
@@ -18,28 +30,22 @@ const ui = {
   }
 };
 
+let  STORAGE_TAG = null;
+
 let appState = APP_STATE.BOOT;
 
+let version = null;
 let species = [];
 let trails = [];
 let participants = [];
 let survey = null;
 let currentTrail = null;
-let currentMode = "log";
-let currentNotePanel = "start";
-let version = null;
-
-function debounce(fn, delay = 300) {
-  let timer = null;
-
-  return function (...args) {
-    clearTimeout(timer);
-
-    timer = setTimeout(() => {
-      fn.apply(this, args);
-    }, delay);
-  };
-}
+let currentMode = MODE.LOG;
+let currentNotePanel = NOTE_PANEL.START;
+let messageTimeoutId = null;
+let headerInitialized = false;
+let logViewInitialized = false;
+let notesViewInitialized = false;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -63,10 +69,15 @@ async function init() {
   // Version
   try {
     version = await loadVersion()
-    updateStatus();
+    updateVersion();
   } catch(e) {
     console.error("Version load failed", e);
+    showMessage("Version and config data not available\n");
+    setAppState(APP_STATE.LIMITED);
+    return;
   }
+
+  STORAGE_TAG = version.storageTag;
 
   // Update Check
   const latest = await checkForUpdate();
@@ -78,6 +89,10 @@ async function init() {
       refreshApp();
       return;
     }
+  }
+
+  if (version.branch !== "prod") {
+    document.title += ` [${version.branch.toUpperCase()}]`;
   }
 
   // Load datasets
@@ -99,42 +114,68 @@ async function init() {
   setAppState(APP_STATE.ACTIVE);
 }
 
-async function loadVersion() {
-  const response = await fetch("./version.json");
+function storageKey(key) {
+  return `${STORAGE_TAG}:${key}`;
+}
+
+function debounce(fn, delay = 2500) {
+  let timer = null;
+
+  return function (...args) {
+    clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
+}
+
+async function loadVersion(useFresh = false) {
+
+  const response = await fetch("./version.json",
+    {cache: useFresh ? "reload" : "default"}
+  );
 
   if (!response.ok)
     throw new Error("Failed to load version");
 
   const data = await response.json();
 
-  if (!data.version || !data.cacheName)
-    throw new Error( "Invalid version.json");
+  if (!data.version || !data.cacheName || !data.storageTag)
+    throw new Error("Invalid version.json");
 
   return data;
 }
 
-function updateStatus() {
-  if (!ui.header.status || !version)
-    return;
-  ui.header.status.textContent = `V. ${version.version}`;
+function updateVersion() {
+  ui.header.version.textContent =
+    `${version.version}`;
+}
+
+function setStatus(text) {
+  ui.header.status.textContent = text;
 }
 
 async function checkForUpdate() {
 
-  if (!navigator.onLine || !version)
+  if (!navigator.onLine)
     return null;
 
-  const response = await fetch("./version.json", {cache: "no-store"});
+  try {
+    const latest = await loadVersion({fresh: true});
 
-  if (!response.ok)
+    if (!version)
+      return latest
+
+    if (latest.version === version.version)
+      return null;
+
+    return latest;
+
+  } catch (e) {
+    console.warn("Update check failed", e);
     return null;
-
-  const latest = await response.json();
-
-  if (latest.version === version.version)
-    return null;
-
-  return latest;
+  }
 }
 
 function setAppState(state) {
@@ -160,8 +201,7 @@ function renderEmptyState() {
   ui.log.panel.style.display = "none";
   ui.notes.panel.style.display = "none";
 
-  ui.header.status.textContent =
-    "No survey in progress. Press 'New Survey' to start.";
+  setStatus("No Survey");
 }
 
 function renderLimitedState() {
@@ -170,8 +210,7 @@ function renderLimitedState() {
 
 function enterLimitedMode() {
 
-  ui.header.refreshBtn.onclick = refreshApp;
-
+  ui.header.refreshBtn.style.display = "";
   ui.header.modeBtn.style.display = "none";
   ui.header.newBtn.style.display = "none";
   ui.header.downloadBtn.style.display = "none";
@@ -179,13 +218,7 @@ function enterLimitedMode() {
   ui.log.panel.style.display = "none";
   ui.notes.panel.style.display = "none";
 
-  ui.header.status.textContent =
-    "No local data. Connect to network and tap Refresh.";
-
-  const status = ui.header.status;
-  if (status) {
-    status.textContent = "No data loaded. Tap Refresh while online.";
-  }
+  setStatus("Refresh required");
 
   return; // STOP HERE
 }
@@ -203,12 +236,13 @@ function renderActiveState() {
 
   syncTrailSelectors();
   renderMode();
+  setStatus("Active Survey");
 }
 
 function initializeCurrentTrail() {
 
   const saved =
-    localStorage.getItem("survey:lastTrail");
+    localStorage.getItem(storageKey("currentTrail"));
 
   const valid =
     trails.some(t => t.id === saved);
@@ -226,15 +260,25 @@ function initUI() {
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     downloadBtn: document.getElementById('downloadBtn'),
+    version: document.getElementById('version'),
     status: document.getElementById('status')
   };
+
+  ui.message = {
+    panel: document.getElementById("messagePanel"),
+    text: document.getElementById("messageText"),
+    dismissBtn: document.getElementById("dismissMessageBtn")
+  };
+
   ui.log ={
     panel: document.getElementById('logView'),
     trailSelect: document.getElementById('logTrailSelect'),
     search: document.getElementById('search'),
+    clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
     log:  document.getElementById('log'),
   };
+
   ui.notes = {
     panel: document.getElementById('notesView'),
     buttons: {
@@ -282,11 +326,16 @@ function validateUI(obj, path = 'ui') {
 }
 
 function initHeader() {
+  if (headerInitialized)
+    return;
+  headerInitialized = true;
+
   // Hook up buttons
   ui.header.modeBtn.addEventListener('click', toggleMode);
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
   ui.header.downloadBtn.addEventListener('click', downloadSurvey);
+  ui.message.dismissBtn.addEventListener("click", clearMessage);
 }
 
 // --- LOAD LOCAL DATA ---
@@ -321,6 +370,11 @@ async function loadLocalData() {
     trails = processTrails(trails);
     participants = requireArray(loaded.participants, 'participants', 'participants.json');
     participants = processParticipants(participants);
+
+  console.log(
+    `Loaded ${trails.length} trails, ${species.length} species, ${participants.length} participants`
+  );
+
 
     return true;
   } catch (e) {
@@ -420,14 +474,8 @@ function processSpecies(species) {
 
     console.warn(msg);
 
-    const status = ui.header.status;
-    if (status) {
-      status.textContent = msg;
-    }
+    showMessage(msg);
   }
-  console.log(
-    `Loaded ${trails.length} trails, ${species.length} species`
-  );
 
   return species;
 }
@@ -447,9 +495,17 @@ function processParticipants(pIn) {
       continue;
     if (!/^[A-Za-z .,'-]+$/.test(person))
       console.warn(`processParticipants: Unexpected character`, person);
+
     pOut.push(person);
   }
   return pOut;
+}
+
+function requireString(value, name) {
+
+  if (typeof value !== "string") 
+    throw new Error(`Invalid ${name}`);
+ 
 }
 
 function requireArray(obj, key, filename) {
@@ -674,6 +730,9 @@ function insertParticipant(name) {
 }
 
 function initLogView() {
+  if (logViewInitialized)
+    return;
+  logViewInitialized = true;
 
   ui.log.search.addEventListener("beforeinput", validateSearchInput);
 
@@ -687,6 +746,12 @@ function initLogView() {
       }, 100);
     }
   );
+  ui.log.clearSearch.addEventListener("click", () => {
+      ui.log.search.value = "";
+      ui.log.search.dispatchEvent(new Event("input"));
+      ui.log.search.focus();
+    }
+  );
 
   window.addEventListener("resize", debounce(positionResults, 50));
   window.visualViewport?.addEventListener(
@@ -697,14 +762,18 @@ function initLogView() {
 }
 
 function initNotesView() {
+  if (notesViewInitialized)
+    return;
+  notesViewInitialized = true;
+
   ui.notes.buttons.start.addEventListener("click", () => {
-    showNotesPanel("start");
+    showNotesPanel(NOTE_PANEL.START);
   });
   ui.notes.buttons.trail.addEventListener("click", () => {
-    showNotesPanel("trail");
+    showNotesPanel(NOTE_PANEL.TRAIL);
   });
   ui.notes.buttons.close.addEventListener("click", () => {
-    showNotesPanel("close");
+    showNotesPanel(NOTE_PANEL.END);
   });
 
   populateTrailSelector(ui.notes.trail.trailSelect);
@@ -713,45 +782,45 @@ function initNotesView() {
   initTrailNote();
   initCloseNote();
 
-  showNotesPanel("start"); // or whatever default
+  showNotesPanel(NOTE_PANEL.START); // or whatever default
 }
 
 function initStartNote() {
 
   const s = ui.notes.start;
 
-  s.date.addEventListener("input", debounce(saveStartNote, 300));
-  s.time.addEventListener("input", debounce(saveStartNote, 300));
-  s.weather.addEventListener("input", debounce(saveStartNote, 300));
+  s.date.addEventListener("input", debounce(saveStartNote, 1500));
+  s.time.addEventListener("input", debounce(saveStartNote, 1500));
+  s.weather.addEventListener("input", debounce(saveStartNote, 1500));
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
-  s.participants.addEventListener( "input", debounce(saveStartNote, 300));
+  s.participants.addEventListener("input", debounce(saveStartNote, 300));
   document.addEventListener("click", hideParticipantResults);
-  s.notes.addEventListener("input", debounce(saveStartNote, 300));
+  s.notes.addEventListener("input", debounce(saveStartNote, 1500));
 }
 
 function initTrailNote() {
 
   const t = ui.notes.trail;
 
-  t.notes.addEventListener("input", debounce(saveTrailNote, 300));
+  t.notes.addEventListener("input", debounce(saveTrailNotes, 1500));
 }
 
 function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener("input", debounce(saveCloseNote, 300));
-  c.weather.addEventListener("input", debounce(saveCloseNote, 300));
-  c.notes.addEventListener("input", debounce(saveCloseNote, 300));
+  c.time.addEventListener("input", debounce(saveCloseNote, 1500));
+  c.weather.addEventListener("input", debounce(saveCloseNote, 1500));
+  c.notes.addEventListener("input", debounce(saveCloseNote, 1500));
 }
 
 function determineInitialMode() {
   if (survey) {
-    currentMode = "log";
+    currentMode = MODE.LOG;
   } else {
-    currentMode = "notes";
-    currentNotePanel = "start";
+    currentMode = MODE.NOTES;
+    currentNotePanel = NOTE_PANEL.START;
   }
 }
 
@@ -773,7 +842,7 @@ function populateTrailSelector(select) {
 
 function setCurrentTrail(id) {
   currentTrail = id;
-  localStorage.setItem('survey:lastTrail', id);
+  localStorage.setItem(storageKey('currentTrail'), id);
 
   syncTrailSelectors();
 
@@ -793,14 +862,14 @@ function syncTrailSelectors() {
 
 function toggleMode() {
   currentMode =
-    currentMode === 'log'
-      ? 'notes'
-      : 'log';
+    currentMode === MODE.LOG
+      ? MODE.NOTES
+      : MODE.LOG;
   renderMode();
 }
 
 function renderMode() {
-  if (currentMode === 'log') {
+  if (currentMode === MODE.LOG) {
     ui.log.panel.style.display = '';
     ui.notes.panel.style.display = 'none';
     ui.header.modeBtn.textContent = 'Notes';
@@ -840,7 +909,7 @@ function renderLogView() {
 
   // restore last trail if needed
   if (!currentTrail) {
-    currentTrail = localStorage.getItem('survey:lastTrail')
+    currentTrail = localStorage.getItem(storageKey('currentTrail'))
       || trails?.[0]?.id
       || null;
   }
@@ -865,38 +934,58 @@ function renderNotesView() {
   ui.notes.buttons.trail.classList.remove('activeNoteBtn');
   ui.notes.buttons.close.classList.remove('activeNoteBtn');
 
-  if (currentNotePanel === 'start') {
+  if (currentNotePanel === NOTE_PANEL.START) {
     ui.notes.start.panel.style.display = '';
     ui.notes.buttons.start.classList.add('activeNoteBtn');
     renderStartNote();
   }
 
-  if (currentNotePanel === 'trail') {
+  if (currentNotePanel === NOTE_PANEL.TRAIL) {
     ui.notes.trail.panel.style.display = '';
     ui.notes.buttons.trail.classList.add('activeNoteBtn');
     renderTrailNotes();
   }
 
-  if (currentNotePanel === 'close') {
+  if (currentNotePanel === NOTE_PANEL.END) {
     ui.notes.close.panel.style.display = '';
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
   }
 }
 
-function createSurvey() {
+function showMessage(text, duration = 30000) {
+  if (messageTimeoutId) 
+    clearTimeout(messageTimeoutId);
 
+  ui.message.text.textContent = text;
+  ui.message.panel.hidden = false;
+
+  if (duration > 0)
+    messageTimeoutId = setTimeout(() => { clearMessage(); },duration);
+}
+
+function clearMessage() {
+  if (messageTimeoutId) {
+    clearTimeout(messageTimeoutId);
+    messageTimeoutId = null;
+  }
+  ui.message.panel.hidden = true;
+  ui.message.text.textContent = "";
+}
+
+function createSurvey() {
   const now = new Date();
 
   return {
     startNote: {
       date: formatDate(now),
-      startTime: formatTime(now),
+      time: formatTime(now),
       weather: "",
       participants: "",
       notes: ""
     },
-    endNote: {
+    trailNotes: {},
+    closeNote: {
       time: "",
       weather: "",
       notes: ""
@@ -905,40 +994,18 @@ function createSurvey() {
   };
 }
 
-function formatDate(date) {
-  return date.toLocaleDateString(
-    "en-US",
-    {
-      month: "numeric",
-      day: "numeric",
-      year: "numeric"
-    }
-  );
-}
-
-function formatTime(date) {
-  return date.toLocaleTimeString(
-    "en-US",
-    {
-      hour: "numeric",
-      minute: "2-digit"
-    }
-  );
-}
-
 // --- REFRESH APP ---
 async function refreshApp() {
-  const status = ui.header.status;
-  status.textContent = 'Refreshing…';
+  showMessage("Refreshing...");
 
   try {
-    if (!navigator.onLine) { throw new Error('Offline'); }
 
-    const cacheName = version.cacheName;
+    if (!navigator.onLine)
+      throw new Error("Offline");
 
-    if (!cacheName) { throw new Error('Missing cache name'); }
+    let freshVersion = await loadVersion({fresh: true});
 
-    const cache = await caches.open(cacheName);
+    const cacheName = freshVersion.cacheName;
 
     const APP_SHELL = [
       './',
@@ -955,29 +1022,38 @@ async function refreshApp() {
       './foe-logo.png'
     ];
 
-    // refresh cached files
+    const refreshed = new Map();
+
+    // Fetch everything first
     for (const file of APP_SHELL) {
-      console.log('refreshing:', file);
-      const request = new Request(file, { cache: 'reload' });
+      console.log("refreshing:", file);
+      const request = new Request(file, { cache: "reload" });
 
       const response = await fetch(request);
       console.log(file, response.status, response.type);
 
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`Failed to refresh ${file}`);
-      }
-      await cache.put(file, response.clone());
+
+      refreshed.set(file, response.clone());
     }
 
-    status.textContent = 'Refresh complete';
+    // Commit only after success
+    const cache = await caches.open(cacheName);
+
+    for (const [file, response] of refreshed) {
+      await cache.put(file, response);
+    }
+
+    showMessage("Refresh complete", 5000);
 
     // restart app
     location.reload();
 
   } catch (e) {
-    console.error( 'REFRESH FAILED:', e);
-    alert( 'Refresh failed:\n' + e.message);
-    status.textContent = 'Offline mode using cached app';
+    console.error("REFRESH FAILED:", e);
+    alert("Refresh failed:\n" + e.message);
+    showMessage("Refresh failed");
   }
 }
 
@@ -986,26 +1062,33 @@ function newSurvey() {
   // Existing Survey - ask first
   if (survey) {
 
-    const ok = confirm( "Delete current survey and start a new one?");
+    const ok = confirm("Delete current survey and start a new one?");
     if (!ok)
       return;
   }
 
   // Create new survey and save it
+
+  localStorage.removeItem(storageKey("surveyExists"));
+
+  
   survey = createSurvey();
-  saveSurvey(survey);
 
   setCurrentTrail(trails[0].id);
 
+  localStorage.setItem(storageKey("surveyExists"), "true");
+
   // Go to start note
-  currentMode = "notes";
-  currentNotePanel = "start";
+  currentMode = MODE.NOTES;
+  currentNotePanel = NOTE_PANEL.START;
 
   // now we're in active state
   setAppState(APP_STATE.ACTIVE);
 
   // Populate UI
   renderMode();
+
+  saveSurvey(survey);
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
@@ -1017,21 +1100,65 @@ function showNotesPanel(panel) {
 }
 
 // --- Storage ---
-function loadSurvey() {
+function loadSection(key) {
+
+  const raw = localStorage.getItem(key);
+
+  // never saved
+  if (raw === null)
+    return null;
+
   try {
-    const survey = JSON.parse(
-      localStorage.getItem('survey')
-    );
-    if (!survey) {
-      return null;
-    }
+    const data = JSON.parse(raw);
 
-  // Ensure required top-level fields exist
-  survey.startNote ??= {};
-  survey.endNote ??= {};
-  survey.trails ??= {};
+    // explicit null
+    if (data === null)
+      throw new Error(`Null data in ${key}`);
 
-  return survey;
+    return data;
+
+  } catch (e) {
+    console.error(`Invalid ${key}`, e);
+    throw new Error(`Corrupt survey data: ${key}`);
+  }
+}
+
+function isObject(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  );
+}
+
+function saveSurvey(survey) {
+  if (!survey)
+    return;
+
+  saveStartNote();
+  saveTrailNotes();
+  saveCloseNote();
+  saveTrails();
+}
+
+function loadSurvey() {
+
+  const surveyExists = localStorage.getItem(storageKey("surveyExists"));
+  if (!surveyExists)
+    return null;
+
+  const survey = {};
+  
+//
+// These should all have been created and saved in createSurvey()
+//
+  try {
+    survey.startNote = loadStartNote();
+    survey.closeNote = loadCloseNote();
+    survey.trailNotes = loadTrailNotes();
+    survey.trails = loadTrails();
+
+    return survey;
 
   } catch(e) {
     console.error('Bad survey data', e);
@@ -1039,39 +1166,142 @@ function loadSurvey() {
   }
 }
 
-function ensureTrail(survey, trailId) {
-  if (!survey.trails[trailId]) {
-    survey.trails[trailId] = {
-      firstEntered: formatTimestamp(),
-      notes: '',
-      entries: []
-    };
-  }
-
-  return survey.trails[trailId];
-}
-
-function saveSurvey(survey) {
-  localStorage.setItem('survey', JSON.stringify(survey));
-}
-
 function saveStartNote() {
-
-  if (!survey) {
+  if (!survey)
     return;
-  }
 
   const s = ui.notes.start;
 
   survey.startNote = {
     date: s.date.value,
-    startTime: s.time.value,
+    time: s.time.value,
     weather: s.weather.value,
     participants: s.participants.value,
     notes: s.notes.value
   };
 
-  saveSurvey(survey);
+  localStorage.setItem(storageKey('startNote'),
+    JSON.stringify(survey.startNote));
+}
+
+
+function loadStartNote() {
+
+  const start = loadSection(storageKey("startNote"));
+
+  if (start === null)
+    throw new Error("Missing startNote");
+
+  if (typeof start !== "object" || Array.isArray(start))
+    throw new Error("Bad format for startNote");
+
+  requireString(start.date, "startNote.date");
+  requireString(start.time, "startNote.time");
+  requireString(start.weather, "startNote.weather");
+  requireString(start.participants, "startNote.participants");
+  requireString(start.notes, "startNote.notes");
+
+  return start;
+}
+
+function saveCloseNote() {
+  if (!survey)
+    return;
+
+  const c = ui.notes.close;
+
+  survey.closeNote = {
+    time: c.time.value,
+    weather: c.weather.value,
+    notes: c.notes.value
+  };
+
+  localStorage.setItem(storageKey('closeNote'),
+    JSON.stringify(survey.closeNote));
+}
+
+function loadCloseNote() {
+
+  const close = loadSection(storageKey("closeNote"));
+
+  if (close === null)
+    throw new Error("Missing closeNote");
+
+  if (typeof close !== "object" || Array.isArray(close))
+    throw new Error("Bad format for closeNote");
+
+  requireString(close.time, "closeNote.time");
+  requireString(close.weather, "closeNote.weather");
+  requireString(close.notes, "closeNote.notes");
+
+  return close;
+}
+
+// We save all trail notes together
+function saveTrailNotes() {
+
+  if (!survey)
+    return;
+
+  // Get current UI value to memory, just in case
+  survey.trailNotes[currentTrail]  = ui.notes.trail.notes.value;
+
+  // Store all the trail notes
+  localStorage.setItem(storageKey("trailNotes"),
+    JSON.stringify(survey.trailNotes));
+}
+
+function loadTrailNotes() {
+  const notes = loadSection(storageKey("trailNotes"));
+
+  if (notes === null)
+    throw new Error("Missing trailNotes");
+
+  if (typeof notes !== "object" || Array.isArray(notes))
+    throw new Error("Bad format for trailNotes");
+
+  for (const trailId in notes) {
+    requireString(notes[trailId], `trailNotes.${trailId}`);
+  }
+
+  return notes;
+}
+
+function saveTrails() {
+  localStorage.setItem(storageKey('trails'), JSON.stringify(survey.trails));
+}
+
+function loadTrails() {
+  const trails = loadSection(storageKey("trails"));
+
+  if (trails === null)
+    throw new Error("Missing trails log");
+
+  if (typeof trails !== "object" || Array.isArray(trails))
+    throw new Error ("Bad format for trails log");
+
+  for (const trailId in trails) {
+    const trail = trails[trailId];
+
+    if (trail === null || typeof trail !== "object" || Array.isArray( trail))
+      throw new Error(`Bad trail: ${trailId}`);
+
+    requireString(trail.firstEntered, `trail ${trailId} .firstEntered`);
+
+    if (!Array.isArray(trail.entries))
+      throw new Error(`Bad entries: ${trailId}`);
+  }
+
+  return trails;
+}
+
+function ensureTrail(survey, trailId) {
+  survey.trails[trailId] ??= {
+    firstEntered: formatTimestamp(),
+    entries: []
+  };
+
+  return survey.trails[trailId];
 }
 
 function renderStartNote() {
@@ -1084,23 +1314,10 @@ function renderStartNote() {
   const data = survey.startNote || {};
 
   s.date.value = data.date || '';
-  s.time.value = data.startTime || '';
+  s.time.value = data.time || '';
   s.weather.value = data.weather || '';
   s.participants.value = data.participants || '';
   s.notes.value = data.notes || '';
-}
-
-function saveTrailNote() {
-
-  if (!survey || !currentTrail) {
-    return;
-  }
-
-  const trail = ensureTrail(survey, currentTrail);
-
-  trail.notes = ui.notes.trail.notes.value;
-
-  saveSurvey(survey);
 }
 
 function renderTrailNotes() {
@@ -1108,25 +1325,8 @@ function renderTrailNotes() {
   if (!survey || !currentTrail) {
     return;
   }
-  const trail = ensureTrail(survey, currentTrail);
-  ui.notes.trail.notes.value = trail.notes || '';
-}
+  ui.notes.trail.notes.value = survey.trailNotes[currentTrail]  || '';
 
-function saveCloseNote() {
-
-  if (!survey) {
-    return;
-  }
-
-  const c = ui.notes.close;
-
-  survey.endNote = {
-    endTime: c.time.value,
-    weather: c.weather.value,
-    notes: c.notes.value
-  };
-
-  saveSurvey(survey);
 }
 
 function renderCloseNote() {
@@ -1136,9 +1336,9 @@ function renderCloseNote() {
   }
 
   const c = ui.notes.close;
-  const data = survey.endNote || {};
+  const data = survey.closeNote || {};
 
-  c.time.value = data.endTime || '';
+  c.time.value = data.time || '';
   c.weather.value = data.weather || '';
   c.notes.value = data.notes || '';
 }
@@ -1177,9 +1377,6 @@ function addSighting(item) {
 function search(q) {
 
   q = normalizeQuery(q);
-
-  if (q.length < 2) return [];
-
 
   if (q.length < 2) return [];
   
@@ -1413,7 +1610,11 @@ function resizeNote(note, expanded = false) {
 }
 
 function downloadSurvey() {
-  const data = localStorage.getItem('survey');
+
+  if (!survey)
+    return;
+
+  const data = JSON.stringify(survey, null, 2);
 
   if (!data) {
     alert('No survey data to download.');
@@ -1433,6 +1634,7 @@ function downloadSurvey() {
 
   URL.revokeObjectURL(url);
 }
+
 //
 // local timestamp
 // YYYY-MM-DD HH:MM:SS
@@ -1449,24 +1651,15 @@ function formatTimestamp(date = new Date()) {
   return (`${yyyy}-${mm}-${dd} ` + `${hh}:${min}:${ss}`);
 }
 
-//
-// display date
-// MM/DD/YYYY
-//
 function formatDate(date) {
   return date.toLocaleDateString(
-    'en-US', {year: 'numeric', month: '2-digit', day: '2-digit' }
+    "en-US", { month: "numeric", day: "numeric", year: "numeric" }
   );
 }
 
-//
-// display time
-// HH:MM
-//
 function formatTime(date) {
   return date.toLocaleTimeString(
-    'en-US',
-    {hour: '2-digit', minute: '2-digit', hour12: false }
+    "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
 

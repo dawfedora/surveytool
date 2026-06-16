@@ -1,19 +1,9 @@
 # 1. Output the Start and End Notes
 "START NOTE:", .startNote, 
-"END NOTE:", .endNote,
-"",
+"TRAIL NOTES:", .trailNotes, 
+"CLOSE NOTE:", .closeNote,
 
-# 2. Trail Notes Section
-"TRAIL NOTES:",
-(.trails | to_entries[] | 
-  [
-    .key, 
-    (.value.notes | gsub("\n"; "; ")) # Replaces newlines with semicolons
-  ] | @tsv
-),
-"",
-
-# 3. Prepare the Columnar Trails
+# 2. Prepare the Columnar Trails
 (
   [ .trails | to_entries[] | {
       name: .key, 

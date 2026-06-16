@@ -1,21 +1,25 @@
 #!/bin/bash
 set -e
 
+STAMP=$(TZ=America/Los_Angeles date +%y%m%d.%H%M)
+
 BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
 echo "Branch = $BRANCH"
+
 if [ "$BRANCH" = "main" ]; then
-  BRANCH="prod"
+  VERSION="V${STAMP}"
+else
+  VERSION="V${STAMP}(${BRANCH})"
 fi
 
-STAMP=$(TZ=America/Los_Angeles date +%Y.%m.%d.%H%M)
-
-VERSION="${BRANCH}-${STAMP}"
-CACHE_NAME="edgewood-$VERSION"
+CACHE_NAME="FoE:survey-$VERSION"
+STORAGE_TAG="FoE:survey:${BRANCH}"
 
 cat > version.json <<EOF
 {
-  "version": "$VERSION",
   "branch": "$BRANCH",
+  "version": "$VERSION",
+  "storageTag": "$STORAGE_TAG",
   "cacheName": "$CACHE_NAME"
 }
 EOF
