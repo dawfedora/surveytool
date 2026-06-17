@@ -162,7 +162,7 @@ async function checkForUpdate() {
     return null;
 
   try {
-    const latest = await loadVersion({fresh: true});
+    const latest = await loadVersion(true);
 
     if (!version)
       return latest
@@ -501,7 +501,7 @@ function processParticipants(pIn) {
   return pOut;
 }
 
-function requireString(value, name) {
+function assertString(value, name) {
 
   if (typeof value !== "string") 
     throw new Error(`Invalid ${name}`);
@@ -815,15 +815,6 @@ function initCloseNote() {
   c.notes.addEventListener("input", debounce(saveCloseNote, 1500));
 }
 
-function determineInitialMode() {
-  if (survey) {
-    currentMode = MODE.LOG;
-  } else {
-    currentMode = MODE.NOTES;
-    currentNotePanel = NOTE_PANEL.START;
-  }
-}
-
 function populateTrailSelector(select) {
   select.innerHTML = "";
 
@@ -1003,7 +994,7 @@ async function refreshApp() {
     if (!navigator.onLine)
       throw new Error("Offline");
 
-    let freshVersion = await loadVersion({fresh: true});
+    let freshVersion = await loadVersion(true);
 
     const cacheName = freshVersion.cacheName;
 
@@ -1088,7 +1079,7 @@ function newSurvey() {
   // Populate UI
   renderMode();
 
-  saveSurvey(survey);
+  saveSurvey();
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
@@ -1123,15 +1114,7 @@ function loadSection(key) {
   }
 }
 
-function isObject(value) {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  );
-}
-
-function saveSurvey(survey) {
+function saveSurvey() {
   if (!survey)
     return;
 
@@ -1150,7 +1133,7 @@ function loadSurvey() {
   const survey = {};
   
 //
-// These should all have been created and saved in createSurvey()
+// These should all have been created and saved in newSurvey()
 //
   try {
     survey.startNote = loadStartNote();
@@ -1161,6 +1144,7 @@ function loadSurvey() {
     return survey;
 
   } catch(e) {
+    showMessage("Survey data appears corrupted. Please download/reset.");
     console.error('Bad survey data', e);
     return null;
   }
@@ -1195,11 +1179,11 @@ function loadStartNote() {
   if (typeof start !== "object" || Array.isArray(start))
     throw new Error("Bad format for startNote");
 
-  requireString(start.date, "startNote.date");
-  requireString(start.time, "startNote.time");
-  requireString(start.weather, "startNote.weather");
-  requireString(start.participants, "startNote.participants");
-  requireString(start.notes, "startNote.notes");
+  assertString(start.date, "startNote.date");
+  assertString(start.time, "startNote.time");
+  assertString(start.weather, "startNote.weather");
+  assertString(start.participants, "startNote.participants");
+  assertString(start.notes, "startNote.notes");
 
   return start;
 }
@@ -1230,9 +1214,9 @@ function loadCloseNote() {
   if (typeof close !== "object" || Array.isArray(close))
     throw new Error("Bad format for closeNote");
 
-  requireString(close.time, "closeNote.time");
-  requireString(close.weather, "closeNote.weather");
-  requireString(close.notes, "closeNote.notes");
+  assertString(close.time, "closeNote.time");
+  assertString(close.weather, "closeNote.weather");
+  assertString(close.notes, "closeNote.notes");
 
   return close;
 }
@@ -1244,7 +1228,8 @@ function saveTrailNotes() {
     return;
 
   // Get current UI value to memory, just in case
-  survey.trailNotes[currentTrail]  = ui.notes.trail.notes.value;
+  const trailId = currentTrail;
+  survey.trailNotas[trailId]  = ui.notes.trail.notes.value;
 
   // Store all the trail notes
   localStorage.setItem(storageKey("trailNotes"),
@@ -1261,7 +1246,7 @@ function loadTrailNotes() {
     throw new Error("Bad format for trailNotes");
 
   for (const trailId in notes) {
-    requireString(notes[trailId], `trailNotes.${trailId}`);
+    assertString(notes[trailId], `trailNotes.${trailId}`);
   }
 
   return notes;
@@ -1286,7 +1271,7 @@ function loadTrails() {
     if (trail === null || typeof trail !== "object" || Array.isArray( trail))
       throw new Error(`Bad trail: ${trailId}`);
 
-    requireString(trail.firstEntered, `trail ${trailId} .firstEntered`);
+    assertString(trail.firstEntered, `trail ${trailId} .firstEntered`);
 
     if (!Array.isArray(trail.entries))
       throw new Error(`Bad entries: ${trailId}`);
@@ -1369,7 +1354,7 @@ function addSighting(item) {
     time: formatTimestamp()
   });
 
-  saveSurvey(survey);
+  saveTrails();
   renderLog();
 }
 
@@ -1444,8 +1429,11 @@ function renderResults(list) {
 
   if (input.value.length < 2) {
     container.innerHTML = '';
+    container.style.display = "none";
     return;
   }
+
+  container.sytle.display = 'block';
 
   if (list.length === 0) {
     container.innerHTML = '<div class="item">No matches</div>';
@@ -1497,9 +1485,7 @@ function renderLog() {
     div.className = 'item';
 
     const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.alignItems = 'flex-start';
-    row.style.gap = '8px';
+    row.className = 'logRow';
 
     // Left side (names)
     const label = document.createElement('div');
@@ -1510,52 +1496,30 @@ function renderLog() {
       <span class="scientific">${entry.scientificName}</span>
     `;
 
-  // Right side (note)
-  const note = document.createElement('textarea');
+    // Right side (note)
+    const note = document.createElement('textarea');
+    note.className = 'logNote'
+    note.value = entry.note || '';
+    note.placeholder = 'note';
+    note.rows = 1;
 
-  note.value = entry.note || '';
-  note.placeholder = 'note';
+    // initial size AFTER attachment/layout
+    requestAnimationFrame(() => resizeNote(note));
 
-  note.rows = 1;
+    // auto-grow + save
+    note.addEventListener('input', () => {
+      resizeNote(note, true);
+      entry.note = note.value;
+      saveSurvey();
+    });
 
-  note.style.flex = '0 1 auto';
+    note.addEventListener('focus', () => {
+      resizeNote(note, true);
+    });
 
-  note.style.minWidth = '5ch';
-  note.style.maxWidth = '50%';
-
-  note.style.resize = 'none';
-  note.style.overflow = 'hidden';
-  note.style.font = 'inherit';
-  note.style.lineHeight = 'inherit';
-  // wrap nicely
-  note.style.whiteSpace = 'pre';
-  note.style.wordBreak = 'break-word';
-note.style.paddingTop = '0';
-note.style.paddingBottom = '0';
-note.style.paddingLeft = '4px';
-note.style.paddingRight = '4px';
-
-note.style.boxSizing = 'border-box';
-note.style.verticalAlign = 'top';
-
-// initial size AFTER attachment/layout
-setTimeout(() => resizeNote(note), 0);
-
-
-// auto-grow + save
-note.addEventListener('input', () => {
-  resizeNote(note, true);
-  entry.note = note.value;
-  saveSurvey(survey);
-});
-
-note.addEventListener('focus', () => {
-  resizeNote(note, true);
-});
-
-note.addEventListener('blur', () => {
-  resizeNote(note, false);
-});
+    note.addEventListener('blur', () => {
+      resizeNote(note, false);
+    });
 
     row.appendChild(label);
     row.appendChild(note);
@@ -1575,7 +1539,7 @@ note.addEventListener('blur', () => {
       if (i >= 0) {
         entries.splice(i, 1);
       }
-      saveSurvey(survey);
+      saveSurvey();
       renderLog();
     };
 

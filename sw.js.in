@@ -33,19 +33,20 @@ async function handleInstall(event) {
 }
 
 async function cacheAppShell() {
-
   const cache = await caches.open(CACHE_NAME);
 
-  for (const file of APP_SHELL) {
-    console.log( 'caching:', file);
+  await Promise.all(
+    APP_SHELL.map(async file => {
+      console.log( 'caching:', file);
 
-    const response = await fetch(file);
-    if (!response.ok) {
-      throw new Error( `Failed ${file}`);
-    }
+      const response = await fetch(file, { cache: "reload" });
+      if (!response.ok) {
+        throw new Error(`Failed ${file}`);
+      }
 
-    await cache.put( file, response.clone());
-  }
+      await cache.put(file, response);
+    })
+  );
 }
 
 // ACTIVATE
@@ -77,11 +78,15 @@ function handleFetch(event) {
 }
 
 async function fetchFromCache(request) {
+
+  if (request.cache === 'reload') {
+    return fetch(request);
+  }
+
   const url = new URL(request.url);
 
-  // normalize shell URLs
-  let cacheKey = url.pathname;
-  if ( cacheKey === '/' || cacheKey.endsWith('/index.html')) {
+  let cacheKey = `.${url.pathname}`;
+  if (cacheKey === './') {
     cacheKey = './index.html';
   }
 
@@ -91,12 +96,6 @@ async function fetchFromCache(request) {
     return cached;
   }
 
-  // fallback
-  const response = await fetch(request, { cache:'reload' });
-  if ( response.ok && response.type === 'basic') {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(cacheKey, response.clone());
-  }
-
-  return response;
+  // unexpected miss
+  return fetch(request, { cache: 'reload' });
 }
