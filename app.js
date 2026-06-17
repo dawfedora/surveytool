@@ -1433,7 +1433,7 @@ function renderResults(list) {
     return;
   }
 
-  container.sytle.display = 'block';
+  container.style.display = 'block';
 
   if (list.length === 0) {
     container.innerHTML = '<div class="item">No matches</div>';
