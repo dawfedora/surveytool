@@ -1229,7 +1229,7 @@ function saveTrailNotes() {
 
   // Get current UI value to memory, just in case
   const trailId = currentTrail;
-  survey.trailNotas[trailId]  = ui.notes.trail.notes.value;
+  survey.trailNotes[trailId]  = ui.notes.trail.notes.value;
 
   // Store all the trail notes
   localStorage.setItem(storageKey("trailNotes"),
@@ -1346,16 +1346,20 @@ function addSighting(item) {
   }
 
   // Add to END (most recent last)
-  trail.entries.push({
+  const entry = {
     speciesId: item.speciesId,
     commonName: item.displayCommon,
     scientificName: item.scientificName,
     note: '', 
     time: formatTimestamp()
-  });
+  }
+  entries.push(entry);
 
-  saveTrails();
-  renderLog();
+  saveLogEntry(entry);
+
+  const row = createLogRow(entry);
+  ui.log.log.prepend(row);
+  highlightLogRow(row);
 }
 
 // --- SEARCH ---
@@ -1481,6 +1485,18 @@ function renderLog() {
 
   entries.slice().reverse().forEach((entry, reverseIndex) => {
 
+    const div = createLogRow(entry);
+    container.appendChild(div);
+  });
+}
+
+function highlightLogRow(row) {
+      row.style.background = '#e6ffe6';
+      setTimeout(() => row.style.background = '', 400);
+}
+
+
+function createLogRow(entry) {
     const div = document.createElement('div');
     div.className = 'item';
 
@@ -1510,7 +1526,7 @@ function renderLog() {
     note.addEventListener('input', () => {
       resizeNote(note, true);
       entry.note = note.value;
-      saveSurvey();
+      saveLogEntry(entry);
     });
 
     note.addEventListener('focus', () => {
@@ -1529,31 +1545,33 @@ function renderLog() {
     del.className = 'deleteBtn';
 
     del.onclick = () => {
-      const ok = confirm(
-        `Delete "${entry.commonName}"?`
-      );
-      if (!ok) {
+      if (!confirm( `Delete "${entry.commonName}"?`))
         return;
-      }
-      const i = entries.indexOf(entry);
-      if (i >= 0) {
-        entries.splice(i, 1);
-      }
-      saveSurvey();
-      renderLog();
+      deleteLogEntry(entry);
+      div.remove();
     };
 
     row.appendChild(del);
     div.appendChild(row);
+    return div;
+}
 
-    // Highlight most recent (last item)
-    if (reverseIndex === 0) {
-      div.style.background = '#e6ffe6';
-      setTimeout(() => div.style.background = '', 400);
-    }
+function saveLogEntry(entry) {
+  // Right now we save all the trails at once
+  // later we may save trails individually
+  saveTrails();
+}
 
-    container.appendChild(div);
-  });
+function deleteLogEntry(entry) {
+  const trail = ensureTrail(survey, currentTrail);
+  const entries = trail.entries;
+
+  const i = entries.indexOf(entry);
+  if (i >= 0) {
+    entries.splice(i, 1);
+  }
+
+  saveTrails();
 }
 
 function resizeNote(note, expanded = false) {
