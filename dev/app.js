@@ -1698,11 +1698,12 @@ function buildSurveyTsv(data) {
 function buildSurveyHeaderRows(data) {
   const start = data.startNote || {};
   const close = data.closeNote || {};
+  const participantLines = splitParticipants(start.participants || '');
   const rows = [];
 
   rows.push([
     `Date: ${start.date || ''}`,
-    `Participants: ${start.participants || ''}`,
+    `Participants: ${participantLines[0]}`,
     '',
     '',
     'Flower tally:'
@@ -1710,7 +1711,7 @@ function buildSurveyHeaderRows(data) {
 
   rows.push([
     'Hike:',
-    '',
+    participantLines[1],
     '',
     '',
     'native species'
@@ -1746,6 +1747,37 @@ function buildSurveyHeaderRows(data) {
   }
 
   return rows;
+}
+
+function splitParticipants(participantsText) {
+  const participants = participantsText
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean);
+
+  if (participants.length <= 1)
+    return [participants.join(', '), ''];
+
+  let bestSplit = 1;
+  let bestDifference = Infinity;
+
+  for (let i = 1; i < participants.length; i++) {
+    const first = participants.slice(0, i).join(', ');
+    const second = participants.slice(i).join(', ');
+    const difference = Math.abs(
+      `Participants: ${first}`.length - second.length
+    );
+
+    if (difference < bestDifference) {
+      bestSplit = i;
+      bestDifference = difference;
+    }
+  }
+
+  return [
+    participants.slice(0, bestSplit).join(', '),
+    participants.slice(bestSplit).join(', ')
+  ];
 }
 
 function formatSurveyWeather(start, close) {
@@ -1787,7 +1819,7 @@ function buildSurveyLogRows(data) {
       name: trail.name,
       items: entries.map(entry => entry.commonName || '')
     };
-  });
+  }).filter(column => column.items.length);
 
   const maxRows = columns.reduce(
     (max, column) => Math.max(max, column.items.length),
@@ -1840,4 +1872,3 @@ function formatTime(date) {
     "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
-
