@@ -1330,14 +1330,14 @@ function requireStringField(obj, key, path) {
 }
 
 function firstImportedTrail(imported) {
-  for (const trail of trails) {
-    if (imported.trailLogs[trail.id]?.entries?.length)
-      return trail.id;
+  for (const trailId of Object.keys(imported.trailLogs || {})) {
+    if (imported.trailLogs[trailId]?.entries?.length)
+      return trailId;
   }
 
-  for (const trail of trails) {
-    if (imported.trailLogs[trail.id])
-      return trail.id;
+  for (const trailId of Object.keys(imported.trailLogs || {})) {
+    if (imported.trailLogs[trailId])
+      return trailId;
   }
 
   return null;
@@ -1885,7 +1885,7 @@ function buildSurveyHeaderRows(data) {
     ]);
   }
 
-  const trailNoteRows = buildTrailNoteRows(data.trailNotes || {});
+  const trailNoteRows = buildTrailNoteRows(data);
   if (trailNoteRows.length) {
     rows.push(...blankRows(3));
     rows.push(['Trail notes:', '', '', '', '']);
@@ -1946,10 +1946,11 @@ function formatSurveyWeather(start, close) {
     .join(' - ');
 }
 
-function buildTrailNoteRows(trailNotes) {
+function buildTrailNoteRows(data) {
+  const trailNotes = data.trailNotes || {};
   const rows = [];
 
-  for (const trail of trails) {
+  for (const trail of getOrderedSurveyTrails(data)) {
     const note = (trailNotes[trail.id] || '').trim();
     if (!note)
       continue;
@@ -1962,7 +1963,7 @@ function buildTrailNoteRows(trailNotes) {
 
 function buildSurveyLogRows(data) {
   const trailLogs = data.trailLogs || {};
-  const columns = trails.map(trail => {
+  const columns = getOrderedSurveyTrails(data).map(trail => {
     const entries = trailLogs[trail.id]?.entries || [];
 
     return {
@@ -1985,6 +1986,44 @@ function buildSurveyLogRows(data) {
   }
 
   return rows;
+}
+
+function getOrderedSurveyTrails(data) {
+  return getSurveyTrailIds(data)
+    .map(trailId => getTrailById(trailId))
+    .filter(Boolean);
+}
+
+function getSurveyTrailIds(data) {
+  const trailLogs = data.trailLogs || {};
+  const trailNotes = data.trailNotes || {};
+  const trailIds = [];
+  const seen = new Set();
+
+  for (const trailId of Object.keys(trailLogs)) {
+    if (seen.has(trailId))
+      continue;
+
+    trailIds.push(trailId);
+    seen.add(trailId);
+  }
+
+  for (const trailId of Object.keys(trailNotes)) {
+    if (seen.has(trailId))
+      continue;
+
+    trailIds.push(trailId);
+    seen.add(trailId);
+  }
+
+  return trailIds;
+}
+
+function getTrailById(trailId) {
+  return trails.find(trail => trail.id === trailId) || {
+    id: trailId,
+    name: trailId
+  };
 }
 
 function formatTsvCell(value) {
