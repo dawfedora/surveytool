@@ -1824,3 +1824,4 @@ function formatTime(date) {
     "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
+
