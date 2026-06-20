@@ -1640,25 +1640,161 @@ function downloadSurvey() {
   if (!survey)
     return;
 
-  const data = JSON.stringify(survey, null, 2);
+  const jsonData = JSON.stringify(survey, null, 2);
 
-  if (!data) {
+  if (!jsonData) {
     alert('No survey data to download.');
     return;
   }
 
-  const blob = new Blob([data], { type: 'application/json' });
+  const date = formatTimestamp().slice(0, 10);
+  const basename = `edgewood-survey-${date}`;
+
+  downloadTextFile(`${basename}.json`, jsonData, 'application/json');
+  downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+}
+
+function downloadTextFile(filename, data, type) {
+  const blob = new Blob([data], { type });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = url;
-
-  const date = formatTimestamp().slice(0, 10);
-  a.download = `edgewood-survey-${date}.json`;
+  a.download = filename;
 
   a.click();
 
   URL.revokeObjectURL(url);
+}
+
+function buildSurveyTsv(data) {
+  const rows = [
+    ...buildSurveyHeaderRows(data),
+    [],
+    ...buildSurveyLogRows(data)
+  ];
+
+  return rows
+    .map(row => row.map(formatTsvCell).join('\t'))
+    .join('\n') + '\n';
+}
+
+function buildSurveyHeaderRows(data) {
+  const start = data.startNote || {};
+  const close = data.closeNote || {};
+  const rows = [];
+
+  rows.push([
+    `Date: ${start.date || ''}`,
+    `Participants: ${start.participants || ''}`,
+    '',
+    '',
+    'Flower tally:'
+  ]);
+
+  rows.push([
+    'Hike:',
+    '',
+    '',
+    '',
+    'native species'
+  ]);
+
+  rows.push([
+    `Weather: ${formatSurveyWeather(start, close)}`,
+    '',
+    '',
+    '',
+    'non-native species'
+  ]);
+
+  const observedNotes = [start.notes, close.notes]
+    .map(note => (note || '').trim())
+    .filter(Boolean);
+
+  if (observedNotes.length) {
+    rows.push([
+      `Also observed: ${observedNotes.join(' ')}`,
+      '',
+      '',
+      '',
+      ''
+    ]);
+  }
+
+  const trailNoteRows = buildTrailNoteRows(data.trailNotes || {});
+  if (trailNoteRows.length) {
+    rows.push([]);
+    rows.push(['Trail notes:', '', '', '', '']);
+    rows.push(...trailNoteRows);
+  }
+
+  return rows;
+}
+
+function formatSurveyWeather(start, close) {
+  const startWeather = [start.time, start.weather]
+    .map(value => (value || '').trim())
+    .filter(Boolean)
+    .join(', ');
+
+  const closeWeather = [close.time, close.weather]
+    .map(value => (value || '').trim())
+    .filter(Boolean)
+    .join(', ');
+
+  return [startWeather, closeWeather]
+    .filter(Boolean)
+    .join(' - ');
+}
+
+function buildTrailNoteRows(trailNotes) {
+  const rows = [];
+
+  for (const trail of trails) {
+    const note = (trailNotes[trail.id] || '').trim();
+    if (!note)
+      continue;
+
+    rows.push([`${trail.name}: ${note}`, '', '', '', '']);
+  }
+
+  return rows;
+}
+
+function buildSurveyLogRows(data) {
+  const trailLogs = data.trailLogs || {};
+  const columns = trails.map(trail => {
+    const entries = trailLogs[trail.id]?.entries || [];
+
+    return {
+      name: trail.name,
+      items: entries.map(entry => entry.commonName || '')
+    };
+  });
+
+  const maxRows = columns.reduce(
+    (max, column) => Math.max(max, column.items.length),
+    0
+  );
+
+  const rows = [
+    columns.map(column => column.name)
+  ];
+
+  for (let i = 0; i < maxRows; i++) {
+    rows.push(columns.map(column => column.items[i] || ''));
+  }
+
+  return rows;
+}
+
+function formatTsvCell(value) {
+  return String(value ?? '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\t/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 //
@@ -1688,4 +1824,3 @@ function formatTime(date) {
     "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
-
