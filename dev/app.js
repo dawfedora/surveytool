@@ -1275,6 +1275,22 @@ function loadStartNote() {
   return start;
 }
 
+function loadCloseNote() {
+
+  const close = loadSection(storageKey("closeNote"));
+
+  if (close === null)
+    throw new Error("Missing closeNote");
+
+  if (typeof close !== "object" || Array.isArray(close))
+    throw new Error("Bad format for closeNote");
+
+  assertString(close.time, "closeNote.time");
+  assertString(close.weather, "closeNote.weather");
+  assertString(close.notes, "closeNote.notes");
+
+  return close;
+}
 
 
 function loadTrailNotes() {
