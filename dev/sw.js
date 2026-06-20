@@ -1,5 +1,5 @@
 // DO NOT REFORMAT deploy.bash depends on this line
-const CACHE_NAME = 'FoE:survey-V260620.1131(dev)';
+const CACHE_NAME = 'FoE:survey-V260620.1424(dev)';
 
 const APP_SHELL = [
   './',
