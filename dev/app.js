@@ -1686,7 +1686,7 @@ function downloadTextFile(filename, data, type) {
 function buildSurveyTsv(data) {
   const rows = [
     ...buildSurveyHeaderRows(data),
-    [],
+    ...blankRows(4),
     ...buildSurveyLogRows(data)
   ];
 
@@ -1703,26 +1703,16 @@ function buildSurveyHeaderRows(data) {
 
   rows.push([
     `Date: ${start.date || ''}`,
-    `Participants: ${participantLines[0]}`,
-    '',
-    '',
-    'Flower tally:'
+    `Participants: ${participantLines[0]}`
   ]);
 
   rows.push([
     'Hike:',
-    participantLines[1],
-    '',
-    '',
-    'native species'
+    participantLines[1]
   ]);
 
   rows.push([
-    `Weather: ${formatSurveyWeather(start, close)}`,
-    '',
-    '',
-    '',
-    'non-native species'
+    `Weather: ${formatSurveyWeather(start, close)}`
   ]);
 
   const observedNotes = [start.notes, close.notes]
@@ -1731,22 +1721,22 @@ function buildSurveyHeaderRows(data) {
 
   if (observedNotes.length) {
     rows.push([
-      `Also observed: ${observedNotes.join(' ')}`,
-      '',
-      '',
-      '',
-      ''
+      `Also observed: ${observedNotes.join(' ')}`
     ]);
   }
 
   const trailNoteRows = buildTrailNoteRows(data.trailNotes || {});
   if (trailNoteRows.length) {
-    rows.push([]);
+    rows.push(...blankRows(3));
     rows.push(['Trail notes:', '', '', '', '']);
     rows.push(...trailNoteRows);
   }
 
   return rows;
+}
+
+function blankRows(count) {
+  return Array.from({ length: count }, () => []);
 }
 
 function splitParticipants(participantsText) {
