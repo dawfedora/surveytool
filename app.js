@@ -373,6 +373,8 @@ function initUI() {
     modeBtn: document.getElementById("modeBtn"),
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importInput: document.getElementById("importInput"),
     downloadBtn: document.getElementById('downloadBtn'),
     version: document.getElementById('version'),
     status: document.getElementById('status')
@@ -449,6 +451,10 @@ function initHeader() {
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
   ui.header.downloadBtn.addEventListener('click', downloadSurvey);
+  ui.header.importBtn.addEventListener('click', () => {
+    ui.header.importInput.click();
+  });
+  ui.header.importInput.addEventListener('change', importSurveyFile);
   ui.message.dismissBtn.addEventListener("click", clearMessage);
 }
 
@@ -1181,6 +1187,160 @@ function newSurvey() {
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
+}
+
+async function importSurveyFile(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+
+  input.value = "";
+
+  if (!file)
+    return;
+
+  if (survey) {
+    const ok = confirm("Replace current survey with imported JSON?");
+    if (!ok)
+      return;
+  }
+
+  try {
+    const imported = normalizeImportedSurvey(
+      JSON.parse(await file.text())
+    );
+
+    cancelPendingSaves();
+    clearStoredSurvey();
+
+    survey = imported;
+
+    const firstTrail = firstImportedTrail(imported) || DEFAULT_START_TRAIL;
+    setCurrentTrail(firstTrail);
+
+    localStorage.setItem(storageKey("surveyExists"), "true");
+    saveSurvey();
+
+    currentMode = MODE.NOTES;
+    currentNotePanel = NOTE_PANEL.START;
+
+    setAppState(APP_STATE.ACTIVE);
+    renderMode();
+    showMessage(`Imported ${file.name}`, 5000);
+
+  } catch(e) {
+    console.error("Import failed", e);
+    alert("Import failed:\n" + e.message);
+    showMessage("Import failed");
+  }
+}
+
+function normalizeImportedSurvey(data) {
+  const imported = requirePlainObject(data, "survey");
+
+  return {
+    startNote: normalizeImportedStartNote(imported.startNote),
+    trailNotes: normalizeImportedTrailNotes(imported.trailNotes),
+    closeNote: normalizeImportedCloseNote(imported.closeNote),
+    trailLogs: normalizeImportedTrailLogs(imported.trailLogs || imported.trails)
+  };
+}
+
+function normalizeImportedStartNote(startNote) {
+  const start = requirePlainObject(startNote, "startNote");
+
+  return {
+    date: requireStringField(start, "date", "startNote"),
+    time: requireStringField(start, "time", "startNote"),
+    weather: requireStringField(start, "weather", "startNote"),
+    participants: requireStringField(start, "participants", "startNote"),
+    notes: requireStringField(start, "notes", "startNote")
+  };
+}
+
+function normalizeImportedCloseNote(closeNote) {
+  const close = requirePlainObject(closeNote, "closeNote");
+
+  return {
+    time: requireStringField(close, "time", "closeNote"),
+    weather: requireStringField(close, "weather", "closeNote"),
+    notes: requireStringField(close, "notes", "closeNote")
+  };
+}
+
+function normalizeImportedTrailNotes(trailNotes) {
+  const notes = requirePlainObject(trailNotes || {}, "trailNotes");
+  const normalized = {};
+
+  for (const trailId in notes) {
+    if (typeof notes[trailId] !== "string")
+      throw new Error(`Invalid trailNotes.${trailId}`);
+
+    normalized[trailId] = notes[trailId];
+  }
+
+  return normalized;
+}
+
+function normalizeImportedTrailLogs(trailLogs) {
+  const logs = requirePlainObject(trailLogs || {}, "trailLogs");
+  const normalized = {};
+
+  for (const trailId in logs) {
+    const log = requirePlainObject(logs[trailId], `trailLogs.${trailId}`);
+    const entries = log.entries;
+
+    if (!Array.isArray(entries))
+      throw new Error(`Invalid trailLogs.${trailId}.entries`);
+
+    normalized[trailId] = {
+      firstEntered: requireStringField(log, "firstEntered", `trailLogs.${trailId}`),
+      entries: entries.map((entry, index) =>
+        normalizeImportedLogEntry(entry, `trailLogs.${trailId}.entries.${index}`)
+      )
+    };
+  }
+
+  return normalized;
+}
+
+function normalizeImportedLogEntry(entry, path) {
+  const item = requirePlainObject(entry, path);
+
+  return {
+    speciesId: item.speciesId,
+    commonName: requireStringField(item, "commonName", path),
+    scientificName: requireStringField(item, "scientificName", path),
+    note: typeof item.note === "string" ? item.note : "",
+    time: requireStringField(item, "time", path)
+  };
+}
+
+function requirePlainObject(value, name) {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`Invalid ${name}`);
+
+  return value;
+}
+
+function requireStringField(obj, key, path) {
+  if (typeof obj[key] !== "string")
+    throw new Error(`Invalid ${path}.${key}`);
+
+  return obj[key];
+}
+
+function firstImportedTrail(imported) {
+  for (const trail of trails) {
+    if (imported.trailLogs[trail.id]?.entries?.length)
+      return trail.id;
+  }
+
+  for (const trail of trails) {
+    if (imported.trailLogs[trail.id])
+      return trail.id;
+  }
+
+  return null;
 }
 
 function clearStoredSurvey() {
