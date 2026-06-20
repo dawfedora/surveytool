@@ -373,6 +373,8 @@ function initUI() {
     modeBtn: document.getElementById("modeBtn"),
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importInput: document.getElementById("importInput"),
     downloadBtn: document.getElementById('downloadBtn'),
     version: document.getElementById('version'),
     status: document.getElementById('status')
@@ -449,6 +451,10 @@ function initHeader() {
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
   ui.header.downloadBtn.addEventListener('click', downloadSurvey);
+  ui.header.importBtn.addEventListener('click', () => {
+    ui.header.importInput.click();
+  });
+  ui.header.importInput.addEventListener('change', importSurveyFile);
   ui.message.dismissBtn.addEventListener("click", clearMessage);
 }
 
@@ -1183,6 +1189,160 @@ function newSurvey() {
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
 }
 
+async function importSurveyFile(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+
+  input.value = "";
+
+  if (!file)
+    return;
+
+  if (survey) {
+    const ok = confirm("Replace current survey with imported JSON?");
+    if (!ok)
+      return;
+  }
+
+  try {
+    const imported = normalizeImportedSurvey(
+      JSON.parse(await file.text())
+    );
+
+    cancelPendingSaves();
+    clearStoredSurvey();
+
+    survey = imported;
+
+    const firstTrail = firstImportedTrail(imported) || DEFAULT_START_TRAIL;
+    setCurrentTrail(firstTrail);
+
+    localStorage.setItem(storageKey("surveyExists"), "true");
+    saveSurvey();
+
+    currentMode = MODE.NOTES;
+    currentNotePanel = NOTE_PANEL.START;
+
+    setAppState(APP_STATE.ACTIVE);
+    renderMode();
+    showMessage(`Imported ${file.name}`, 5000);
+
+  } catch(e) {
+    console.error("Import failed", e);
+    alert("Import failed:\n" + e.message);
+    showMessage("Import failed");
+  }
+}
+
+function normalizeImportedSurvey(data) {
+  const imported = requirePlainObject(data, "survey");
+
+  return {
+    startNote: normalizeImportedStartNote(imported.startNote),
+    trailNotes: normalizeImportedTrailNotes(imported.trailNotes),
+    closeNote: normalizeImportedCloseNote(imported.closeNote),
+    trailLogs: normalizeImportedTrailLogs(imported.trailLogs || imported.trails)
+  };
+}
+
+function normalizeImportedStartNote(startNote) {
+  const start = requirePlainObject(startNote, "startNote");
+
+  return {
+    date: requireStringField(start, "date", "startNote"),
+    time: requireStringField(start, "time", "startNote"),
+    weather: requireStringField(start, "weather", "startNote"),
+    participants: requireStringField(start, "participants", "startNote"),
+    notes: requireStringField(start, "notes", "startNote")
+  };
+}
+
+function normalizeImportedCloseNote(closeNote) {
+  const close = requirePlainObject(closeNote, "closeNote");
+
+  return {
+    time: requireStringField(close, "time", "closeNote"),
+    weather: requireStringField(close, "weather", "closeNote"),
+    notes: requireStringField(close, "notes", "closeNote")
+  };
+}
+
+function normalizeImportedTrailNotes(trailNotes) {
+  const notes = requirePlainObject(trailNotes || {}, "trailNotes");
+  const normalized = {};
+
+  for (const trailId in notes) {
+    if (typeof notes[trailId] !== "string")
+      throw new Error(`Invalid trailNotes.${trailId}`);
+
+    normalized[trailId] = notes[trailId];
+  }
+
+  return normalized;
+}
+
+function normalizeImportedTrailLogs(trailLogs) {
+  const logs = requirePlainObject(trailLogs || {}, "trailLogs");
+  const normalized = {};
+
+  for (const trailId in logs) {
+    const log = requirePlainObject(logs[trailId], `trailLogs.${trailId}`);
+    const entries = log.entries;
+
+    if (!Array.isArray(entries))
+      throw new Error(`Invalid trailLogs.${trailId}.entries`);
+
+    normalized[trailId] = {
+      firstEntered: requireStringField(log, "firstEntered", `trailLogs.${trailId}`),
+      entries: entries.map((entry, index) =>
+        normalizeImportedLogEntry(entry, `trailLogs.${trailId}.entries.${index}`)
+      )
+    };
+  }
+
+  return normalized;
+}
+
+function normalizeImportedLogEntry(entry, path) {
+  const item = requirePlainObject(entry, path);
+
+  return {
+    speciesId: item.speciesId,
+    commonName: requireStringField(item, "commonName", path),
+    scientificName: requireStringField(item, "scientificName", path),
+    note: typeof item.note === "string" ? item.note : "",
+    time: requireStringField(item, "time", path)
+  };
+}
+
+function requirePlainObject(value, name) {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`Invalid ${name}`);
+
+  return value;
+}
+
+function requireStringField(obj, key, path) {
+  if (typeof obj[key] !== "string")
+    throw new Error(`Invalid ${path}.${key}`);
+
+  return obj[key];
+}
+
+function firstImportedTrail(imported) {
+  for (const trailId of Object.keys(imported.trailLogs || {})) {
+    if (imported.trailLogs[trailId]?.entries?.length)
+      return trailId;
+  }
+
+  for (const trailId of Object.keys(imported.trailLogs || {})) {
+    if (imported.trailLogs[trailId])
+      return trailId;
+  }
+
+  return null;
+}
+
 function clearStoredSurvey() {
   localStorage.removeItem(storageKey("surveyExists"));
   localStorage.removeItem(storageKey("startNote"));
@@ -1275,6 +1435,22 @@ function loadStartNote() {
   return start;
 }
 
+function loadCloseNote() {
+
+  const close = loadSection(storageKey("closeNote"));
+
+  if (close === null)
+    throw new Error("Missing closeNote");
+
+  if (typeof close !== "object" || Array.isArray(close))
+    throw new Error("Bad format for closeNote");
+
+  assertString(close.time, "closeNote.time");
+  assertString(close.weather, "closeNote.weather");
+  assertString(close.notes, "closeNote.notes");
+
+  return close;
+}
 
 
 function loadTrailNotes() {
@@ -1640,25 +1816,222 @@ function downloadSurvey() {
   if (!survey)
     return;
 
-  const data = JSON.stringify(survey, null, 2);
+  const jsonData = JSON.stringify(survey, null, 2);
 
-  if (!data) {
+  if (!jsonData) {
     alert('No survey data to download.');
     return;
   }
 
-  const blob = new Blob([data], { type: 'application/json' });
+  const date = formatTimestamp().slice(0, 10);
+  const basename = `edgewood-survey-${date}`;
+
+  downloadTextFile(`${basename}.json`, jsonData, 'application/json');
+  downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+}
+
+function downloadTextFile(filename, data, type) {
+  const blob = new Blob([data], { type });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = url;
-
-  const date = formatTimestamp().slice(0, 10);
-  a.download = `edgewood-survey-${date}.json`;
+  a.download = filename;
 
   a.click();
 
   URL.revokeObjectURL(url);
+}
+
+function buildSurveyTsv(data) {
+  const rows = [
+    ...buildSurveyHeaderRows(data),
+    ...blankRows(4),
+    ...buildSurveyLogRows(data)
+  ];
+
+  return rows
+    .map(row => row.map(formatTsvCell).join('\t'))
+    .join('\n') + '\n';
+}
+
+function buildSurveyHeaderRows(data) {
+  const start = data.startNote || {};
+  const close = data.closeNote || {};
+  const participantLines = splitParticipants(start.participants || '');
+  const rows = [];
+
+  rows.push([
+    `Date: ${start.date || ''}`,
+    `Participants: ${participantLines[0]}`
+  ]);
+
+  rows.push([
+    'Hike:',
+    participantLines[1]
+  ]);
+
+  rows.push([
+    `Weather: ${formatSurveyWeather(start, close)}`
+  ]);
+
+  const observedNotes = [start.notes, close.notes]
+    .map(note => (note || '').trim())
+    .filter(Boolean);
+
+  if (observedNotes.length) {
+    rows.push([
+      `Also observed: ${observedNotes.join(' ')}`
+    ]);
+  }
+
+  const trailNoteRows = buildTrailNoteRows(data);
+  if (trailNoteRows.length) {
+    rows.push(...blankRows(3));
+    rows.push(['Trail notes:', '', '', '', '']);
+    rows.push(...trailNoteRows);
+  }
+
+  return rows;
+}
+
+function blankRows(count) {
+  return Array.from({ length: count }, () => []);
+}
+
+function splitParticipants(participantsText) {
+  const participants = participantsText
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean);
+
+  if (participants.length <= 1)
+    return [participants.join(', '), ''];
+
+  let bestSplit = 1;
+  let bestDifference = Infinity;
+
+  for (let i = 1; i < participants.length; i++) {
+    const first = participants.slice(0, i).join(', ');
+    const second = participants.slice(i).join(', ');
+    const difference = Math.abs(
+      `Participants: ${first}`.length - second.length
+    );
+
+    if (difference < bestDifference) {
+      bestSplit = i;
+      bestDifference = difference;
+    }
+  }
+
+  return [
+    participants.slice(0, bestSplit).join(', '),
+    participants.slice(bestSplit).join(', ')
+  ];
+}
+
+function formatSurveyWeather(start, close) {
+  const startWeather = [start.time, start.weather]
+    .map(value => (value || '').trim())
+    .filter(Boolean)
+    .join(', ');
+
+  const closeWeather = [close.time, close.weather]
+    .map(value => (value || '').trim())
+    .filter(Boolean)
+    .join(', ');
+
+  return [startWeather, closeWeather]
+    .filter(Boolean)
+    .join(' - ');
+}
+
+function buildTrailNoteRows(data) {
+  const trailNotes = data.trailNotes || {};
+  const rows = [];
+
+  for (const trail of getOrderedSurveyTrails(data)) {
+    const note = (trailNotes[trail.id] || '').trim();
+    if (!note)
+      continue;
+
+    rows.push([`${trail.name}: ${note}`, '', '', '', '']);
+  }
+
+  return rows;
+}
+
+function buildSurveyLogRows(data) {
+  const trailLogs = data.trailLogs || {};
+  const columns = getOrderedSurveyTrails(data).map(trail => {
+    const entries = trailLogs[trail.id]?.entries || [];
+
+    return {
+      name: trail.name,
+      items: entries.map(entry => entry.commonName || '')
+    };
+  }).filter(column => column.items.length);
+
+  const maxRows = columns.reduce(
+    (max, column) => Math.max(max, column.items.length),
+    0
+  );
+
+  const rows = [
+    columns.map(column => column.name)
+  ];
+
+  for (let i = 0; i < maxRows; i++) {
+    rows.push(columns.map(column => column.items[i] || ''));
+  }
+
+  return rows;
+}
+
+function getOrderedSurveyTrails(data) {
+  return getSurveyTrailIds(data)
+    .map(trailId => getTrailById(trailId))
+    .filter(Boolean);
+}
+
+function getSurveyTrailIds(data) {
+  const trailLogs = data.trailLogs || {};
+  const trailNotes = data.trailNotes || {};
+  const trailIds = [];
+  const seen = new Set();
+
+  for (const trailId of Object.keys(trailLogs)) {
+    if (seen.has(trailId))
+      continue;
+
+    trailIds.push(trailId);
+    seen.add(trailId);
+  }
+
+  for (const trailId of Object.keys(trailNotes)) {
+    if (seen.has(trailId))
+      continue;
+
+    trailIds.push(trailId);
+    seen.add(trailId);
+  }
+
+  return trailIds;
+}
+
+function getTrailById(trailId) {
+  return trails.find(trail => trail.id === trailId) || {
+    id: trailId,
+    name: trailId
+  };
+}
+
+function formatTsvCell(value) {
+  return String(value ?? '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\t/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 //
@@ -1688,4 +2061,3 @@ function formatTime(date) {
     "en-US", { hour: "numeric", minute: "2-digit" }
   );
 }
-
