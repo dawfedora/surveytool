@@ -173,6 +173,35 @@
       flex: 0 0 auto;
     }
 
+    .logRow {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .logNote {
+      flex: 0 1 auto;
+
+      min-width: 5ch;
+      max-width: 50%;
+
+      resize: none;
+      overflow: hidden;
+      font: inherit;
+      line-height: inherit;
+      white-space: pre;
+      word-break: break-word;
+      padding-top: 0;
+      padding-bottom: 0;
+      padding-left: 4px;
+      padding-right: 4px;
+
+      box-sizing: border-box;
+      vertical-align: top;
+    }
+
+
+
     #notesView {
       flex: 1;
       overflow-y: auto;
@@ -226,7 +255,7 @@
       position: relative;
     }
     #participants {
-      widt: 100%;
+      width: 100%;
       resize: vertical;
       min-height: 2.5em;
     }
