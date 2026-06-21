@@ -157,10 +157,6 @@ function storeTrailNotes() {
   localStorage.setItem(storageKey('trailNotes'), JSON.stringify(survey.trailNotes));
 }
 
-function storeTrailLogs() {
-  localStorage.setItem(storageKey('trailLogs'), JSON.stringify(survey.trailLogs));
-}
-
 function debounce(fn, delay = 2500) {
   let timer = null;
 
@@ -949,7 +945,6 @@ function switchTrail(id) {
   syncTrailSelectors();
   renderLog();
   renderTrailNotes();
-  focusCurrentWorkField();
 }
 
 function syncTrailSelectors() {
@@ -1016,6 +1011,7 @@ function renderLogView() {
 
   // position results overlay
   requestAnimationFrame(positionResults);
+  focusField(ui.log.search);
 }
 
 function renderNotesView() {
@@ -1098,28 +1094,9 @@ function createSurvey() {
   };
 }
 
-function focusCurrentWorkField() {
+function focusField(field) {
   requestAnimationFrame(() => {
-    if (currentMode === MODE.LOG) {
-      ui.log.search?.focus();
-      return;
-    }
-
-    if (currentMode === MODE.NOTES) {
-      if (currentNotePanel === NOTE_PANEL.TRAIL) {
-        ui.notes.trail.notes?.focus();
-        return;
-      }
-
-      if (currentNotePanel === NOTE_PANEL.START) {
-        ui.notes.start.weather?.focus();
-        return;
-      }
-
-      if (currentNotePanel === NOTE_PANEL.END) {
-        ui.notes.close.weather?.focus();
-      }
-    }
+    field?.focus();
   });
 }
 
@@ -1562,6 +1539,7 @@ function renderStartNote() {
   s.weather.value = data.weather || '';
   s.participants.value = data.participants || '';
   s.notes.value = data.notes || '';
+  focusField(s.weather);
 }
 
 function renderTrailNotes() {
@@ -1570,6 +1548,7 @@ function renderTrailNotes() {
     return;
   }
   ui.notes.trail.notes.value = survey.trailNotes[currentTrail]  || '';
+  focusField(ui.notes.trail.notes);
 
 }
 
@@ -1585,6 +1564,7 @@ function renderCloseNote() {
   c.time.value = data.time || '';
   c.weather.value = data.weather || '';
   c.notes.value = data.notes || '';
+  focusField(c.weather);
 }
 
 // --- Add sighting ---
@@ -1668,7 +1648,7 @@ function matchParticipants(input) {
   const current =
     input
       .trim()
-      .toLowerCase();;
+      .toLowerCase();
 
   if (current.length < 1)
     return [];
@@ -1878,7 +1858,8 @@ function downloadTextFile(filename, data, type) {
 
   a.click();
 
-  URL.revokeObjectURL(url);
+  // Delay revoke slightly to ensure download started in all browsers
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 function buildSurveyTsv(data) {
