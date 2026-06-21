@@ -133,6 +133,14 @@
       cursor: pointer;
     }
 
+    #stateMessagePanel {
+      padding: 8px 10px;
+      border: 1px solid #d8b45a;
+      background: #fff7d6;
+      font-size: 0.9rem;
+      line-height: 1.25;
+    }
+
     #logView {
       position: relative;
       display: flex;
@@ -345,13 +353,15 @@
       <button id="downloadBtn">Down</button>
     </div>
 
-<div id="messagePanel" hidden>
-  <span id="messageText"></span>
-  <button id="dismissMessageBtn"
-          aria-label="Dismiss message">
-    x 
-  </button>
-</div>
+	<div id="messagePanel" hidden>
+	  <span id="messageText"></span>
+	  <button id="dismissMessageBtn"
+	          aria-label="Dismiss message">
+	    x 
+	  </button>
+	</div>
+
+	<div id="stateMessagePanel" hidden></div>
 
   </div>
 
