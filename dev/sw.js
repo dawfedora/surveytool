@@ -1,5 +1,5 @@
 // DO NOT REFORMAT deploy.bash depends on this line
-const CACHE_NAME = 'FoE:survey-V260621.1438(dev)';
+const CACHE_NAME = 'FoE:survey-V260621.1514(dev)';
 
 const APP_SHELL = [
   './',
@@ -26,10 +26,25 @@ self.addEventListener('activate', handleActivate);
 
 self.addEventListener('fetch', handleFetch);
 
+// Explicit activation: the page must postMessage {type: 'SKIP_WAITING'}
+// to request the new worker activate. Do NOT call skipWaiting() here
+// automatically to avoid mid-survey activation.
+self.addEventListener('message', (event) => {
+  try {
+    const msg = event.data;
+    if (msg && msg.type === 'SKIP_WAITING') {
+      console.log('SW: SKIP_WAITING message received');
+      self.skipWaiting();
+    }
+  } catch (e) {
+    console.warn('SW message handler error', e);
+  }
+});
+
 // INSTALL
 async function handleInstall(event) {
+  // Populate cache during install but DO NOT skipWaiting here.
   event.waitUntil( cacheAppShell());
-  self.skipWaiting();
 }
 
 async function cacheAppShell() {
