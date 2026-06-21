@@ -1106,12 +1106,9 @@ async function refreshApp() {
   showMessage("Refreshing...");
 
   try {
+    if (!navigator.onLine) throw new Error("Offline");
 
-    if (!navigator.onLine)
-      throw new Error("Offline");
-
-    let freshVersion = await loadVersion(true);
-
+    const freshVersion = await loadVersion(true);
     const cacheName = freshVersion.cacheName;
 
     const APP_SHELL = [
@@ -1129,32 +1126,67 @@ async function refreshApp() {
       './foe-logo.png'
     ];
 
-    const refreshed = new Map();
+    // Stage downloads into a temporary cache first
+    const stagingName = `${cacheName}:staging:${Date.now()}`;
+    const staging = await caches.open(stagingName);
 
-    // Fetch everything first
+    // Fetch and populate staging cache
     for (const file of APP_SHELL) {
-      console.log("refreshing:", file);
-      const request = new Request(file, { cache: "reload" });
-
-      const response = await fetch(request);
-      console.log(file, response.status, response.type);
-
-      if (!response.ok)
-        throw new Error(`Failed to refresh ${file}`);
-
-      refreshed.set(file, response.clone());
+      console.log("staging refresh:", file);
+      const req = new Request(file, { cache: "reload" });
+      const res = await fetch(req);
+      console.log(file, res.status, res.type);
+      if (!res.ok) throw new Error(`Failed to refresh ${file}`);
+      await staging.put(req, res.clone());
     }
 
-    // Commit only after success
-    const cache = await caches.open(cacheName);
+    // Verify staging contains version.json matching cacheName
+    const vRes = await staging.match('./version.json');
+    if (!vRes) throw new Error('version.json missing in staging');
+    const vData = await vRes.json();
+    if (vData.cacheName !== cacheName) throw new Error('Staging version mismatch');
 
-    for (const [file, response] of refreshed) {
-      await cache.put(file, response);
+    // Commit: replace active cache atomically by copying from staging
+    await caches.delete(cacheName);
+    const active = await caches.open(cacheName);
+    const stagedKeys = await staging.keys();
+    for (const req of stagedKeys) {
+      const res = await staging.match(req);
+      await active.put(req, res.clone());
     }
+
+    // Cleanup staging
+    await caches.delete(stagingName);
 
     showMessage("Refresh complete", 5000);
 
-    // restart app
+    // Now promote the waiting service worker (if any)
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        if (!reg.waiting) {
+          try { await reg.update(); } catch (e) { console.warn('reg.update failed', e); }
+        }
+
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+          // wait for the new controller before reloading
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('controllerchange timeout')), 5000);
+            navigator.serviceWorker.addEventListener('controllerchange', function handler() {
+              clearTimeout(timeout);
+              resolve();
+            }, { once: true });
+          });
+
+          location.reload();
+          return;
+        }
+      }
+    }
+
+    // fallback: reload to pick up any changes
     location.reload();
 
   } catch (e) {
