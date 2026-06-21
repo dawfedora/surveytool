@@ -316,7 +316,7 @@ function renderEmptyState() {
   ui.notes.panel.style.display = "none";
 
   setStatus("No Survey");
-  showMessage("No current survey! Press 'New Survey' to start one");
+  setStateMessage("No current survey. Press New Survey to start one.");
 }
 
 function renderLimitedState() {
@@ -329,7 +329,7 @@ function renderLimitedState() {
   ui.log.panel.style.display = "none";
   ui.notes.panel.style.display = "none";
 
-  showMessage("Surveytool not complete! Connect to the net and press Refresh!");
+  setStateMessage("Survey tool is not complete. Connect to the net and press Refresh.");
   setStatus("Refresh required");
 
   return; // STOP HERE
@@ -348,6 +348,7 @@ function renderActiveState() {
 
   syncTrailSelectors();
   renderMode();
+  clearStateMessage();
   setStatus("Active Survey");
 }
 
@@ -383,7 +384,8 @@ function initUI() {
   ui.message = {
     panel: document.getElementById("messagePanel"),
     text: document.getElementById("messageText"),
-    dismissBtn: document.getElementById("dismissMessageBtn")
+    dismissBtn: document.getElementById("dismissMessageBtn"),
+    statePanel: document.getElementById("stateMessagePanel")
   };
 
   ui.log ={
@@ -947,6 +949,7 @@ function switchTrail(id) {
   syncTrailSelectors();
   renderLog();
   renderTrailNotes();
+  focusCurrentWorkField();
 }
 
 function syncTrailSelectors() {
@@ -1064,6 +1067,16 @@ function clearMessage() {
   ui.message.text.textContent = "";
 }
 
+function setStateMessage(text) {
+  ui.message.statePanel.textContent = text;
+  ui.message.statePanel.hidden = false;
+}
+
+function clearStateMessage() {
+  ui.message.statePanel.hidden = true;
+  ui.message.statePanel.textContent = "";
+}
+
 function createSurvey() {
   const now = new Date();
 
@@ -1083,6 +1096,31 @@ function createSurvey() {
     },
     trailLogs: {}
   };
+}
+
+function focusCurrentWorkField() {
+  requestAnimationFrame(() => {
+    if (currentMode === MODE.LOG) {
+      ui.log.search?.focus();
+      return;
+    }
+
+    if (currentMode === MODE.NOTES) {
+      if (currentNotePanel === NOTE_PANEL.TRAIL) {
+        ui.notes.trail.notes?.focus();
+        return;
+      }
+
+      if (currentNotePanel === NOTE_PANEL.START) {
+        ui.notes.start.weather?.focus();
+        return;
+      }
+
+      if (currentNotePanel === NOTE_PANEL.END) {
+        ui.notes.close.weather?.focus();
+      }
+    }
+  });
 }
 
 // --- REFRESH APP ---
