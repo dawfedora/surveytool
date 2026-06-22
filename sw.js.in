@@ -1,22 +1,5 @@
-// DO NOT REFORMAT deploy.bash depends on this line
-const CACHE_NAME = '__CACHE_NAME__';
 
-const APP_SHELL = [
-  './',
-  './index.html',
-  './app.js',
-  './sw.js',
-  './version.json',
-  './plants.json',
-  './trails.json',
-  './participants.json',
-  './manifest.json',
-  './icons/foe-icon-512.png',
-  './icons/foe-icon-192.png',
-  './foe-logo.png'
-];
-
-if (CACHE_NAME === '__CACHE_NAME__') {
+if (!CACHE_NAME || typeof CACHE_NAME !== 'string') {
   throw new Error('CACHE_NAME not injected');
 }
 
