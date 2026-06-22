@@ -58,13 +58,6 @@ if ! command -v magick >/dev/null 2>&1; then
   IM="convert"
 fi
 
-$IM icons/foe-icon-192-base.png \
-  -fill orange \
-  -stroke white \
-  -strokewidth 1.5 \
-  -draw "circle 168,24 168,12" \
-  icons/foe-icon-192.png
-
 if [ "$BRANCH" = "dev" ]; then
   $IM icons/foe-icon-192-base.png \
     -fill orange \
