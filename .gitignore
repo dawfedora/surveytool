@@ -1,8 +1,9 @@
 *.swp
 .DS_Store
-version.json
 surveys
+version.json
 sw.js
+shell-config.js
 prompt
 logo/foe-icon-192.png
 logo/foe-icon-512.png

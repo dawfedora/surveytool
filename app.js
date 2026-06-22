@@ -1117,22 +1117,28 @@ async function refreshApp() {
 
     // Fetch and populate staging cache
     for (const file of APP_SHELL) {
-      console.log("staging refresh:", file);
-      const req = new Request(file, { cache: "reload" });
+      const stagedUrl = new URL(file, window.location.origin).href;
+      console.log("staging refresh:", stagedUrl);
+      const req = new Request(stagedUrl, { cache: "reload" });
       const res = await fetch(req);
-      console.log(file, res.status, res.type);
+      console.log(stagedUrl, res.status, res.type);
       if (!res.ok) throw new Error(`Failed to refresh ${file}`);
       await staging.put(req, res.clone());
     }
 
     // Extract CACHE_NAME and APP_SHELL from staged shell-config.js (single source of truth)
-    const shellRes = await staging.match('./shell-config.js');
+    const shellRes = await staging.match(new URL('./shell-config.js', window.location.origin).href);
     if (!shellRes) throw new Error('shell-config.js missing in staging');
     const shellText = await shellRes.text();
     // Evaluate in isolated function scope and return only the two expected values
     const cfg = (new Function(shellText + '\nreturn { CACHE_NAME, APP_SHELL };'))();
     const cacheName = cfg.CACHE_NAME;
-    const newAppShell = cfg.APP_SHELL;
+    const newAppShell = cfg.APP_SHELL.map(file => {
+      const absoluteUrl = new URL(file, window.location.origin).href;
+      return absoluteUrl === new URL('./', window.location.origin).href
+        ? new URL('./index.html', window.location.origin).href
+        : absoluteUrl;
+    });
     console.log('Extracted cacheName from shell-config.js:', cacheName);
 
     // Verify staging contains every newAppShell entry (all-or-nothing)
