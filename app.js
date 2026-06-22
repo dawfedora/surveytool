@@ -251,7 +251,7 @@ async function loadVersion(useFresh = false) {
 
   const data = await response.json();
 
-  if (!data.version || !data.cacheName || !data.storageTag)
+  if (!data.version || !data.storageTag)
     throw new Error("Invalid version.json");
 
   return data;
