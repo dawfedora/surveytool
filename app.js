@@ -943,7 +943,7 @@ function populateTrailSelector(select) {
 function switchTrail(id) {
   setCurrentTrail(id);
   syncTrailSelectors();
-  renderLog();
+  renderLogView();
   renderTrailNotes();
 }
 
