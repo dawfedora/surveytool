@@ -1109,25 +1109,10 @@ async function refreshApp() {
     if (!navigator.onLine) throw new Error("Offline");
 
     const freshVersion = await loadVersion(true);
-    const cacheName = freshVersion.cacheName;
-
-    const APP_SHELL = [
-      './',
-      './index.html',
-      './app.js',
-      './sw.js',
-      './version.json',
-      './plants.json',
-      './trails.json',
-      './participants.json',
-      './manifest.json',
-      './icons/foe-icon-512.png',
-      './icons/foe-icon-192.png',
-      './foe-logo.png'
-    ];
 
     // Stage downloads into a temporary cache first
-    const stagingName = `${cacheName}:staging:${Date.now()}`;
+    // Use a temporary staging name (based on timestamp)
+    const stagingName = `FoE:survey:staging:${Date.now()}`;
     const staging = await caches.open(stagingName);
 
     // Fetch and populate staging cache
@@ -1140,23 +1125,52 @@ async function refreshApp() {
       await staging.put(req, res.clone());
     }
 
-    // Verify staging contains version.json matching cacheName
+    // Extract CACHE_NAME and APP_SHELL from staged shell-config.js (single source of truth)
+    const shellRes = await staging.match('./shell-config.js');
+    if (!shellRes) throw new Error('shell-config.js missing in staging');
+    const shellText = await shellRes.text();
+    // Evaluate in isolated function scope and return only the two expected values
+    const cfg = (new Function(shellText + '\nreturn { CACHE_NAME, APP_SHELL };'))();
+    const cacheName = cfg.CACHE_NAME;
+    const newAppShell = cfg.APP_SHELL;
+    console.log('Extracted cacheName from shell-config.js:', cacheName);
+
+    // Verify staging contains every newAppShell entry (all-or-nothing)
+    for (const file of newAppShell) {
+      const req = new Request(file);
+      const r = await staging.match(req);
+      if (!r) throw new Error(`Staging missing ${file}`);
+    }
+
+    // Verify staged version.json matches the fresh version
     const vRes = await staging.match('./version.json');
     if (!vRes) throw new Error('version.json missing in staging');
     const vData = await vRes.json();
-    if (vData.cacheName !== cacheName) throw new Error('Staging version mismatch');
+    if (vData.version !== freshVersion.version) throw new Error('Staging version mismatch');
 
-    // Commit: replace active cache atomically by copying from staging
+    // Commit: replace active cache atomically by copying newAppShell entries from staging
     await caches.delete(cacheName);
     const active = await caches.open(cacheName);
-    const stagedKeys = await staging.keys();
-    for (const req of stagedKeys) {
+    for (const file of newAppShell) {
+      const req = new Request(file);
       const res = await staging.match(req);
       await active.put(req, res.clone());
     }
 
     // Cleanup staging
     await caches.delete(stagingName);
+
+    // Update in-page globals only after a successful commit so runtime
+    // can immediately reflect the new shell if needed. The page will
+    // also reload below which ensures a fresh environment.
+    try {
+      if (typeof window !== 'undefined') {
+        window.APP_SHELL = newAppShell;
+        window.CACHE_NAME = cacheName;
+      }
+    } catch (e) {
+      console.warn('Could not assign globals after refresh commit', e);
+    }
 
     showMessage("Refresh complete", 5000);
 
