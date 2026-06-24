@@ -267,6 +267,7 @@ async function loadVersion(useFresh = false, signal = undefined) {
 }
 
 function updateVersion() {
+  let displayVersion = '';
 
   if (version.branch == "main")
     displayVersion = version.version.replace(/^main:/,"V");
