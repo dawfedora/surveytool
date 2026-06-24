@@ -49,19 +49,33 @@ async function cacheAppShell() {
 
 // ACTIVATE
 function handleActivate(event) {
-  event.waitUntil(deleteOldCaches());
+  event.waitUntil(reportOldCaches());
 }
 
-async function deleteOldCaches() {
+async function reportOldCaches() {
+  const cachePrefix = cacheFamilyPrefix(CACHE_NAME);
+  if (!cachePrefix) {
+    console.warn('SW: could not identify cache family for', CACHE_NAME);
+    await clients.claim();
+    return;
+  }
+
   const keys = await caches.keys();
-  await Promise.all(
-    keys.map(key => {
-      if (key !== CACHE_NAME) {
-        return caches.delete(key);
-      }
-    })
-  );
+  for (const key of keys) {
+    if (key !== CACHE_NAME && key.startsWith(cachePrefix)) {
+      console.warn('SW: old cache remains for this branch:', key);
+    }
+  }
+
   await clients.claim();
+}
+
+function cacheFamilyPrefix(cacheName) {
+  const match = cacheName.match(/^FoE:survey:([^:]+):/);
+  if (!match)
+    return null;
+
+  return `FoE:survey:${match[1]}:`;
 }
 
 // FETCH

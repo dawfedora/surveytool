@@ -6,13 +6,8 @@ STAMP=$(TZ=America/Los_Angeles date +%y%m%d.%H%M)
 BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
 echo "Branch = $BRANCH"
 
-if [ "$BRANCH" = "main" ]; then
-  VERSION="V${STAMP}"
-else
-  VERSION="V${STAMP}(${BRANCH})"
-fi
-
-CACHE_NAME="FoE:survey-$VERSION"
+VERSION="${BRANCH}:${STAMP}"
+CACHE_NAME="FoE:survey:$VERSION"
 STORAGE_TAG="FoE:survey:${BRANCH}"
 
 # EMBEDDED CODE!  EDIT WITH CARE
