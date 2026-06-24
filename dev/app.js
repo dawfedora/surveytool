@@ -50,6 +50,8 @@ let logViewInitialized = false;
 let notesViewInitialized = false;
 let pendingSaves = [];
 
+const UPDATE_CHECK_TIMEOUT_MS = 5000;
+
 const storeStartNoteLater = flushableDebounce(storeStartNote, 1500, pendingSaves);
 const storeCloseNoteLater = flushableDebounce(storeCloseNote, 1500, pendingSaves);
 const storeTrailNotesLater = flushableDebounce(storeTrailNotes, 1500, pendingSaves);
@@ -99,7 +101,7 @@ async function init() {
     }
   }
 
-  if (version.branch !== "prod") {
+  if (version.branch !== "main") {
     document.title += ` [${version.branch.toUpperCase()}]`;
   }
 
@@ -127,8 +129,12 @@ function storageKey(key) {
   return `${STORAGE_TAG}:${key}`;
 }
 
-function makeInputHdlr(target, key, persist) {
+function makeInputHdlr(getTarget, key, persist) {
   return (event) => {
+    const target = getTarget();
+    if (!target)
+      return;
+
     target[key] = event.target.value;
     persist();
   };
@@ -240,10 +246,13 @@ function flushPendingSaves() {
   pendingSaves.forEach(fn => fn.flush());
 }
 
-async function loadVersion(useFresh = false) {
+async function loadVersion(useFresh = false, signal = undefined) {
 
   const response = await fetch("./version.json",
-    {cache: useFresh ? "reload" : "default"}
+    {
+      cache: useFresh ? "reload" : "default",
+      signal
+    }
   );
 
   if (!response.ok)
@@ -251,15 +260,20 @@ async function loadVersion(useFresh = false) {
 
   const data = await response.json();
 
-  if (!data.version || !data.storageTag)
+  if (!data.branch || !data.version || !data.storageTag)
     throw new Error("Invalid version.json");
 
   return data;
 }
 
 function updateVersion() {
-  ui.header.version.textContent =
-    `${version.version}`;
+
+  if (version.branch == "main")
+    displayVersion = version.version.replace(/^main:/,"V");
+  else
+    displayVersion = version.version.replace(/:/,"");
+
+  ui.header.version.textContent = $displayVersion;
 }
 
 function setStatus(text) {
@@ -271,8 +285,14 @@ async function checkForUpdate() {
   if (!navigator.onLine)
     return null;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    UPDATE_CHECK_TIMEOUT_MS
+  );
+
   try {
-    const latest = await loadVersion(true);
+    const latest = await loadVersion(true, controller.signal);
 
     if (!version)
       return latest
@@ -283,8 +303,13 @@ async function checkForUpdate() {
     return latest;
 
   } catch (e) {
-    console.warn("Update check failed", e);
+    if (e.name === "AbortError")
+      console.warn(`Update check timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000} seconds`);
+    else
+      console.warn("Update check failed", e);
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -898,11 +923,11 @@ function initStartNote() {
 
   const s = ui.notes.start;
 
-  s.date.addEventListener("input", makeInputHdlr(survey.startNote, "date", storeStartNoteLater));
-  s.time.addEventListener("input", makeInputHdlr(survey.startNote, "time", storeStartNoteLater));
-  s.weather.addEventListener( "input", makeInputHdlr(survey.startNote, "weather", storeStartNoteLater));
-  s.notes.addEventListener("input", makeInputHdlr(survey.startNote, "notes", storeStartNoteLater));
-  s.participants.addEventListener("input", makeInputHdlr(survey.startNote, "participants", storeStartNoteLater));
+  s.date.addEventListener("input", makeInputHdlr(() => survey?.startNote, "date", storeStartNoteLater));
+  s.time.addEventListener("input", makeInputHdlr(() => survey?.startNote, "time", storeStartNoteLater));
+  s.weather.addEventListener( "input", makeInputHdlr(() => survey?.startNote, "weather", storeStartNoteLater));
+  s.notes.addEventListener("input", makeInputHdlr(() => survey?.startNote, "notes", storeStartNoteLater));
+  s.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeStartNoteLater));
 
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
@@ -919,9 +944,9 @@ function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener("input", makeInputHdlr(survey.closeNote, "time", storeCloseNoteLater));
-  c.weather.addEventListener("input", makeInputHdlr(survey.closeNote, "weather", storeCloseNoteLater));
-  c.notes.addEventListener("input", makeInputHdlr(survey.closeNote, "notes", storeCloseNoteLater));
+  c.time.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "time", storeCloseNoteLater));
+  c.weather.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "weather", storeCloseNoteLater));
+  c.notes.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "notes", storeCloseNoteLater));
 }
 
 function populateTrailSelector(select) {
@@ -1105,14 +1130,17 @@ async function refreshApp() {
   flushPendingSaves();
   showMessage("Refreshing...");
 
+  const oldCacheName = getCurrentCacheName();
+  let stagingName = null;
+
   try {
     if (!navigator.onLine) throw new Error("Offline");
 
     const freshVersion = await loadVersion(true);
 
     // Stage downloads into a temporary cache first
-    // Use a temporary staging name (based on timestamp)
-    const stagingName = `FoE:survey:staging:${Date.now()}`;
+    // Use a branch-specific temporary staging name.
+    stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
     const staging = await caches.open(stagingName);
 
     // Fetch and populate staging cache
@@ -1148,17 +1176,18 @@ async function refreshApp() {
     const vData = await vRes.json();
     if (vData.version !== freshVersion.version) throw new Error('Staging version mismatch');
 
-    // Commit: replace active cache atomically by copying newAppShell entries from staging
-    await caches.delete(cacheName);
-    const active = await caches.open(cacheName);
-    for (const file of newAppShell) {
-      const req = new Request(file);
-      const res = await staging.match(req);
-      await active.put(req, res.clone());
-    }
+    // Commit only after staging is complete and verified. If the target cache
+    // is the currently active cache, preserve a backup so refresh failure can
+    // restore the old shell.
+    await commitStagedCache(staging, cacheName, newAppShell, oldCacheName);
 
-    // Cleanup staging
-    await caches.delete(stagingName);
+    if (oldCacheName && oldCacheName !== cacheName) {
+      try {
+        await caches.delete(oldCacheName);
+      } catch (e) {
+        console.warn('Could not delete old cache', oldCacheName, e);
+      }
+    }
 
     // Update in-page globals only after a successful commit so runtime
     // can immediately reflect the new shell if needed. The page will
@@ -1207,6 +1236,104 @@ async function refreshApp() {
     console.error("REFRESH FAILED:", e);
     alert("Refresh failed:\n" + e.message);
     showMessage("Refresh failed");
+  } finally {
+    if (stagingName) {
+      try {
+        await caches.delete(stagingName);
+      } catch (e) {
+        console.warn('Could not delete staging cache', stagingName, e);
+      }
+    }
+  }
+}
+
+function getCurrentCacheName() {
+  if (typeof CACHE_NAME === "string")
+    return CACHE_NAME;
+
+  if (typeof window !== "undefined" && typeof window.CACHE_NAME === "string")
+    return window.CACHE_NAME;
+
+  return null;
+}
+
+async function commitStagedCache(staging, cacheName, appShell, oldCacheName) {
+  if (oldCacheName === cacheName) {
+    await replaceCurrentCacheFromStaging(staging, cacheName, appShell);
+    return;
+  }
+
+  // The normal path uses a new timestamped cache name. The old cache remains
+  // untouched until the new one has been fully populated and verified.
+  await caches.delete(cacheName);
+  await copyStagingToCache(staging, cacheName, appShell);
+}
+
+async function replaceCurrentCacheFromStaging(staging, cacheName, appShell) {
+  const backupName = `${cacheName}:backup:${Date.now()}`;
+  const hadCurrentCache = await caches.has(cacheName);
+
+  try {
+    if (hadCurrentCache) {
+      await copyCache(cacheName, backupName);
+    }
+
+    await caches.delete(cacheName);
+    await copyStagingToCache(staging, cacheName, appShell);
+  } catch (e) {
+    if (hadCurrentCache) {
+      try {
+        await caches.delete(cacheName);
+        await copyCache(backupName, cacheName);
+      } catch (restoreError) {
+        console.error('Could not restore cache backup', backupName, restoreError);
+      }
+    }
+
+    throw e;
+  } finally {
+    if (hadCurrentCache) {
+      try {
+        await caches.delete(backupName);
+      } catch (cleanupError) {
+        console.warn('Could not delete cache backup', backupName, cleanupError);
+      }
+    }
+  }
+}
+
+async function copyStagingToCache(staging, cacheName, appShell) {
+  const target = await caches.open(cacheName);
+
+  for (const file of appShell) {
+    const req = new Request(file);
+    const res = await staging.match(req);
+    if (!res)
+      throw new Error(`Staging missing ${file}`);
+
+    await target.put(req, res.clone());
+  }
+
+  await verifyCacheContains(target, appShell);
+}
+
+async function copyCache(sourceName, targetName) {
+  const source = await caches.open(sourceName);
+  const target = await caches.open(targetName);
+
+  for (const req of await source.keys()) {
+    const res = await source.match(req);
+    if (res)
+      await target.put(req, res.clone());
+  }
+}
+
+async function verifyCacheContains(cache, appShell) {
+  for (const file of appShell) {
+    const req = new Request(file);
+    const res = await cache.match(req);
+    if (!res)
+      throw new Error(`Cache missing ${file}`);
   }
 }
 
