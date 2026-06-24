@@ -274,7 +274,7 @@ function updateVersion() {
   else
     displayVersion = version.version.replace(/:/,"");
 
-  ui.header.version.textContent = $displayVersion;
+  ui.header.version.textContent = displayVersion;
 }
 
 function setStatus(text) {
