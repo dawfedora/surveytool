@@ -1144,31 +1144,40 @@ async function refreshApp() {
     stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
     const staging = await caches.open(stagingName);
 
-    // Fetch and populate staging cache
-    for (const file of APP_SHELL) {
-      console.log("staging refresh:", file);
-      const req = new Request(file, { cache: "reload" });
-      const res = await fetch(req);
-      console.log(file, res.status, res.type);
-      if (!res.ok) throw new Error(`Failed to refresh ${file}`);
-      await staging.put(req, res.clone());
-    }
+    const shellReq = new Request('./shell-config.js');
+    const freshShellReq = new Request('./shell-config.js', { cache: "reload" });
 
-    // Extract CACHE_NAME and APP_SHELL from staged shell-config.js (single source of truth)
-    const shellRes = await staging.match('./shell-config.js');
-    if (!shellRes) throw new Error('shell-config.js missing in staging');
-    const shellText = await shellRes.text();
+    let shellRes = await fetch(freshShellReq);
+    if (!shellRes.ok)
+      throw new Error("Failed to fetch shell-config.js");
+    await staging.put(shellReq, shellRes.clone());
+
+    shellRes = await staging.match(shellReq);
+    if (!shellRes)
+      throw new Error('shell-config.js missing in staging');
     // Evaluate in isolated function scope and return only the two expected values
+    const shellText = await shellRes.text();
     const cfg = (new Function(shellText + '\nreturn { CACHE_NAME, APP_SHELL };'))();
     const cacheName = cfg.CACHE_NAME;
     const newAppShell = cfg.APP_SHELL;
     console.log('Extracted cacheName from shell-config.js:', cacheName);
 
-    // Verify staging contains every newAppShell entry (all-or-nothing)
     for (const file of newAppShell) {
       const req = new Request(file);
-      const r = await staging.match(req);
-      if (!r) throw new Error(`Staging missing ${file}`);
+
+      if (await staging.match(req))
+        continue;
+
+      const freshReq = new Request(file, { cache: "reload" });
+      const res = await fetch(freshReq);
+
+      if (!res.ok)
+        throw new Error(`Failed to refresh ${file}`);
+
+      await staging.put(req, res.clone());
+
+      if (!await staging.match(req))
+        throw new Error(`Staging missing ${file}`);
     }
 
     // Verify staged version.json matches the fresh version
@@ -1190,18 +1199,6 @@ async function refreshApp() {
       }
     }
 
-    // Update in-page globals only after a successful commit so runtime
-    // can immediately reflect the new shell if needed. The page will
-    // also reload below which ensures a fresh environment.
-    try {
-      if (typeof window !== 'undefined') {
-        window.APP_SHELL = newAppShell;
-        window.CACHE_NAME = cacheName;
-      }
-    } catch (e) {
-      console.warn('Could not assign globals after refresh commit', e);
-    }
-
     showMessage("Refresh complete", 5000);
 
     // Now promote the waiting service worker (if any)
@@ -1213,17 +1210,13 @@ async function refreshApp() {
         }
 
         if (reg.waiting) {
+          const controllerChange = waitForControllerChange(5000);
+
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 
-          // wait for the new controller before reloading
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('controllerchange timeout')), 5000);
-            navigator.serviceWorker.addEventListener('controllerchange', function handler() {
-              clearTimeout(timeout);
-              resolve();
-            }, { once: true });
-          });
-
+          if (!await controllerChange)
+            console.warn('Timed out waiting for service worker controllerchange; reloading anyway');
+          
           location.reload();
           return;
         }
@@ -1248,13 +1241,20 @@ async function refreshApp() {
   }
 }
 
+function waitForControllerChange(timeoutMs) {
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => resolve(false), timeoutMs);
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      clearTimeout(timeout);
+      resolve(true);
+    }, { once: true });
+  });
+}
+
 function getCurrentCacheName() {
   if (typeof CACHE_NAME === "string")
     return CACHE_NAME;
-
-  if (typeof window !== "undefined" && typeof window.CACHE_NAME === "string")
-    return window.CACHE_NAME;
-
   return null;
 }
 
@@ -1266,7 +1266,6 @@ async function commitStagedCache(staging, cacheName, appShell, oldCacheName) {
 
   // The normal path uses a new timestamped cache name. The old cache remains
   // untouched until the new one has been fully populated and verified.
-  await caches.delete(cacheName);
   await copyStagingToCache(staging, cacheName, appShell);
 }
 
@@ -1372,7 +1371,7 @@ function newSurvey() {
   // Populate UI
   renderMode();
 
-  saveSurvey();
+  storeSurvey();
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
@@ -1407,7 +1406,7 @@ async function importSurveyFile(event) {
     setCurrentTrail(firstTrail);
 
     localStorage.setItem(storageKey("surveyExists"), "true");
-    saveSurvey();
+    storeSurvey();
 
     currentMode = MODE.NOTES;
     currentNotePanel = NOTE_PANEL.START;
@@ -1569,7 +1568,7 @@ function loadSection(key) {
   }
 }
 
-function saveSurvey() {
+function storeSurvey() {
   if (!survey)
     return;
 
@@ -1748,7 +1747,8 @@ function addSighting(item) {
     alert('No active survey');
     return;
   }
-  const trailLog = ensureTrailLog(currentTrail);
+  const trailId = currentTrail;
+  const trailLog = ensureTrailLog(trailId);
   const entries = trailLog.entries;
 
   const duplicate = entries.some(e => e.speciesId === item.speciesId);
@@ -1768,9 +1768,9 @@ function addSighting(item) {
   }
   entries.push(entry);
 
-  saveLogEntry(entry);
+  storeTrailLog(trailId);
 
-  const row = createLogRow(entry);
+  const row = createLogRow(entry, trailId);
   ui.log.log.prepend(row);
   highlightLogRow(row);
 }
@@ -1889,11 +1889,12 @@ function renderLog() {
 
   if (!survey || !currentTrail) return;
 
-  const trailLog = getTrailLog(currentTrail);
+  const trailId = currentTrail;
+  const trailLog = getTrailLog(trailId);
   if (!trailLog) return;
 
   trailLog.entries.slice().reverse().forEach((entry) => {
-    const div = createLogRow(entry);
+    const div = createLogRow(entry, trailId);
     container.appendChild(div);
   });
 }
@@ -1904,7 +1905,7 @@ function highlightLogRow(row) {
 }
 
 
-function createLogRow(entry) {
+function createLogRow(entry, trailId) {
     const div = document.createElement('div');
     div.className = 'item';
 
@@ -1934,7 +1935,7 @@ function createLogRow(entry) {
     note.addEventListener('input', () => {
       resizeNote(note, true);
       entry.note = note.value;
-      saveLogEntry(entry);
+      storeTrailLogLater(trailId);
     });
 
     note.addEventListener('focus', () => {
@@ -1955,7 +1956,7 @@ function createLogRow(entry) {
     del.onclick = () => {
       if (!confirm( `Delete "${entry.commonName}"?`))
         return;
-      deleteLogEntry(entry);
+      deleteLogEntry(entry, trailId);
       div.remove();
     };
 
@@ -1964,14 +1965,18 @@ function createLogRow(entry) {
     return div;
 }
 
-function saveLogEntry(entry) {
+function storeTrailLog(trailId) {
   // Right now we save all the trails at once
   // later we may save trails individually
   storeTrailLogs();
 }
 
-function deleteLogEntry(entry) {
-  const trailLog = getTrailLog(currentTrail);
+function storeTrailLogLater(trailId) {
+  storeTrailLogsLater();
+}
+
+function deleteLogEntry(entry, trailId) {
+  const trailLog = getTrailLog(trailId);
   if (!trailLog) return;
 
   const entries = trailLog.entries;
@@ -1981,7 +1986,7 @@ function deleteLogEntry(entry) {
     entries.splice(i, 1);
   }
 
-  storeTrailLogs();
+  storeTrailLog(trailId);
 }
 
 function resizeNote(note, expanded = false) {
