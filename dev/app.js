@@ -214,30 +214,6 @@ function flushableDebounce(fn, delay = 1500, registry = null) {
   return debounced;
 }
 
-function cancellableDebounce(fn, delay = 2500) {
-  let timer = null;
-
-  function debounced(...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      fn.apply(this, args);
-    }, delay);
-  }
-
-  debounced.cancel = () => {
-    clearTimeout(timer);
-    timer = null;
-  };
-
-  return debounced;
-}
-
-function trackPendingSave(fn) {
-  pendingSaves.push(fn);
-  return fn;
-}
-
 function cancelPendingSaves() {
   pendingSaves.forEach(fn => fn.cancel());
 }
@@ -315,7 +291,11 @@ async function checkForUpdate() {
 }
 
 function setAppState(state) {
+  const previousState = appState;
   appState = state;
+
+  if (previousState !== state)
+    console.log(`App state changed: ${previousState} -> ${state}`);
 
   switch (state) {
     case APP_STATE.EMPTY:
@@ -328,6 +308,10 @@ function setAppState(state) {
       renderLimitedState();
       break;
   }
+}
+
+function getAppState() {
+  return appState;
 }
 
 function renderEmptyState() {
@@ -548,7 +532,7 @@ function processSpecies(species) {
     } else if (common.split(' ').some(t => t.length < 2)) {
         console.warn(`processSpecies: ${field} short token`, common);
         common = null;
-    } else if (!/^[a-zA-Z '()\-\/]+$/.test(common)) {
+    } else if (!/^[a-zA-Z '()\-/]+$/.test(common)) {
         console.warn(`processSpecies: invalid characters in ${field}`, common);
         common = null;
     }
@@ -560,7 +544,7 @@ function processSpecies(species) {
     } else if (scientific.split(' ').some(t => t !== "x" && t.length < 2)) {
       console.warn(`processSpecies: ${field} short token`, scientific);
       scientific = null;
-    } else if (!/^[a-zA-Z .\-]+$/.test(scientific)) {
+    } else if (!/^[a-zA-Z \-.]+$/.test(scientific)) {
       console.warn(`processSpecies: invalid characters in ${field}`,
         scientific);
       scientific = null;
@@ -718,12 +702,12 @@ function normalizeQuery(str) {
 
 function validateSearchInput(event) {
 
-  validateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+  validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
 }
 
 function validateParticipantInput(event) {
 
-  validateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+  validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
 }
 
 function validateTextInput(event, allowed) {
