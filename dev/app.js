@@ -1365,23 +1365,29 @@ async function importSurveyFile(event) {
   const input = event.target;
   const file = input.files?.[0];
 
-  input.value = "";
-
-  if (!file)
-    return;
-
-  if (survey) {
-    const ok = confirm("Replace current survey with imported JSON?");
-    if (!ok)
-      return;
-  }
-
   try {
-    const imported = normalizeImportedSurvey(
-      JSON.parse(await file.text())
-    );
+    if (!file)
+      return;
 
+    if (survey) {
+      const ok = confirm("Replace current survey with imported JSON?");
+      if (!ok)
+        return;
+    }
     cancelPendingSaves();
+
+    const text = await file.text();
+    console.log("Import file:", {
+      name: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
+      start: text.slice(0, 200)
+    });
+
+    const imported = normalizeImportedSurvey(JSON.parse(text));
+
+    console.log("Imported survey:", imported);
+
     clearStoredSurvey();
 
     survey = imported;
@@ -1403,6 +1409,8 @@ async function importSurveyFile(event) {
     console.error("Import failed", e);
     alert("Import failed:\n" + e.message);
     showMessage("Import failed");
+  } finally {
+    input.value = "";
   }
 }
 
