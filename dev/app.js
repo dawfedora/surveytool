@@ -1743,7 +1743,7 @@ function addSighting(item) {
   const trailLog = ensureTrailLog(trailId);
   const entries = trailLog.entries;
 
-  const duplicate = entries.some(e => e.speciesId === item.speciesId);
+  const duplicate = entries.some(e => e.commonName === item.displayCommon);
   if (duplicate) {
     if (!confirm('Already recorded on this trail. Add again?')) {
       return;
@@ -2012,11 +2012,28 @@ function downloadSurvey() {
     return;
   }
 
-  const date = formatTimestamp().slice(0, 10);
-  const basename = `edgewood-survey-${date}`;
+  const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
 
   downloadTextFile(`${basename}.json`, jsonData, 'application/json');
   downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+}
+
+function surveyDateForFilename(data) {
+  const date = (data?.startNote?.date || '').trim();
+
+  const match = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const [, month, day, year] = match;
+    return [
+      year,
+      month.padStart(2, '0'),
+      day.padStart(2, '0')
+    ].join('-');
+  }
+
+  return date
+    .replace(/[^0-9A-Za-z]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'undated';
 }
 
 function downloadTextFile(filename, data, type) {
