@@ -1,5 +1,7 @@
 *.swp
 .DS_Store
+node
+node_modules
 version.json
 surveys
 sw.js
