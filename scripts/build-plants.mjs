@@ -42,11 +42,15 @@ try {
 
     if (isBlankRow(row))
       return;
-
-    const commonName = field(row, indexes.commonName);
-    const scientificName = field(row, indexes.scientificName);
-    const status = field(row, indexes.status);
-    const dioecious = field(row, indexes.dioecious);
+ 
+    const commonName = normalizeField(rowNumber, "commonName",
+      field(row, indexes.commonName));
+    const scientificName = normalizeField(rowNumber, "scientificName",
+      field(row, indexes.scientificName));
+    const status = normalizeField(rowNumber, "status",
+      field(row, indexes.status));
+    const dioecious = normalizeField(rowNumber, "dioecious",
+      field(row, indexes.dioecious));
 
     validateRow({ rowNumber, commonName, scientificName, status, dioecious });
 
@@ -78,6 +82,7 @@ try {
     printReport(report);
     process.exitCode = 1;
   } else {
+    sortSpeciesByCommonName(species);
     report.outputRows = species.length;
     writeFileSync(outputPath, formatPlantsJson(species));
     printReport(report);
@@ -85,6 +90,18 @@ try {
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
+}
+
+function normalizeField(rowNumber, name, value) {
+  const normalized = value
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized !== value)
+    warn(rowNumber, `${name} normalized whitespace: ${JSON.stringify(value)} -> ${JSON.stringify(normalized)}`);
+
+  return normalized;
 }
 
 function formatPlantsJson(species) {
@@ -102,6 +119,16 @@ function formatPlantsJson(species) {
     "}",
     ""
   ].join("\n");
+}
+
+function sortSpeciesByCommonName(species) {
+  species.sort((a, b) =>
+    a.commonName.localeCompare(
+      b.commonName,
+      "en-US",
+      { sensitivity: "base" }
+    )
+  );
 }
 
 function normalizeText(text) {
@@ -160,12 +187,6 @@ function requireCleanField(rowNumber, name, value) {
     error(rowNumber, `${name} is blank`);
     return;
   }
-
-  if (value !== value.trim())
-    warn(rowNumber, `${name} has leading or trailing whitespace: ${JSON.stringify(value)}`);
-
-  if (/\s{2,}/.test(value))
-    warn(rowNumber, `${name} has repeated internal whitespace: ${JSON.stringify(value)}`);
 }
 
 function addSpecies(species, seenCommonNames, item) {
