@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - beta
 
 permissions:
   contents: write
@@ -47,6 +48,12 @@ jobs:
             mkdir -p publish/dev
             cp -r publish-temp/* publish/dev/
           fi
+
+          if [ "${GITHUB_REF_NAME}" = "beta" ]; then
+            mkdir -p publish/beta
+            cp -r publish-temp/* publish/beta/
+          fi
+
 
       - name: Publish
         uses: peaceiris/actions-gh-pages@v4
