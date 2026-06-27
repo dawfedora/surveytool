@@ -1,18 +1,17 @@
 {
   "trails": [
-    {"id": "garden", "name": "Native Garden/Entrance"},
-    {"id": "edgewood", "name": "Edgewood Trail"},
-    {"id": "stage", "name": "Old Stage Road"},
-    {"id": "franciscan", "name": "Franciscan Trail"},
-    {"id": "baywood", "name": "Baywood Glen Trail"},
-    {"id": "serpentine", "name": "Serpentine Trail"},
-    {"id": "ridgeview", "name": "Ridgeview Trail"},
-    {"id": "sunset", "name": "Sunset Trail"},
-    {"id": "sylvan", "name": "Sylvan Trail"},
+    {"id": "garden", "name": "Entrance/Native Garden"},
+    {"id": "edgewood", "name": "Edgewood"},
+    {"id": "stage", "name": "Old Stage Rd."},
+    {"id": "franciscan", "name": "Franciscan"},
+    {"id": "baywood", "name": "Baywood Glen"},
+    {"id": "serpentine", "name": "Serpentine"},
+    {"id": "ridgeview", "name": "Ridgeview"},
+    {"id": "sunset", "name": "Sunset"},
+    {"id": "sylvan", "name": "Sylvan"},
     {"id": "lost", "name": "Lost Trail"},
-    {"id": "liveoak", "name": "Live Oak Trail"},
+    {"id": "liveoak", "name": "Live Oak"},
     {"id": "inspiration", "name": "Inspiration Heights"},
-    {"id": "upperclarkia", "name": "Upper Clarkia Trail"},
-    {"id": "lowerclarkia", "name": "Lower Clarkia Trail"}
+    {"id": "clarkia", "name": "Clarkia"}
   ]
 }

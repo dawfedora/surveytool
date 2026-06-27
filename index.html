@@ -111,7 +111,7 @@
       font-size: 0.8em;
     }
 
-    #modeBtn, #newBtn, #downloadBtn, #refreshBtn {
+    #modeBtn, #newBtn, #downloadBtn, #refreshBtn, #importBtn {
       padding: 4px 8px;
       font-size: 0.8em;
     }
@@ -131,6 +131,14 @@
       background: #eee;
       color: #900;
       cursor: pointer;
+    }
+
+    #stateMessagePanel {
+      padding: 8px 10px;
+      border: 1px solid #d8b45a;
+      background: #fff7d6;
+      font-size: 0.9rem;
+      line-height: 1.25;
     }
 
     #logView {
@@ -172,6 +180,35 @@
     #logTrailSelect {
       flex: 0 0 auto;
     }
+
+    .logRow {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .logNote {
+      flex: 0 1 auto;
+
+      min-width: 5ch;
+      max-width: 50%;
+
+      resize: none;
+      overflow: hidden;
+      font: inherit;
+      line-height: inherit;
+      white-space: pre;
+      word-break: break-word;
+      padding-top: 0;
+      padding-bottom: 0;
+      padding-left: 4px;
+      padding-right: 4px;
+
+      box-sizing: border-box;
+      vertical-align: top;
+    }
+
+
 
     #notesView {
       flex: 1;
@@ -226,7 +263,7 @@
       position: relative;
     }
     #participants {
-      widt: 100%;
+      width: 100%;
       resize: vertical;
       min-height: 2.5em;
     }
@@ -311,16 +348,20 @@
       <button id="modeBtn">Notes</button>
       <button id="newBtn">New Survey</button>
       <button id="refreshBtn">Refresh</button>
+      <button id="importBtn" style="display:none">Import</button>
+      <input id="importInput" type="file" accept="application/json,.json" hidden />
       <button id="downloadBtn">Down</button>
     </div>
 
-<div id="messagePanel" hidden>
-  <span id="messageText"></span>
-  <button id="dismissMessageBtn"
-          aria-label="Dismiss message">
-    x 
-  </button>
-</div>
+	<div id="messagePanel" hidden>
+	  <span id="messageText"></span>
+	  <button id="dismissMessageBtn"
+	          aria-label="Dismiss message">
+	    x 
+	  </button>
+	</div>
+
+	<div id="stateMessagePanel" hidden></div>
 
   </div>
 
