@@ -5,6 +5,7 @@
     "globals": "^17.7.0"
   },
   "scripts": {
-    "lint": "eslint app.js sw.js.in"
+    "build:plants": "node scripts/build-plants.mjs",
+    "lint": "eslint app.js sw.js.in scripts/*.mjs"
   }
 }

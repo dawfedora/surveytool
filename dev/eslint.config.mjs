@@ -38,5 +38,16 @@ export default [
         APP_SHELL: "readonly"
       }
     }
+  },
+
+  {
+    files: ["scripts/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node
+      }
+    }
   }
 ];
