@@ -53,7 +53,7 @@ if ! command -v magick >/dev/null 2>&1; then
   IM="convert"
 fi
 
-cp artwork/foe-logo.png icons.foe-logo.png
+cp artwork/foe-logo.png icons/foe-logo.png
 
 if [ "$BRANCH" = "dev" ]; then
   $IM artwork/foe-icon-192-base.png \
