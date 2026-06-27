@@ -50,6 +50,8 @@ let logViewInitialized = false;
 let notesViewInitialized = false;
 let pendingSaves = [];
 
+const UPDATE_CHECK_TIMEOUT_MS = 5000;
+
 const storeStartNoteLater = flushableDebounce(storeStartNote, 1500, pendingSaves);
 const storeCloseNoteLater = flushableDebounce(storeCloseNote, 1500, pendingSaves);
 const storeTrailNotesLater = flushableDebounce(storeTrailNotes, 1500, pendingSaves);
@@ -99,7 +101,7 @@ async function init() {
     }
   }
 
-  if (version.branch !== "prod") {
+  if (version.branch !== "main") {
     document.title += ` [${version.branch.toUpperCase()}]`;
   }
 
@@ -127,8 +129,12 @@ function storageKey(key) {
   return `${STORAGE_TAG}:${key}`;
 }
 
-function makeInputHdlr(target, key, persist) {
+function makeInputHdlr(getTarget, key, persist) {
   return (event) => {
+    const target = getTarget();
+    if (!target)
+      return;
+
     target[key] = event.target.value;
     persist();
   };
@@ -155,10 +161,6 @@ function storeCloseNote() {
 
 function storeTrailNotes() {
   localStorage.setItem(storageKey('trailNotes'), JSON.stringify(survey.trailNotes));
-}
-
-function storeTrailLogs() {
-  localStorage.setItem(storageKey('trailLogs'), JSON.stringify(survey.trailLogs));
 }
 
 function debounce(fn, delay = 2500) {
@@ -212,30 +214,6 @@ function flushableDebounce(fn, delay = 1500, registry = null) {
   return debounced;
 }
 
-function cancellableDebounce(fn, delay = 2500) {
-  let timer = null;
-
-  function debounced(...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      fn.apply(this, args);
-    }, delay);
-  }
-
-  debounced.cancel = () => {
-    clearTimeout(timer);
-    timer = null;
-  };
-
-  return debounced;
-}
-
-function trackPendingSave(fn) {
-  pendingSaves.push(fn);
-  return fn;
-}
-
 function cancelPendingSaves() {
   pendingSaves.forEach(fn => fn.cancel());
 }
@@ -244,10 +222,13 @@ function flushPendingSaves() {
   pendingSaves.forEach(fn => fn.flush());
 }
 
-async function loadVersion(useFresh = false) {
+async function loadVersion(useFresh = false, signal = undefined) {
 
   const response = await fetch("./version.json",
-    {cache: useFresh ? "reload" : "default"}
+    {
+      cache: useFresh ? "reload" : "default",
+      signal
+    }
   );
 
   if (!response.ok)
@@ -255,15 +236,21 @@ async function loadVersion(useFresh = false) {
 
   const data = await response.json();
 
-  if (!data.version || !data.cacheName || !data.storageTag)
+  if (!data.branch || !data.version || !data.storageTag)
     throw new Error("Invalid version.json");
 
   return data;
 }
 
 function updateVersion() {
-  ui.header.version.textContent =
-    `${version.version}`;
+  let displayVersion = '';
+
+  if (version.branch == "main")
+    displayVersion = version.version.replace(/^main:/,"V");
+  else
+    displayVersion = version.version.replace(/:/,"");
+
+  ui.header.version.textContent = displayVersion;
 }
 
 function setStatus(text) {
@@ -275,8 +262,14 @@ async function checkForUpdate() {
   if (!navigator.onLine)
     return null;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    UPDATE_CHECK_TIMEOUT_MS
+  );
+
   try {
-    const latest = await loadVersion(true);
+    const latest = await loadVersion(true, controller.signal);
 
     if (!version)
       return latest
@@ -287,13 +280,22 @@ async function checkForUpdate() {
     return latest;
 
   } catch (e) {
-    console.warn("Update check failed", e);
+    if (e.name === "AbortError")
+      console.warn(`Update check timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000} seconds`);
+    else
+      console.warn("Update check failed", e);
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 function setAppState(state) {
+  const previousState = appState;
   appState = state;
+
+  if (previousState !== state)
+    console.log(`App state changed: ${previousState} -> ${state}`);
 
   switch (state) {
     case APP_STATE.EMPTY:
@@ -306,6 +308,10 @@ function setAppState(state) {
       renderLimitedState();
       break;
   }
+}
+
+function getAppState() {
+  return appState;
 }
 
 function renderEmptyState() {
@@ -526,7 +532,7 @@ function processSpecies(species) {
     } else if (common.split(' ').some(t => t.length < 2)) {
         console.warn(`processSpecies: ${field} short token`, common);
         common = null;
-    } else if (!/^[a-zA-Z '()\-\/]+$/.test(common)) {
+    } else if (!/^[a-zA-Z '()\-/]+$/.test(common)) {
         console.warn(`processSpecies: invalid characters in ${field}`, common);
         common = null;
     }
@@ -538,7 +544,7 @@ function processSpecies(species) {
     } else if (scientific.split(' ').some(t => t !== "x" && t.length < 2)) {
       console.warn(`processSpecies: ${field} short token`, scientific);
       scientific = null;
-    } else if (!/^[a-zA-Z .\-]+$/.test(scientific)) {
+    } else if (!/^[a-zA-Z \-.]+$/.test(scientific)) {
       console.warn(`processSpecies: invalid characters in ${field}`,
         scientific);
       scientific = null;
@@ -696,12 +702,12 @@ function normalizeQuery(str) {
 
 function validateSearchInput(event) {
 
-  validateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+  validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
 }
 
 function validateParticipantInput(event) {
 
-  validateTextInput(event, /^[a-zA-Z\s,.\/'’-]+$/);
+  validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
 }
 
 function validateTextInput(event, allowed) {
@@ -902,11 +908,11 @@ function initStartNote() {
 
   const s = ui.notes.start;
 
-  s.date.addEventListener("input", makeInputHdlr(survey.startNote, "date", storeStartNoteLater));
-  s.time.addEventListener("input", makeInputHdlr(survey.startNote, "time", storeStartNoteLater));
-  s.weather.addEventListener( "input", makeInputHdlr(survey.startNote, "weather", storeStartNoteLater));
-  s.notes.addEventListener("input", makeInputHdlr(survey.startNote, "notes", storeStartNoteLater));
-  s.participants.addEventListener("input", makeInputHdlr(survey.startNote, "participants", storeStartNoteLater));
+  s.date.addEventListener("input", makeInputHdlr(() => survey?.startNote, "date", storeStartNoteLater));
+  s.time.addEventListener("input", makeInputHdlr(() => survey?.startNote, "time", storeStartNoteLater));
+  s.weather.addEventListener( "input", makeInputHdlr(() => survey?.startNote, "weather", storeStartNoteLater));
+  s.notes.addEventListener("input", makeInputHdlr(() => survey?.startNote, "notes", storeStartNoteLater));
+  s.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeStartNoteLater));
 
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
@@ -923,9 +929,9 @@ function initCloseNote() {
 
   const c = ui.notes.close;
 
-  c.time.addEventListener("input", makeInputHdlr(survey.closeNote, "time", storeCloseNoteLater));
-  c.weather.addEventListener("input", makeInputHdlr(survey.closeNote, "weather", storeCloseNoteLater));
-  c.notes.addEventListener("input", makeInputHdlr(survey.closeNote, "notes", storeCloseNoteLater));
+  c.time.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "time", storeCloseNoteLater));
+  c.weather.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "weather", storeCloseNoteLater));
+  c.notes.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "notes", storeCloseNoteLater));
 }
 
 function populateTrailSelector(select) {
@@ -947,9 +953,8 @@ function populateTrailSelector(select) {
 function switchTrail(id) {
   setCurrentTrail(id);
   syncTrailSelectors();
-  renderLog();
+  renderLogView();
   renderTrailNotes();
-  focusCurrentWorkField();
 }
 
 function syncTrailSelectors() {
@@ -1016,6 +1021,7 @@ function renderLogView() {
 
   // position results overlay
   requestAnimationFrame(positionResults);
+  focusField(ui.log.search);
 }
 
 function renderNotesView() {
@@ -1098,28 +1104,9 @@ function createSurvey() {
   };
 }
 
-function focusCurrentWorkField() {
+function focusField(field) {
   requestAnimationFrame(() => {
-    if (currentMode === MODE.LOG) {
-      ui.log.search?.focus();
-      return;
-    }
-
-    if (currentMode === MODE.NOTES) {
-      if (currentNotePanel === NOTE_PANEL.TRAIL) {
-        ui.notes.trail.notes?.focus();
-        return;
-      }
-
-      if (currentNotePanel === NOTE_PANEL.START) {
-        ui.notes.start.weather?.focus();
-        return;
-      }
-
-      if (currentNotePanel === NOTE_PANEL.END) {
-        ui.notes.close.weather?.focus();
-      }
-    }
+    field?.focus();
   });
 }
 
@@ -1128,62 +1115,209 @@ async function refreshApp() {
   flushPendingSaves();
   showMessage("Refreshing...");
 
+  const oldCacheName = getCurrentCacheName();
+  let stagingName = null;
+
   try {
+    if (!navigator.onLine) throw new Error("Offline");
 
-    if (!navigator.onLine)
-      throw new Error("Offline");
+    const freshVersion = await loadVersion(true);
 
-    let freshVersion = await loadVersion(true);
+    // Stage downloads into a temporary cache first
+    // Use a branch-specific temporary staging name.
+    stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
+    const staging = await caches.open(stagingName);
 
-    const cacheName = freshVersion.cacheName;
+    const shellReq = new Request('./shell-config.js');
+    const freshShellReq = new Request('./shell-config.js', { cache: "reload" });
 
-    const APP_SHELL = [
-      './',
-      './index.html',
-      './app.js',
-      './sw.js',
-      './version.json',
-      './plants.json',
-      './trails.json',
-      './participants.json',
-      './manifest.json',
-      './icons/foe-icon-512.png',
-      './icons/foe-icon-192.png',
-      './foe-logo.png'
-    ];
+    let shellRes = await fetch(freshShellReq);
+    if (!shellRes.ok)
+      throw new Error("Failed to fetch shell-config.js");
+    await staging.put(shellReq, shellRes.clone());
 
-    const refreshed = new Map();
+    shellRes = await staging.match(shellReq);
+    if (!shellRes)
+      throw new Error('shell-config.js missing in staging');
+    // Evaluate in isolated function scope and return only the two expected values
+    const shellText = await shellRes.text();
+    const cfg = (new Function(shellText + '\nreturn { CACHE_NAME, APP_SHELL };'))();
+    const cacheName = cfg.CACHE_NAME;
+    const newAppShell = cfg.APP_SHELL;
+    console.log('Extracted cacheName from shell-config.js:', cacheName);
 
-    // Fetch everything first
-    for (const file of APP_SHELL) {
-      console.log("refreshing:", file);
-      const request = new Request(file, { cache: "reload" });
+    for (const file of newAppShell) {
+      const req = new Request(file);
 
-      const response = await fetch(request);
-      console.log(file, response.status, response.type);
+      if (await staging.match(req))
+        continue;
 
-      if (!response.ok)
+      const freshReq = new Request(file, { cache: "reload" });
+      const res = await fetch(freshReq);
+
+      if (!res.ok)
         throw new Error(`Failed to refresh ${file}`);
 
-      refreshed.set(file, response.clone());
+      await staging.put(req, res.clone());
+
+      if (!await staging.match(req))
+        throw new Error(`Staging missing ${file}`);
     }
 
-    // Commit only after success
-    const cache = await caches.open(cacheName);
+    // Verify staged version.json matches the fresh version
+    const vRes = await staging.match('./version.json');
+    if (!vRes) throw new Error('version.json missing in staging');
+    const vData = await vRes.json();
+    if (vData.version !== freshVersion.version) throw new Error('Staging version mismatch');
 
-    for (const [file, response] of refreshed) {
-      await cache.put(file, response);
+    // Commit only after staging is complete and verified. If the target cache
+    // is the currently active cache, preserve a backup so refresh failure can
+    // restore the old shell.
+    await commitStagedCache(staging, cacheName, newAppShell, oldCacheName);
+
+    if (oldCacheName && oldCacheName !== cacheName) {
+      try {
+        await caches.delete(oldCacheName);
+      } catch (e) {
+        console.warn('Could not delete old cache', oldCacheName, e);
+      }
     }
 
     showMessage("Refresh complete", 5000);
 
-    // restart app
+    // Now promote the waiting service worker (if any)
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        if (!reg.waiting) {
+          try { await reg.update(); } catch (e) { console.warn('reg.update failed', e); }
+        }
+
+        if (reg.waiting) {
+          const controllerChange = waitForControllerChange(5000);
+
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+          if (!await controllerChange)
+            console.warn('Timed out waiting for service worker controllerchange; reloading anyway');
+          
+          location.reload();
+          return;
+        }
+      }
+    }
+
+    // fallback: reload to pick up any changes
     location.reload();
 
   } catch (e) {
     console.error("REFRESH FAILED:", e);
     alert("Refresh failed:\n" + e.message);
     showMessage("Refresh failed");
+  } finally {
+    if (stagingName) {
+      try {
+        await caches.delete(stagingName);
+      } catch (e) {
+        console.warn('Could not delete staging cache', stagingName, e);
+      }
+    }
+  }
+}
+
+function waitForControllerChange(timeoutMs) {
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => resolve(false), timeoutMs);
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      clearTimeout(timeout);
+      resolve(true);
+    }, { once: true });
+  });
+}
+
+function getCurrentCacheName() {
+  if (typeof CACHE_NAME === "string")
+    return CACHE_NAME;
+  return null;
+}
+
+async function commitStagedCache(staging, cacheName, appShell, oldCacheName) {
+  if (oldCacheName === cacheName) {
+    await replaceCurrentCacheFromStaging(staging, cacheName, appShell);
+    return;
+  }
+
+  // The normal path uses a new timestamped cache name. The old cache remains
+  // untouched until the new one has been fully populated and verified.
+  await copyStagingToCache(staging, cacheName, appShell);
+}
+
+async function replaceCurrentCacheFromStaging(staging, cacheName, appShell) {
+  const backupName = `${cacheName}:backup:${Date.now()}`;
+  const hadCurrentCache = await caches.has(cacheName);
+
+  try {
+    if (hadCurrentCache) {
+      await copyCache(cacheName, backupName);
+    }
+
+    await caches.delete(cacheName);
+    await copyStagingToCache(staging, cacheName, appShell);
+  } catch (e) {
+    if (hadCurrentCache) {
+      try {
+        await caches.delete(cacheName);
+        await copyCache(backupName, cacheName);
+      } catch (restoreError) {
+        console.error('Could not restore cache backup', backupName, restoreError);
+      }
+    }
+
+    throw e;
+  } finally {
+    if (hadCurrentCache) {
+      try {
+        await caches.delete(backupName);
+      } catch (cleanupError) {
+        console.warn('Could not delete cache backup', backupName, cleanupError);
+      }
+    }
+  }
+}
+
+async function copyStagingToCache(staging, cacheName, appShell) {
+  const target = await caches.open(cacheName);
+
+  for (const file of appShell) {
+    const req = new Request(file);
+    const res = await staging.match(req);
+    if (!res)
+      throw new Error(`Staging missing ${file}`);
+
+    await target.put(req, res.clone());
+  }
+
+  await verifyCacheContains(target, appShell);
+}
+
+async function copyCache(sourceName, targetName) {
+  const source = await caches.open(sourceName);
+  const target = await caches.open(targetName);
+
+  for (const req of await source.keys()) {
+    const res = await source.match(req);
+    if (res)
+      await target.put(req, res.clone());
+  }
+}
+
+async function verifyCacheContains(cache, appShell) {
+  for (const file of appShell) {
+    const req = new Request(file);
+    const res = await cache.match(req);
+    if (!res)
+      throw new Error(`Cache missing ${file}`);
   }
 }
 
@@ -1221,7 +1355,7 @@ function newSurvey() {
   // Populate UI
   renderMode();
 
-  saveSurvey();
+  storeSurvey();
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
@@ -1231,23 +1365,29 @@ async function importSurveyFile(event) {
   const input = event.target;
   const file = input.files?.[0];
 
-  input.value = "";
-
-  if (!file)
-    return;
-
-  if (survey) {
-    const ok = confirm("Replace current survey with imported JSON?");
-    if (!ok)
-      return;
-  }
-
   try {
-    const imported = normalizeImportedSurvey(
-      JSON.parse(await file.text())
-    );
+    if (!file)
+      return;
 
+    if (survey) {
+      const ok = confirm("Replace current survey with imported JSON?");
+      if (!ok)
+        return;
+    }
     cancelPendingSaves();
+
+    const text = await file.text();
+    console.log("Import file:", {
+      name: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
+      start: text.slice(0, 200)
+    });
+
+    const imported = normalizeImportedSurvey(JSON.parse(text));
+
+    console.log("Imported survey:", imported);
+
     clearStoredSurvey();
 
     survey = imported;
@@ -1256,7 +1396,7 @@ async function importSurveyFile(event) {
     setCurrentTrail(firstTrail);
 
     localStorage.setItem(storageKey("surveyExists"), "true");
-    saveSurvey();
+    storeSurvey();
 
     currentMode = MODE.NOTES;
     currentNotePanel = NOTE_PANEL.START;
@@ -1269,6 +1409,8 @@ async function importSurveyFile(event) {
     console.error("Import failed", e);
     alert("Import failed:\n" + e.message);
     showMessage("Import failed");
+  } finally {
+    input.value = "";
   }
 }
 
@@ -1418,7 +1560,7 @@ function loadSection(key) {
   }
 }
 
-function saveSurvey() {
+function storeSurvey() {
   if (!survey)
     return;
 
@@ -1562,6 +1704,7 @@ function renderStartNote() {
   s.weather.value = data.weather || '';
   s.participants.value = data.participants || '';
   s.notes.value = data.notes || '';
+  focusField(s.weather);
 }
 
 function renderTrailNotes() {
@@ -1570,6 +1713,7 @@ function renderTrailNotes() {
     return;
   }
   ui.notes.trail.notes.value = survey.trailNotes[currentTrail]  || '';
+  focusField(ui.notes.trail.notes);
 
 }
 
@@ -1585,6 +1729,7 @@ function renderCloseNote() {
   c.time.value = data.time || '';
   c.weather.value = data.weather || '';
   c.notes.value = data.notes || '';
+  focusField(c.weather);
 }
 
 // --- Add sighting ---
@@ -1594,10 +1739,11 @@ function addSighting(item) {
     alert('No active survey');
     return;
   }
-  const trailLog = ensureTrailLog(currentTrail);
+  const trailId = currentTrail;
+  const trailLog = ensureTrailLog(trailId);
   const entries = trailLog.entries;
 
-  const duplicate = entries.some(e => e.speciesId === item.speciesId);
+  const duplicate = entries.some(e => e.commonName === item.displayCommon);
   if (duplicate) {
     if (!confirm('Already recorded on this trail. Add again?')) {
       return;
@@ -1614,9 +1760,9 @@ function addSighting(item) {
   }
   entries.push(entry);
 
-  saveLogEntry(entry);
+  storeTrailLog(trailId);
 
-  const row = createLogRow(entry);
+  const row = createLogRow(entry, trailId);
   ui.log.log.prepend(row);
   highlightLogRow(row);
 }
@@ -1668,7 +1814,7 @@ function matchParticipants(input) {
   const current =
     input
       .trim()
-      .toLowerCase();;
+      .toLowerCase();
 
   if (current.length < 1)
     return [];
@@ -1735,11 +1881,12 @@ function renderLog() {
 
   if (!survey || !currentTrail) return;
 
-  const trailLog = getTrailLog(currentTrail);
+  const trailId = currentTrail;
+  const trailLog = getTrailLog(trailId);
   if (!trailLog) return;
 
   trailLog.entries.slice().reverse().forEach((entry) => {
-    const div = createLogRow(entry);
+    const div = createLogRow(entry, trailId);
     container.appendChild(div);
   });
 }
@@ -1750,7 +1897,7 @@ function highlightLogRow(row) {
 }
 
 
-function createLogRow(entry) {
+function createLogRow(entry, trailId) {
     const div = document.createElement('div');
     div.className = 'item';
 
@@ -1780,7 +1927,7 @@ function createLogRow(entry) {
     note.addEventListener('input', () => {
       resizeNote(note, true);
       entry.note = note.value;
-      saveLogEntry(entry);
+      storeTrailLogLater(trailId);
     });
 
     note.addEventListener('focus', () => {
@@ -1801,7 +1948,7 @@ function createLogRow(entry) {
     del.onclick = () => {
       if (!confirm( `Delete "${entry.commonName}"?`))
         return;
-      deleteLogEntry(entry);
+      deleteLogEntry(entry, trailId);
       div.remove();
     };
 
@@ -1810,14 +1957,18 @@ function createLogRow(entry) {
     return div;
 }
 
-function saveLogEntry(entry) {
+function storeTrailLog(trailId) {
   // Right now we save all the trails at once
   // later we may save trails individually
   storeTrailLogs();
 }
 
-function deleteLogEntry(entry) {
-  const trailLog = getTrailLog(currentTrail);
+function storeTrailLogLater(trailId) {
+  storeTrailLogsLater();
+}
+
+function deleteLogEntry(entry, trailId) {
+  const trailLog = getTrailLog(trailId);
   if (!trailLog) return;
 
   const entries = trailLog.entries;
@@ -1827,7 +1978,7 @@ function deleteLogEntry(entry) {
     entries.splice(i, 1);
   }
 
-  storeTrailLogs();
+  storeTrailLog(trailId);
 }
 
 function resizeNote(note, expanded = false) {
@@ -1861,11 +2012,28 @@ function downloadSurvey() {
     return;
   }
 
-  const date = formatTimestamp().slice(0, 10);
-  const basename = `edgewood-survey-${date}`;
+  const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
 
   downloadTextFile(`${basename}.json`, jsonData, 'application/json');
   downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+}
+
+function surveyDateForFilename(data) {
+  const date = (data?.startNote?.date || '').trim();
+
+  const match = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const [, month, day, year] = match;
+    return [
+      year,
+      month.padStart(2, '0'),
+      day.padStart(2, '0')
+    ].join('-');
+  }
+
+  return date
+    .replace(/[^0-9A-Za-z]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'undated';
 }
 
 function downloadTextFile(filename, data, type) {
@@ -1878,7 +2046,8 @@ function downloadTextFile(filename, data, type) {
 
   a.click();
 
-  URL.revokeObjectURL(url);
+  // Delay revoke slightly to ensure download started in all browsers
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 function buildSurveyTsv(data) {
