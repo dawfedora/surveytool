@@ -1,14 +1,12 @@
 *.swp
 .DS_Store
-version.json
-surveys
-node
 node_modules
+version.json
 sw.js
-prompt
 logo/foe-icon-192.png
 logo/foe-icon-512.png
 logo/foe-logo-rect.png
 icons/foe-icon-192.png
 icons/foe-icon-512.png
+surveys
 ai_prompt
