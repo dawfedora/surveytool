@@ -1,0 +1,113 @@
+
+if (!CACHE_NAME || typeof CACHE_NAME !== 'string') {
+  throw new Error('CACHE_NAME not injected');
+}
+
+self.addEventListener('install', handleInstall);
+
+self.addEventListener('activate', handleActivate);
+
+self.addEventListener('fetch', handleFetch);
+
+// Explicit activation: the page must postMessage {type: 'SKIP_WAITING'}
+// to request the new worker activate. Do NOT call skipWaiting() here
+// automatically to avoid mid-survey activation.
+self.addEventListener('message', (event) => {
+  try {
+    const msg = event.data;
+    if (msg && msg.type === 'SKIP_WAITING') {
+      console.log('SW: SKIP_WAITING message received');
+      self.skipWaiting();
+    }
+  } catch (e) {
+    console.warn('SW message handler error', e);
+  }
+});
+
+// INSTALL
+async function handleInstall(event) {
+  // Populate cache during install but DO NOT skipWaiting here.
+  event.waitUntil( cacheAppShell());
+}
+
+async function cacheAppShell() {
+  const cache = await caches.open(CACHE_NAME);
+
+  await Promise.all(
+    APP_SHELL.map(async file => {
+      console.log( 'caching:', file);
+
+      const response = await fetch(file, { cache: "reload" });
+      if (!response.ok) {
+        throw new Error(`Failed ${file}`);
+      }
+
+      await cache.put(file, response);
+    })
+  );
+}
+
+// ACTIVATE
+function handleActivate(event) {
+  event.waitUntil(reportOldCaches());
+}
+
+async function reportOldCaches() {
+  const cachePrefix = cacheFamilyPrefix(CACHE_NAME);
+  if (!cachePrefix) {
+    console.warn('SW: could not identify cache family for', CACHE_NAME);
+    await clients.claim();
+    return;
+  }
+
+  const keys = await caches.keys();
+  for (const key of keys) {
+    if (key !== CACHE_NAME && key.startsWith(cachePrefix)) {
+      console.warn('SW: old cache remains for this branch:', key);
+    }
+  }
+
+  await clients.claim();
+}
+
+function cacheFamilyPrefix(cacheName) {
+  const match = cacheName.match(/^FoE:survey:([^:]+):/);
+  if (!match)
+    return null;
+
+  return `FoE:survey:${match[1]}:`;
+}
+
+// FETCH
+function handleFetch(event) {
+  const rq = event.request;
+
+  // only same-origin GET
+  if (rq.method !== 'GET' || new URL(rq.url).origin !== location.origin) {
+    return;
+  }
+  event.respondWith(fetchFromCache(rq));
+}
+
+async function fetchFromCache(request) {
+
+  if (request.cache === 'reload') {
+    return fetch(request);
+  }
+
+  const url = new URL(request.url);
+
+  let cacheKey = `.${url.pathname}`;
+  if (cacheKey === './') {
+    cacheKey = './index.html';
+  }
+
+  const cached = await caches.match(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
+  // unexpected miss
+  return fetch(request, { cache: 'reload' });
+}
