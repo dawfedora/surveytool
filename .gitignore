@@ -2,6 +2,8 @@
 .DS_Store
 version.json
 surveys
+node
+node_modules
 sw.js
 prompt
 logo/foe-icon-192.png
