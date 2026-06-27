@@ -310,6 +310,8 @@ function setAppState(state) {
   }
 }
 
+// Future state/debug hook.
+// eslint-disable-next-line no-unused-vars
 function getAppState() {
   return appState;
 }
@@ -1958,12 +1960,14 @@ function createLogRow(entry, trailId) {
 }
 
 function storeTrailLog(trailId) {
+  void trailId;
   // Right now we save all the trails at once
   // later we may save trails individually
   storeTrailLogs();
 }
 
 function storeTrailLogLater(trailId) {
+  void trailId;
   storeTrailLogsLater();
 }
 
