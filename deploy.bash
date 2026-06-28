@@ -32,13 +32,13 @@ const APP_SHELL = [
   './app.js',
   './sw.js',
   './version.json',
-  './plants.json',
-  './trails.json',
-  './participants.json',
+  './data/plants.json',
+  './data/trails.json',
+  './data/participants.json',
   './manifest.json',
   './icons/foe-icon-512.png',
   './icons/foe-icon-192.png',
-  './foe-logo.png'
+  './icons/foe-logo.png'
 ];
 EOF
 
@@ -53,20 +53,23 @@ if ! command -v magick >/dev/null 2>&1; then
   IM="convert"
 fi
 
+mkdir icons
+cp artwork/foe-logo.png icons/foe-logo.png
+
 if [ "$BRANCH" = "dev" ]; then
-  $IM icons/foe-icon-192-base.png \
+  $IM artwork/foe-icon-192-base.png \
     -fill orange \
     -stroke white \
     -strokewidth 1.5 \
     -draw "circle 168,24 168,12" \
     icons/foe-icon-192.png
-  $IM icons/foe-icon-512-base.png \
+  $IM artwork/foe-icon-512-base.png \
     -fill orange \
     -stroke white \
     -strokewidth 4 \
     -draw "circle 448,64 448,32" \
     icons/foe-icon-512.png
 else
-  cp icons/foe-icon-192-base.png icons/foe-icon-192.png
-  cp icons/foe-icon-512-base.png icons/foe-icon-512.png
+  cp artwork/foe-icon-192-base.png icons/foe-icon-192.png
+  cp artwork/foe-icon-512-base.png icons/foe-icon-512.png
 fi
