@@ -9,7 +9,7 @@ const REQUIRED_COLUMNS = [
   "dioecious"
 ];
 
-const [inputPath = "SurveyPlantList.tsv", outputPath = "plants.json"] =
+const [inputPath = "data/SurveyPlantList.tsv", outputPath = "data/plants.json"] =
   process.argv.slice(2);
 
 const report = {
