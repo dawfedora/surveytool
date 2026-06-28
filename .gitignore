@@ -4,10 +4,6 @@ node_modules
 version.json
 sw.js
 shell-config.js
-logo/foe-icon-192.png
-logo/foe-icon-512.png
-logo/foe-logo-rect.png
-icons/foe-icon-192.png
-icons/foe-icon-512.png
+icons
 surveys
 ai_prompt
