@@ -474,31 +474,31 @@ async function loadLocalData() {
   try {
 
     const dataFiles = [
-      'plants',
-      'trails',
-      'participants'
+      ['plants', './data/plants.json'],
+      ['trails', './data/trails.json'],
+      ['participants', './data/participants.json']
     ];
 
     const responses = await Promise.all(
-        dataFiles.map(name => fetch(`./${name}.json`))
+        dataFiles.map(([, path]) => fetch(path))
     );
 
     responses.forEach(
       (response, i) => {
-        if (!response.ok) throw new Error(`Failed to load ${dataFiles[i]}`);
+        if (!response.ok) throw new Error(`Failed to load ${dataFiles[i][1]}`);
       }
     );
 
     const parsed = await Promise.all(responses.map(r => r.json()));
 
     const loaded =
-      Object.fromEntries(dataFiles.map((name, i) => [name, parsed[i]]));
+      Object.fromEntries(dataFiles.map(([name], i) => [name, parsed[i]]));
 
-    species = requireArray(loaded.plants, 'species', 'plants.json');
+    species = requireArray(loaded.plants, 'species', 'data/plants.json');
     species = processSpecies(species);
-    trails = requireArray(loaded.trails, 'trails', 'trails.json');
+    trails = requireArray(loaded.trails, 'trails', 'data/trails.json');
     trails = processTrails(trails);
-    participants = requireArray(loaded.participants, 'participants', 'participants.json');
+    participants = requireArray(loaded.participants, 'participants', 'data/participants.json');
     participants = processParticipants(participants);
 
   console.log(
