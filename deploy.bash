@@ -69,7 +69,7 @@ if [ "$BRANCH" = "dev" ]; then
     -strokewidth 4 \
     -draw "circle 448,64 448,32" \
     icons/foe-icon-512.png
-else if [ "$BRANCH" = "beta" ]; then
+elif [ "$BRANCH" = "beta" ]; then
   $IM artwork/foe-icon-192-base.png \
     -fill dodgerblue \
     -stroke white \
