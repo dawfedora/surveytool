@@ -97,17 +97,34 @@ async function fetchFromCache(request) {
 
   const url = new URL(request.url);
 
-  let cacheKey = `.${url.pathname}`;
-  if (cacheKey === './') {
-    cacheKey = './index.html';
+  let cacheKey = url.pathname;
+  if (cacheKey.endsWith('/')) {
+    cacheKey += "index.html";
   }
 
-  const cached = await caches.match(cacheKey);
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
 
   if (cached) {
     return cached;
   }
 
-  // unexpected miss
-  return fetch(request, { cache: 'reload' });
+  console.error('SW: cache miss:', request.url);
+
+  if (request.mode === 'navigate') {
+    const app = await cache.match('./index.html');
+    if (app) {
+      return app;
+    }
+  }
+
+  return new Response(
+    `Survey Tool cache miss:\n${request.url}\n\nConnect to the internet and refresh the app.`,
+    {
+      status: 504,
+      statusText: 'Survey Tool cache miss',
+      headers: { 'Content-Type': 'text/plain' }
+    }
+  );
+
 }
