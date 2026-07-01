@@ -2018,8 +2018,16 @@ function downloadSurvey() {
 
   const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
 
-  downloadTextFile(`${basename}.json`, jsonData, 'application/json');
-  downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+const combined =
+  "===== JSON =====\n" +
+  jsonData +
+  "\n\n===== TSV =====\n" +
+  buildSurveyTsv(survey);
+
+downloadTextFile(`${basename}.txt`, combined, 'text/plain');
+
+//  downloadTextFile(`${basename}.json`, jsonData, 'application/json');
+//  downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
 }
 
 function surveyDateForFilename(data) {
