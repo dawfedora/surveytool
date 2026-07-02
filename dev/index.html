@@ -39,6 +39,10 @@
       min-height: 100%;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     h1 {
       font-size: 1.0em;
       margin: 0;
@@ -330,7 +334,12 @@
 
 <body>
 
-  <div id="globalHeader">
+  <div id="bootFallback">
+    Survey Tool did not finish loading.
+    Find network coverage and reopen the app.
+  </div>
+
+  <div id="globalHeader" hidden>
 
     <div class="headerTop">
       <div class="headerIdentity">
@@ -353,19 +362,20 @@
       <button id="downloadBtn">Down</button>
     </div>
 
-	<div id="messagePanel" hidden>
-	  <span id="messageText"></span>
-	  <button id="dismissMessageBtn"
-	          aria-label="Dismiss message">
-	    x 
-	  </button>
-	</div>
+  </div> <!-- #globalHeader -->
 
-	<div id="stateMessagePanel" hidden></div>
-
+  <div id="messagePanel" hidden>
+    <span id="messageText"></span>
+    <button id="dismissMessageBtn"
+      aria-label="Dismiss message">
+      x 
+    </button>
   </div>
 
-  <div id="logView">
+  <div id="stateMessagePanel" hidden></div>
+
+
+  <div id="logView" hidden>
 
     <!-- search stays fixed under header -->
     <div id="searchArea">
@@ -391,9 +401,9 @@
     <!-- overlays selector + log -->
     <div id="results"></div>
 
-  </div>
+  </div> <!-- #logView -->
 
-  <div id="notesView" style="display:none">
+  <div id="notesView" hidden>
 
       <!-- notes buttons -->
     <div class = "header">
@@ -415,18 +425,18 @@
       <textarea id="startNote" class="longNote" placeholder="Starting notes"></textarea>
     </div>
 
-    <div id="trailPanel" style="display:none">
+    <div id="trailPanel" hidden>
       <select id="notesTrailSelect"></select>
       <textarea id="trailNotes" class="longNote" placeholder="Notes..." ></textarea>
     </div>
 
-    <div id="closePanel"  style="display:none">
+    <div id="closePanel"  hidden>
       <input id="closeTime" />
       <input id="closeWeather" placeholder="82 F, sunny" />	
       <textarea id="closeNote" class="longNote" placeholder="Closing notes"></textarea>
     </div>
 
-  </div>
+  </div> <!-- #notesView -->
 
   <script src="shell-config.js"></script>
   <script src="app.js"></script>
