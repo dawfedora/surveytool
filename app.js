@@ -2160,6 +2160,7 @@ function makeChoicePanel(question, actions, finish) {
     }
     panel.appendChild(text);
     panel.appendChild(buttons);
+    return panel;
 }
 
 function buildSurveyTsv(data) {
