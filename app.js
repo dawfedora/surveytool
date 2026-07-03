@@ -49,6 +49,7 @@ let headerInitialized = false;
 let logViewInitialized = false;
 let notesViewInitialized = false;
 let pendingSaves = [];
+let activeChoiceOverlay = null;
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
@@ -2116,10 +2117,28 @@ function downloadTextFile(filename, data, type) {
 }
 
 function chooseAction(question, actions) {
+  if (activeChoiceOverlay)
+    return Promise.resolve(null);
+
   return new Promise(resolve => {
     const overlay = document.createElement('div');
-    overlay.className = 'choiceOverlay';
+    activeChoiceOverlay = overlay;
 
+    function finish(value) {
+      overlay.remove();
+      activeChoiceOverlay = null;
+      resolve(value);
+    }
+
+    overlay.className = 'choiceOverlay';
+    overlay.appendChild(makeChoicePanel(question, actions, finish));
+    document.body.appendChild(overlay);
+    overlay.querySelector('button')?.focus();
+
+  });
+}
+
+function makeChoicePanel(question, actions, finish) {
     const panel = document.createElement('div');
     panel.className = 'choicePanel';
 
@@ -2135,20 +2154,12 @@ function chooseAction(question, actions) {
       button.textContent = action.label;
 
       button.addEventListener('click', () => {
-        overlay.remove();
-        resolve(action.value);
+        finish(action.value);
       });
-
       buttons.appendChild(button);
     }
-
     panel.appendChild(text);
     panel.appendChild(buttons);
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-
-    buttons.querySelector('button')?.focus();
-  });
 }
 
 function buildSurveyTsv(data) {
