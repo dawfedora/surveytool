@@ -32,28 +32,50 @@ jobs:
 
       - name: Prepare files
         run: |
-          mkdir publish
+          # Get branch name reliably (github.ref is like refs/heads/<branch>)
+          BRANCH="${GITHUB_REF_NAME}"
+          echo "Branch detected: $BRANCH"
 
-          rsync -av \
-            --exclude 'publish' \
+          # temp and output dirs
+          rm -rf publish-temp publish
+          mkdir -p publish-temp publish
+
+          # Export the repo contents to publish-temp excluding the git metadata and .github
+          rsync -av --delete \
             --exclude '.git' \
             --exclude '.github' \
+            --exclude 'publish' \
             ./ publish-temp/
 
-          if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            cp -r publish-temp/* publish/
-          fi
-
-          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+          # Copy entire directory (including dotfiles) into publish or subdir depending on the branch
+          if [ "$BRANCH" = "main" ]; then
+            rsync -a --delete publish-temp/ publish/
+          elif [ "$BRANCH" = "dev" ]; then
             mkdir -p publish/dev
-            cp -r publish-temp/* publish/dev/
-          fi
-
-          if [ "${GITHUB_REF_NAME}" = "beta" ]; then
+            rsync -a --delete publish-temp/ publish/dev/
+          elif [ "$BRANCH" = "beta" ]; then
             mkdir -p publish/beta
-            cp -r publish-temp/* publish/beta/
+            rsync -a --delete publish-temp/ publish/beta/
+          else
+            echo "Branch '$BRANCH' not configured for publishing — publish will be empty."
           fi
 
+          # Debug output - show what will be published
+          echo "===== publish directory listing ====="
+          ls -la publish || true
+          echo "===== publish content tree ====="
+          find publish -maxdepth 3 -type f -print || true
+
+      - name: Fail if publish is empty
+        run: |
+          if [ ! -d publish ] || [ -z "$(ls -A publish 2>/dev/null)" ]; then
+            echo "ERROR: publish directory is missing or empty. Nothing to publish."
+            echo "Workspace root listing:"
+            ls -la
+            echo "publish-temp listing:"
+            ls -la publish-temp || true
+            exit 1
+          fi
 
       - name: Publish
         uses: peaceiris/actions-gh-pages@v4
