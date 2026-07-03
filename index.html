@@ -212,7 +212,38 @@
       vertical-align: top;
     }
 
+    .choiceOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: calc(env(safe-area-inset-top) + 72px) 12px 12px;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.18);
+    }
 
+    .choicePanel {
+      width: min(100%, 360px);
+      padding: 12px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+    }
+
+    .choiceQuestion {
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .choiceButtons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
 
     #notesView {
       flex: 1;
