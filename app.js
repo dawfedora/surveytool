@@ -1,7 +1,5 @@
 "use strict";
 
-
-
 // --- GLOBAL STATE ---
 const APP_STATE = {
   BOOT: "BOOT",
@@ -2055,34 +2053,36 @@ function resizeNote(note, expanded = false) {
   note.style.height = note.scrollHeight + 'px';
 }
 
-function downloadSurvey() {
-
-  flushPendingSaves();
-
+async function downloadSurvey() {
   if (!survey)
     return;
 
-  const jsonData = JSON.stringify(survey, null, 2);
+  try {
+    flushPendingSaves();
 
-  if (!jsonData) {
-    alert('No survey data to download.');
-    return;
+    const choice = await chooseAction("Download survey", [
+      { label: "JSON", value: "json" },
+      { label: "TSV", value: "tsv" },
+      { label: "Cancel", value: null }
+    ]);
+
+    if (choice === null)
+      return;
+
+    const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
+
+    if (choice === "json") {
+      const jsonData = JSON.stringify(survey, null, 2);
+      downloadTextFile(`${basename}.json`, jsonData, 'application/json');
+    } else if (choice === "tsv") {
+      downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+    }
+  } catch (e) {
+    console.error("Download failed", e);
+    alert("Download failed:\n" + e.message);
   }
-
-  const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
-
-const combined =
-  "===== JSON =====\n" +
-  jsonData +
-  "\n\n===== TSV =====\n" +
-  buildSurveyTsv(survey);
-
-downloadTextFile(`${basename}.txt`, combined, 'text/plain');
-
-//  downloadTextFile(`${basename}.json`, jsonData, 'application/json');
-//  downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
 }
-
+  
 function surveyDateForFilename(data) {
   const date = (data?.startNote?.date || '').trim();
 
@@ -2113,6 +2113,42 @@ function downloadTextFile(filename, data, type) {
 
   // Delay revoke slightly to ensure download started in all browsers
   setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function chooseAction(question, actions) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'choiceOverlay';
+
+    const panel = document.createElement('div');
+    panel.className = 'choicePanel';
+
+    const text = document.createElement('div');
+    text.className = 'choiceQuestion';
+    text.textContent = question;
+
+    const buttons = document.createElement('div');
+    buttons.className = 'choiceButtons';
+
+    for (const action of actions) {
+      const button = document.createElement('button');
+      button.textContent = action.label;
+
+      button.addEventListener('click', () => {
+        overlay.remove();
+        resolve(action.value);
+      });
+
+      buttons.appendChild(button);
+    }
+
+    panel.appendChild(text);
+    panel.appendChild(buttons);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    buttons.querySelector('button')?.focus();
+  });
 }
 
 function buildSurveyTsv(data) {
