@@ -5,7 +5,7 @@
 
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
   />
 
   <title>Edgewood Survey Tool</title>
@@ -24,6 +24,7 @@
   <style>
     html,
     body {
+      touch-action: manipulation;
       height: 100%;
       overflow: hidden;
     }
@@ -31,6 +32,7 @@
     body {
       display: flex;
       flex-direction: column;
+      font-size: 16px;
       margin: 0;
       padding-top: calc(env(safe-area-inset-top) + 8px);
       padding-bottom: env(safe-area-inset-bottom);
@@ -270,12 +272,27 @@
     #results:not(:empty) {
       display: block;
     }
-    select, input {
+
+    textarea,
+    select,
+    input {
+      font-size: 16px;
       width: 100%;
+    }
+
+    select, input {
       padding: 12px;
-      font-size: 1em;
       margin-bottom: 10px;
       box-sizing: border-box;
+    }
+
+    textarea {
+      box-sizing: border-box;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      resize: vertical;
     }
 
     .item {
@@ -346,16 +363,6 @@
       border-radius: 8px;
       background: white;
       box-sizing: border-box;
-      resize: vertical;
-    }
-
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: white;
       resize: vertical;
     }
 

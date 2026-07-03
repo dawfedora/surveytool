@@ -97,9 +97,11 @@ async function init() {
   // Update Check before going into the field
   const latest = await checkForUpdate();
   if (latest) {
-    const doUpdate = confirm(
-      `Newer version ${latest.version} is available.\n\nRefresh now?`
-    );
+    const doUpdate = await chooseAction(
+      `Newer version ${latest.version} is available.\n\nRefresh now?`, [
+        { value: true, label: "Refresh Now" },
+        { value: false, label: "Use current" }
+    ]);
     if (doUpdate) {
       refreshApp();
       return;
