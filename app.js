@@ -1214,16 +1214,17 @@ async function activateMatchingWaitingWorker(expectedCacheName) {
   if (!('serviceWorker' in navigator))
     return false;
 
-  const reg = await navigator.serviceWorker.getRegistration();
+  let reg = await navigator.serviceWorker.getRegistration();
   if (!reg)
     return false;
 
   try {
     await reg.update();
   } catch (e) {
-    console.warn('reg.update failed', e);
+    throw new Error(`Service worker update failed: ${e.message}`);
   }
 
+  reg = await navigator.serviceWorker.getRegistration();
   if (!reg.waiting)
     return false;
 
