@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8" />
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0,viewport-fit=cover"
   />
 
   <title>Edgewood Survey Tool</title>
@@ -21,33 +22,31 @@
   <!-- Older Android support -->
   <meta name="mobile-web-app-capable" content="yes">
 
+<!-- CSS -->
   <style>
-    html,
-    body {
+
+/* Base */
+    html, body {
+      touch-action: manipulation;
       height: 100%;
       overflow: hidden;
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     body {
       display: flex;
       flex-direction: column;
+      box-sizing: border-box;
+      font-size: 16px;
       margin: 0;
       padding-top: calc(env(safe-area-inset-top) + 8px);
       padding-bottom: env(safe-area-inset-bottom);
       padding-left: 8px;
       padding-right: 8px;
       min-height: 100%;
-    }
-
-    h1 {
-      font-size: 1.0em;
-      margin: 0;
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
     #globalHeader {
@@ -63,7 +62,7 @@
       justify-content: space-between;
     }
 
-    /* logo + title group */
+/* logo + title group */
     .headerIdentity {
       display: flex;
       align-items: center;
@@ -111,28 +110,7 @@
       font-size: 0.8em;
     }
 
-    #modeBtn, #newBtn, #downloadBtn, #refreshBtn, #importBtn {
-      padding: 4px 8px;
-      font-size: 0.8em;
-    }
-
-    #startBtn, #trailBtn, #closeBtn {
-      padding: 4px 8px;
-      font-size: 0.8em;
-    }
-
-    .deleteBtn {
-      flex: 0 0 auto;
-      font-size: 18px;
-      padding: 2px 8px;
-      margin-left: 4px;
-      border: none;
-      border-radius: 6px;
-      background: #eee;
-      color: #900;
-      cursor: pointer;
-    }
-
+/* messages */
     #stateMessagePanel {
       padding: 8px 10px;
       border: 1px solid #d8b45a;
@@ -140,6 +118,9 @@
       font-size: 0.9rem;
       line-height: 1.25;
     }
+    /* if we decide we need #bootFallback or #messagePanel, they go here */
+
+/* logView */
 
     #logView {
       position: relative;
@@ -181,6 +162,48 @@
       flex: 0 0 auto;
     }
 
+    #log {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      line-height: 1.3;
+    }
+
+    .resultItem {
+      padding: 12px 10px;
+      line-height: 1.25;
+      border-bottom: 1px solid #ddd;
+      background: #f8fbff;
+    }
+
+    #results {
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      overflow-y: auto;
+      background: #eef5ff;
+      display: none;
+    }
+
+    #results:not(:empty) {
+      display: block;
+    }
+
+    .common {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    .scientific {
+      font-style: italic;
+    }
+
     .logRow {
       display: flex;
       align-items: flex-start;
@@ -198,7 +221,7 @@
       font: inherit;
       line-height: inherit;
       white-space: pre;
-      word-break: break-word;
+      overflow-wrap: anywhere;
       padding-top: 0;
       padding-bottom: 0;
       padding-left: 4px;
@@ -208,7 +231,58 @@
       vertical-align: top;
     }
 
+    /* "x" delete button for log entries */
+    .deleteBtn {
+      flex: 0 0 auto;
+      font-size: 18px;
+      padding: 2px 8px;
+      margin-left: 4px;
+      border: none;
+      border-radius: 6px;
+      background: #eee;
+      color: #900;
+      cursor: pointer;
+    }
 
+    textarea,
+    select,
+    input {
+      font-size: 16px;
+      width: 100%;
+    }
+
+    select, input {
+      padding: 12px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      box-sizing: border-box;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      resize: vertical;
+    }
+
+    .resultItem .scientific {
+      font-size: 0.9em;
+    }
+
+    .resultItem:active {
+      background: #dcecff;
+    }
+
+    .activeNoteBtn {
+      background: #dcecff;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+/* Notes View */
 
     #notesView {
       flex: 1;
@@ -216,37 +290,19 @@
       min-height: 0;
     }
 
-    #log {
-      flex: 1 1 auto;
-      overflow-y: auto;
-      min-height: 0;
+    .noteActions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
     }
 
-    #results {
-      position: absolute;
-      left: 0;
-      right: 0;
-      z-index: 1000;
-      overflow-y: auto;
-      background: #eef5ff;
-      display: none;
+    .noteActions button {
+      padding: 4px 8px;
+      font-size: 0.8em;
     }
 
-    #results:not(:empty) {
-      display: block;
-    }
-    select, input {
-      width: 100%;
-      padding: 12px;
-      font-size: 1em;
-      margin-bottom: 10px;
-      box-sizing: border-box;
-    }
-
-    .item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-      line-height: 1.3;
+    .longNote {
+      min-height: 8em;
     }
 
     .participantResults {
@@ -267,70 +323,57 @@
       resize: vertical;
       min-height: 2.5em;
     }
-    .resultItem {
-      padding: 12px 10px;
-      line-height: 1.25;
-      border-bottom: 1px solid #ddd;
-      background: #f8fbff;
+
+/* Choice dialog */
+    .choiceOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: calc(env(safe-area-inset-top) + 72px) 12px 12px;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.18);
     }
 
-    .resultItem .scientific {
-      font-size: 0.9em;
+    .choicePanel {
+      width: min(100%, 360px);
+      padding: 12px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
     }
 
-    .resultItem:active {
-      background: #dcecff;
+    .choiceQuestion {
+      margin-bottom: 10px;
+      font-weight: 600;
     }
 
-    .activeNoteBtn {
-      background: #dcecff;
+    .choiceButtons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
     }
 
-    .item:last-child {
-      border-bottom: none;
-    }
-
-    .common {
-      font-weight: bold;
-      margin-right: 6px;
-    }
-
-    .scientific {
-      font-style: italic;
-    }
-
+/* Feedback / Utility */
     .inputRejected {
       background: #ffeaea;
     }
-
-    .longNote {
-      width: 100%;
-      min-height: 8em;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: white;
-      box-sizing: border-box;
-      resize: vertical;
-    }
-
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: white;
-      resize: vertical;
-    }
-
 
   </style>
 </head>
 
 <body>
 
-  <div id="globalHeader">
+  <div id="bootFallback">
+    Survey Tool did not finish loading.
+    Find network coverage and reopen the app.
+  </div>
+
+  <div id="globalHeader" hidden>
 
     <div class="headerTop">
       <div class="headerIdentity">
@@ -353,19 +396,20 @@
       <button id="downloadBtn">Down</button>
     </div>
 
-	<div id="messagePanel" hidden>
-	  <span id="messageText"></span>
-	  <button id="dismissMessageBtn"
-	          aria-label="Dismiss message">
-	    x 
-	  </button>
-	</div>
+  </div> <!-- #globalHeader -->
 
-	<div id="stateMessagePanel" hidden></div>
-
+  <div id="messagePanel" hidden>
+    <span id="messageText"></span>
+    <button id="dismissMessageBtn"
+      aria-label="Dismiss message">
+      x 
+    </button>
   </div>
 
-  <div id="logView">
+  <div id="stateMessagePanel" hidden></div>
+
+
+  <div id="logView" hidden>
 
     <!-- search stays fixed under header -->
     <div id="searchArea">
@@ -391,12 +435,12 @@
     <!-- overlays selector + log -->
     <div id="results"></div>
 
-  </div>
+  </div> <!-- #logView -->
 
-  <div id="notesView" style="display:none">
+  <div id="notesView" hidden>
 
       <!-- notes buttons -->
-    <div class = "header">
+    <div class = "noteActions">
       <button id="startBtn">Start Note</button>
       <button id="trailBtn">Trail Notes</button>
       <button id="closeBtn">Closing Note</button>
@@ -415,18 +459,18 @@
       <textarea id="startNote" class="longNote" placeholder="Starting notes"></textarea>
     </div>
 
-    <div id="trailPanel" style="display:none">
+    <div id="trailPanel" hidden>
       <select id="notesTrailSelect"></select>
       <textarea id="trailNotes" class="longNote" placeholder="Notes..." ></textarea>
     </div>
 
-    <div id="closePanel"  style="display:none">
+    <div id="closePanel"  hidden>
       <input id="closeTime" />
       <input id="closeWeather" placeholder="82 F, sunny" />	
       <textarea id="closeNote" class="longNote" placeholder="Closing notes"></textarea>
     </div>
 
-  </div>
+  </div> <!-- #notesView -->
 
   <script src="shell-config.js"></script>
   <script src="app.js"></script>
