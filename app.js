@@ -1125,6 +1125,15 @@ function focusField(field) {
   });
 }
 
+function refocusAfterSelection(input, afterFocus = null, delay = 150) {
+  input.blur();
+
+  setTimeout(() => {
+    input.focus();
+    afterFocus?.();
+  }, delay);
+}
+
 // --- REFRESH APP ---
 async function refreshApp() {
   flushPendingSaves();
@@ -1913,7 +1922,7 @@ function renderResults(list) {
       input.value = '';
       renderResults([]);
 
-      input.focus();  // 👈 here
+      refocusAfterSelection(input);
     };
 
     container.appendChild(div);
