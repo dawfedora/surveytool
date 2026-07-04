@@ -49,6 +49,7 @@ let headerInitialized = false;
 let logViewInitialized = false;
 let notesViewInitialized = false;
 let pendingSaves = [];
+let activeChoiceOverlay = null;
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
@@ -72,9 +73,13 @@ async function init() {
     return;
   }
 
+  ui.header.panel.hidden = false;
+  ui.bootFallback.hidden = true;
+
   // wire the buttons, especially refresh
   initHeader();
-  ui.header.refreshBtn.style.display = "";
+
+  ui.header.refreshBtn.hidden = false;
 
   // Version
   try {
@@ -89,12 +94,14 @@ async function init() {
 
   STORAGE_TAG = version.storageTag;
 
-  // Update Check
+  // Update Check before going into the field
   const latest = await checkForUpdate();
   if (latest) {
-    const doUpdate = confirm(
-      `Newer version ${latest.version} is available.\n\nRefresh now?`
-    );
+    const doUpdate = await chooseAction(
+      `Newer version ${latest.version} is available.\n\nRefresh now?`, [
+        { value: true, label: "Refresh Now" },
+        { value: false, label: "Use current" }
+    ]);
     if (doUpdate) {
       refreshApp();
       return;
@@ -317,11 +324,13 @@ function getAppState() {
 }
 
 function renderEmptyState() {
-  ui.header.modeBtn.style.display = "none";
-  ui.header.downloadBtn.style.display = "none";
+  ui.header.refreshBtn.hidden = false;
+  ui.header.newBtn.hidden = false;
+  ui.header.modeBtn.hidden = true;
+  ui.header.downloadBtn.hidden = true;
 
-  ui.log.panel.style.display = "none";
-  ui.notes.panel.style.display = "none";
+  ui.log.panel.hidden = true;
+  ui.notes.panel.hidden = true;
 
   setStatus("No Survey");
   setStateMessage("No current survey. Press New Survey to start one.");
@@ -329,13 +338,13 @@ function renderEmptyState() {
 
 function renderLimitedState() {
 
-  ui.header.refreshBtn.style.display = "";
-  ui.header.modeBtn.style.display = "none";
-  ui.header.newBtn.style.display = "none";
-  ui.header.downloadBtn.style.display = "none";
+  ui.header.refreshBtn.hidden = false;
+  ui.header.modeBtn.hidden = true;
+  ui.header.newBtn.hidden = true;
+  ui.header.downloadBtn.hidden = true;
 
-  ui.log.panel.style.display = "none";
-  ui.notes.panel.style.display = "none";
+  ui.log.panel.hidden = true;
+  ui.notes.panel.hidden = true;
 
   setStateMessage("Survey tool is not complete. Connect to the net and press Refresh.");
   setStatus("Refresh required");
@@ -346,9 +355,9 @@ function renderLimitedState() {
 function renderActiveState() {
 
 
-  ui.header.modeBtn.style.display = "";
-  ui.header.newBtn.style.display = "";
-  ui.header.downloadBtn.style.display = "";
+  ui.header.modeBtn.hidden = false;
+  ui.header.newBtn.hidden = false;
+  ui.header.downloadBtn.hidden = false;
 
   initHeader();
   initLogView();
@@ -378,7 +387,11 @@ function initializeCurrentTrail() {
 }
 
 function initUI() {
+
+  ui.bootFallback = document.getElementById("bootFallback");
+
   ui.header = {
+    panel: document.getElementById("globalHeader"),
     modeBtn: document.getElementById("modeBtn"),
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
@@ -634,9 +647,9 @@ function processParticipants(pIn) {
 
 function assertString(value, name) {
 
-  if (typeof value !== "string") 
+  if (typeof value !== "string")
     throw new Error(`Invalid ${name}`);
- 
+
 }
 
 function requireArray(obj, key, filename) {
@@ -923,7 +936,7 @@ function initStartNote() {
 
 function initTrailNote() {
   const t = ui.notes.trail;
-  
+
   t.notes.addEventListener("input", makeTrailNoteHdlr(storeTrailNotesLater));
 }
 
@@ -978,13 +991,13 @@ function toggleMode() {
 
 function renderMode() {
   if (currentMode === MODE.LOG) {
-    ui.log.panel.style.display = '';
-    ui.notes.panel.style.display = 'none';
+    ui.log.panel.hidden = false;
+    ui.notes.panel.hidden = true;
     ui.header.modeBtn.textContent = 'Notes';
     renderLogView();
   } else {
-    ui.log.panel.style.display = 'none';
-    ui.notes.panel.style.display = '';
+    ui.log.panel.hidden = true;
+    ui.notes.panel.hidden = false;
     ui.header.modeBtn.textContent = 'Log';
     renderNotesView();
   }
@@ -1028,35 +1041,35 @@ function renderLogView() {
 
 function renderNotesView() {
 
-  ui.notes.start.panel.style.display = 'none';
-  ui.notes.trail.panel.style.display = 'none';
-  ui.notes.close.panel.style.display = 'none';
+  ui.notes.start.panel.hidden = true;
+  ui.notes.trail.panel.hidden = true;
+  ui.notes.close.panel.hidden = true;
 
   ui.notes.buttons.start.classList.remove('activeNoteBtn');
   ui.notes.buttons.trail.classList.remove('activeNoteBtn');
   ui.notes.buttons.close.classList.remove('activeNoteBtn');
 
   if (currentNotePanel === NOTE_PANEL.START) {
-    ui.notes.start.panel.style.display = '';
+    ui.notes.start.panel.hidden = false;
     ui.notes.buttons.start.classList.add('activeNoteBtn');
     renderStartNote();
   }
 
   if (currentNotePanel === NOTE_PANEL.TRAIL) {
-    ui.notes.trail.panel.style.display = '';
+    ui.notes.trail.panel.hidden = false;
     ui.notes.buttons.trail.classList.add('activeNoteBtn');
     renderTrailNotes();
   }
 
   if (currentNotePanel === NOTE_PANEL.END) {
-    ui.notes.close.panel.style.display = '';
+    ui.notes.close.panel.hidden = false;
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
   }
 }
 
 function showMessage(text, duration = 30000) {
-  if (messageTimeoutId) 
+  if (messageTimeoutId)
     clearTimeout(messageTimeoutId);
 
   ui.message.text.textContent = text;
@@ -1110,6 +1123,15 @@ function focusField(field) {
   requestAnimationFrame(() => {
     field?.focus();
   });
+}
+
+function refocusAfterSelection(input, afterFocus = null, delay = 150) {
+  input.blur();
+
+  setTimeout(() => {
+    input.focus();
+    afterFocus?.();
+  }, delay);
 }
 
 // --- REFRESH APP ---
@@ -1177,39 +1199,12 @@ async function refreshApp() {
     // restore the old shell.
     await commitStagedCache(staging, cacheName, newAppShell, oldCacheName);
 
-    if (oldCacheName && oldCacheName !== cacheName) {
-      try {
-        await caches.delete(oldCacheName);
-      } catch (e) {
-        console.warn('Could not delete old cache', oldCacheName, e);
-      }
+    if (await activateMatchingWaitingWorker(cacheName)) {
+      location.reload();
+      return;
     }
 
     showMessage("Refresh complete", 5000);
-
-    // Now promote the waiting service worker (if any)
-    if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg) {
-        if (!reg.waiting) {
-          try { await reg.update(); } catch (e) { console.warn('reg.update failed', e); }
-        }
-
-        if (reg.waiting) {
-          const controllerChange = waitForControllerChange(5000);
-
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-
-          if (!await controllerChange)
-            console.warn('Timed out waiting for service worker controllerchange; reloading anyway');
-          
-          location.reload();
-          return;
-        }
-      }
-    }
-
-    // fallback: reload to pick up any changes
     location.reload();
 
   } catch (e) {
@@ -1225,6 +1220,67 @@ async function refreshApp() {
       }
     }
   }
+}
+
+async function activateMatchingWaitingWorker(expectedCacheName) {
+  if (!('serviceWorker' in navigator))
+    return false;
+
+  let reg = await navigator.serviceWorker.getRegistration();
+  if (!reg)
+    return false;
+
+  try {
+    await reg.update();
+  } catch (e) {
+    throw new Error(`Service worker update failed: ${e.message}`);
+  }
+
+  reg = await navigator.serviceWorker.getRegistration();
+  if (!reg.waiting)
+    return false;
+
+  const info = await getServiceWorkerCacheInfo(reg.waiting, 3000);
+
+  if (info.cacheName !== expectedCacheName) {
+    throw new Error(
+      `Waiting service worker cache mismatch: expected ${expectedCacheName}, got ${info.cacheName || 'unknown'}`
+    );
+  }
+
+  const controllerChange = waitForControllerChange(5000);
+  reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+  if (!await controllerChange)
+    console.warn('Timed out waiting for service worker controllerchange; reloading anyway');
+
+  return true;
+}
+
+function getServiceWorkerCacheInfo(worker, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel();
+
+    const timeout = setTimeout(() => {
+      channel.port1.close();
+      reject(new Error('Timed out waiting for service worker cache info'));
+    }, timeoutMs);
+
+    channel.port1.onmessage = event => {
+      clearTimeout(timeout);
+      channel.port1.close();
+
+      const msg = event.data;
+      if (!msg || msg.type !== 'CACHE_INFO') {
+        reject(new Error('Unexpected service worker cache info response'));
+        return;
+      }
+
+      resolve(msg);
+    };
+
+    worker.postMessage({ type: 'GET_CACHE_INFO' }, [channel.port2]);
+  });
 }
 
 function waitForControllerChange(timeoutMs) {
@@ -1340,7 +1396,7 @@ function newSurvey() {
   cancelPendingSaves();
 
   clearStoredSurvey();
-  
+
   survey = createSurvey();
 
   setCurrentTrail(DEFAULT_START_TRAIL);
@@ -1579,7 +1635,7 @@ function loadSurvey() {
     return null;
 
   const survey = {};
-  
+
 //
 // These should all have been created and saved in newSurvey()
 //
@@ -1757,7 +1813,7 @@ function addSighting(item) {
     speciesId: item.speciesId,
     commonName: item.displayCommon,
     scientificName: item.scientificName,
-    note: '', 
+    note: '',
     time: formatTimestamp()
   }
   entries.push(entry);
@@ -1775,7 +1831,7 @@ function search(q) {
   q = normalizeQuery(q);
 
   if (q.length < 2) return [];
-  
+
   const qWord = " " + q;
   const qJoined = q.replace(/\s+/g, "");
 
@@ -1783,7 +1839,7 @@ function search(q) {
   const wordStarts = [];
   const joined = [];
   const contains = [];
- 
+
   for (const item of species) {
     const common = item.commonNorm;
     const scientific = item.scientificNorm;
@@ -1857,10 +1913,7 @@ function renderResults(list) {
     const div = document.createElement('div');
     div.className = 'resultItem';
 
-    div.innerHTML = `
-      <span class="common">${item.commonName}</span>
-      <span class="scientific">${item.scientificName}</span>
-    `;
+    appendPlantLabel(div, item.commonName, item.scientificName);
 
     div.onclick = () => {
       addSighting(item);
@@ -1869,7 +1922,7 @@ function renderResults(list) {
       input.value = '';
       renderResults([]);
 
-      input.focus();  // 👈 here
+      refocusAfterSelection(input);
     };
 
     container.appendChild(div);
@@ -1894,69 +1947,79 @@ function renderLog() {
 }
 
 function highlightLogRow(row) {
-      row.style.background = '#e6ffe6';
-      setTimeout(() => row.style.background = '', 400);
+  row.style.background = '#e6ffe6';
+  setTimeout(() => row.style.background = '', 400);
 }
 
 
 function createLogRow(entry, trailId) {
-    const div = document.createElement('div');
-    div.className = 'item';
+  const div = document.createElement('div');
+  div.className = 'item';
 
-    const row = document.createElement('div');
-    row.className = 'logRow';
+  const row = document.createElement('div');
+  row.className = 'logRow';
 
-    // Left side (names)
-    const label = document.createElement('div');
-    label.style.flex = '1';
+  // Left side (names)
+  const label = document.createElement('div');
+  label.style.flex = '1';
 
-    label.innerHTML = `
-      <span class="common">${entry.commonName}</span>
-      <span class="scientific">${entry.scientificName}</span>
-    `;
+  appendPlantLabel(label, entry.commonName, entry.scientificName);
 
-    // Right side (note)
-    const note = document.createElement('textarea');
-    note.className = 'logNote'
-    note.value = entry.note || '';
-    note.placeholder = 'note';
-    note.rows = 1;
+  // Right side (note)
+  const note = document.createElement('textarea');
+  note.className = 'logNote'
+  note.value = entry.note || '';
+  note.placeholder = 'note';
+  note.rows = 1;
 
-    // initial size AFTER attachment/layout
-    requestAnimationFrame(() => resizeNote(note));
+  // initial size AFTER attachment/layout
+  requestAnimationFrame(() => resizeNote(note));
 
-    // auto-grow + save
-    note.addEventListener('input', () => {
-      resizeNote(note, true);
-      entry.note = note.value;
-      storeTrailLogLater(trailId);
-    });
+  // auto-grow + save
+  note.addEventListener('input', () => {
+    resizeNote(note, true);
+    entry.note = note.value;
+    storeTrailLogLater(trailId);
+  });
 
-    note.addEventListener('focus', () => {
-      resizeNote(note, true);
-    });
+  note.addEventListener('focus', () => {
+    resizeNote(note, true);
+  });
 
-    note.addEventListener('blur', () => {
-      resizeNote(note, false);
-    });
+  note.addEventListener('blur', () => {
+    resizeNote(note, false);
+  });
 
-    row.appendChild(label);
-    row.appendChild(note);
+  row.appendChild(label);
+  row.appendChild(note);
 
-    const del = document.createElement('button');
-    del.textContent = '×';
-    del.className = 'deleteBtn';
+  const del = document.createElement('button');
+  del.textContent = '×';
+  del.className = 'deleteBtn';
 
-    del.onclick = () => {
-      if (!confirm( `Delete "${entry.commonName}"?`))
-        return;
-      deleteLogEntry(entry, trailId);
-      div.remove();
-    };
+  del.onclick = () => {
+    if (!confirm( `Delete "${entry.commonName}"?`))
+      return;
+    deleteLogEntry(entry, trailId);
+    div.remove();
+  };
 
-    row.appendChild(del);
-    div.appendChild(row);
-    return div;
+  row.appendChild(del);
+  div.appendChild(row);
+  return div;
+}
+
+function appendPlantLabel(parent, commonName, scientificName) {
+  const common = document.createElement('span');
+  common.className = 'common';
+  common.textContent = commonName;
+
+  const scientific = document.createElement('span');
+  scientific.className = 'scientific';
+  scientific.textContent = scientificName;
+
+  parent.appendChild(common);
+  parent.appendChild(scientific);
 }
 
 function storeTrailLog(trailId) {
@@ -2002,26 +2065,36 @@ function resizeNote(note, expanded = false) {
   note.style.height = note.scrollHeight + 'px';
 }
 
-function downloadSurvey() {
-
-  flushPendingSaves();
-
+async function downloadSurvey() {
   if (!survey)
     return;
 
-  const jsonData = JSON.stringify(survey, null, 2);
+  try {
+    flushPendingSaves();
 
-  if (!jsonData) {
-    alert('No survey data to download.');
-    return;
+    const choice = await chooseAction("Download survey", [
+      { label: "JSON", value: "json" },
+      { label: "TSV", value: "tsv" },
+      { label: "Cancel", value: null }
+    ]);
+
+    if (choice === null)
+      return;
+
+    const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
+
+    if (choice === "json") {
+      const jsonData = JSON.stringify(survey, null, 2);
+      downloadTextFile(`${basename}.json`, jsonData, 'application/json');
+    } else if (choice === "tsv") {
+      downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+    }
+  } catch (e) {
+    console.error("Download failed", e);
+    alert("Download failed:\n" + e.message);
   }
-
-  const basename = `edgewood-survey-${surveyDateForFilename(survey)}`;
-
-  downloadTextFile(`${basename}.json`, jsonData, 'application/json');
-  downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
 }
-
+  
 function surveyDateForFilename(data) {
   const date = (data?.startNote?.date || '').trim();
 
@@ -2052,6 +2125,53 @@ function downloadTextFile(filename, data, type) {
 
   // Delay revoke slightly to ensure download started in all browsers
   setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function chooseAction(question, actions) {
+  if (activeChoiceOverlay)
+    return Promise.resolve(null);
+
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    activeChoiceOverlay = overlay;
+
+    function finish(value) {
+      overlay.remove();
+      activeChoiceOverlay = null;
+      resolve(value);
+    }
+
+    overlay.className = 'choiceOverlay';
+    overlay.appendChild(makeChoicePanel(question, actions, finish));
+    document.body.appendChild(overlay);
+    overlay.querySelector('button')?.focus();
+
+  });
+}
+
+function makeChoicePanel(question, actions, finish) {
+  const panel = document.createElement('div');
+  panel.className = 'choicePanel';
+
+  const text = document.createElement('div');
+  text.className = 'choiceQuestion';
+  text.textContent = question;
+
+  const buttons = document.createElement('div');
+  buttons.className = 'choiceButtons';
+
+  for (const action of actions) {
+    const button = document.createElement('button');
+    button.textContent = action.label;
+
+    button.addEventListener('click', () => {
+      finish(action.value);
+    });
+    buttons.appendChild(button);
+  }
+  panel.appendChild(text);
+  panel.appendChild(buttons);
+  return panel;
 }
 
 function buildSurveyTsv(data) {
