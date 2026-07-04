@@ -507,10 +507,9 @@ async function loadLocalData() {
     participants = requireArray(loaded.participants, 'participants', 'data/participants.json');
     participants = processParticipants(participants);
 
-  console.log(
-    `Loaded ${trails.length} trails, ${species.length} species, ${participants.length} participants`
-  );
-
+    console.log(
+      `Loaded ${trails.length} trails, ${species.length} species, ${participants.length} participants`
+    );
 
     return true;
   } catch (e) {
@@ -713,12 +712,10 @@ function validateSearchInput(event) {
 }
 
 function validateParticipantInput(event) {
-
   validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
 }
 
 function validateTextInput(event, allowed) {
-
   // deletes/backspace
   if (event.inputType?.startsWith("delete"))
     return;
@@ -818,7 +815,6 @@ function setCurrentTrail(id) {
 }
 
 function initializeCurrentTrail() {
-
   const saved = localStorage.getItem(storageKey("currentTrail"));
 
   if (trails.some(t => t.id === saved)) {
@@ -830,7 +826,6 @@ function initializeCurrentTrail() {
 }
 
 function syncTrailSelectors() {
-
   if (ui.log.trailSelect)
     ui.log.trailSelect.value = currentTrail;
 
@@ -872,7 +867,6 @@ function renderLogView() {
 }
 
 function renderNotesView() {
-
   ui.notes.start.panel.hidden = true;
   ui.notes.trail.panel.hidden = true;
   ui.notes.close.panel.hidden = true;
@@ -990,7 +984,6 @@ function chooseAction(question, actions) {
     overlay.appendChild(makeChoicePanel(question, actions, finish));
     document.body.appendChild(overlay);
     overlay.querySelector('button')?.focus();
-
   });
 }
 
