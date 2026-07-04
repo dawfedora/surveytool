@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8" />
 
-  <meta
-    name="viewport"
+  <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
   />
 
@@ -21,12 +22,18 @@
   <!-- Older Android support -->
   <meta name="mobile-web-app-capable" content="yes">
 
+<!-- CSS -->
   <style>
-    html,
-    body {
+
+/* Base */
+    html, body {
       touch-action: manipulation;
       height: 100%;
       overflow: hidden;
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     body {
@@ -39,21 +46,6 @@
       padding-left: 8px;
       padding-right: 8px;
       min-height: 100%;
-    }
-
-    [hidden] {
-      display: none !important;
-    }
-
-    h1 {
-      font-size: 1.0em;
-      margin: 0;
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
     #globalHeader {
@@ -69,7 +61,7 @@
       justify-content: space-between;
     }
 
-    /* logo + title group */
+/* logo + title group */
     .headerIdentity {
       display: flex;
       align-items: center;
@@ -117,28 +109,7 @@
       font-size: 0.8em;
     }
 
-    #modeBtn, #newBtn, #downloadBtn, #refreshBtn, #importBtn {
-      padding: 4px 8px;
-      font-size: 0.8em;
-    }
-
-    #startBtn, #trailBtn, #closeBtn {
-      padding: 4px 8px;
-      font-size: 0.8em;
-    }
-
-    .deleteBtn {
-      flex: 0 0 auto;
-      font-size: 18px;
-      padding: 2px 8px;
-      margin-left: 4px;
-      border: none;
-      border-radius: 6px;
-      background: #eee;
-      color: #900;
-      cursor: pointer;
-    }
-
+/* messages */
     #stateMessagePanel {
       padding: 8px 10px;
       border: 1px solid #d8b45a;
@@ -146,6 +117,9 @@
       font-size: 0.9rem;
       line-height: 1.25;
     }
+    /* if we decide we need #bootFallback or #messagePanel, they go here */
+
+/* logView */
 
     #logView {
       position: relative;
@@ -187,6 +161,48 @@
       flex: 0 0 auto;
     }
 
+    #log {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      line-height: 1.3;
+    }
+
+    .resultItem {
+      padding: 12px 10px;
+      line-height: 1.25;
+      border-bottom: 1px solid #ddd;
+      background: #f8fbff;
+    }
+
+    #results {
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      overflow-y: auto;
+      background: #eef5ff;
+      display: none;
+    }
+
+    #results:not(:empty) {
+      display: block;
+    }
+
+    .common {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    .scientific {
+      font-style: italic;
+    }
+
     .logRow {
       display: flex;
       align-items: flex-start;
@@ -204,7 +220,7 @@
       font: inherit;
       line-height: inherit;
       white-space: pre;
-      word-break: break-word;
+      overflow-wrap: anywhere;
       padding-top: 0;
       padding-bottom: 0;
       padding-left: 4px;
@@ -214,6 +230,100 @@
       vertical-align: top;
     }
 
+    /* "x" delete button for log entries */
+    .deleteBtn {
+      flex: 0 0 auto;
+      font-size: 18px;
+      padding: 2px 8px;
+      margin-left: 4px;
+      border: none;
+      border-radius: 6px;
+      background: #eee;
+      color: #900;
+      cursor: pointer;
+    }
+
+    textarea,
+    select,
+    input {
+      font-size: 16px;
+      width: 100%;
+    }
+
+    select, input {
+      padding: 12px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      box-sizing: border-box;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      resize: vertical;
+    }
+
+    .resultItem .scientific {
+      font-size: 0.9em;
+    }
+
+    .resultItem:active {
+      background: #dcecff;
+    }
+
+    .activeNoteBtn {
+      background: #dcecff;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+/* Notes View */
+
+    #notesView {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .noteActions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .noteActions button {
+      padding: 4px 8px;
+      font-size: 0.8em;
+    }
+
+    .longNote {
+      min-height: 8em;
+    }
+
+    .participantResults {
+      position: absolute;
+      left: 0;
+      right: 0;
+      background: #eef5ff;
+      border: 1px solid #ccc;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 2000;
+    }
+    .participantWrapper {
+      position: relative;
+    }
+    #participants {
+      width: 100%;
+      resize: vertical;
+      min-height: 2.5em;
+    }
+
+/* Choice dialog */
     .choiceOverlay {
       position: fixed;
       inset: 0;
@@ -247,125 +357,10 @@
       flex-wrap: wrap;
     }
 
-    #notesView {
-      flex: 1;
-      overflow-y: auto;
-      min-height: 0;
-    }
-
-    #log {
-      flex: 1 1 auto;
-      overflow-y: auto;
-      min-height: 0;
-    }
-
-    #results {
-      position: absolute;
-      left: 0;
-      right: 0;
-      z-index: 1000;
-      overflow-y: auto;
-      background: #eef5ff;
-      display: none;
-    }
-
-    #results:not(:empty) {
-      display: block;
-    }
-
-    textarea,
-    select,
-    input {
-      font-size: 16px;
-      width: 100%;
-    }
-
-    select, input {
-      padding: 12px;
-      margin-bottom: 10px;
-      box-sizing: border-box;
-    }
-
-    textarea {
-      box-sizing: border-box;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: white;
-      resize: vertical;
-    }
-
-    .item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-      line-height: 1.3;
-    }
-
-    .participantResults {
-      position: absolute;
-      left: 0;
-      right: 0;
-      background: #eef5ff;
-      border: 1px solid #ccc;
-      max-height: 200px;
-      overflow-y: auto;
-      z-index: 2000;
-    }
-    .participantWrapper {
-      position: relative;
-    }
-    #participants {
-      width: 100%;
-      resize: vertical;
-      min-height: 2.5em;
-    }
-    .resultItem {
-      padding: 12px 10px;
-      line-height: 1.25;
-      border-bottom: 1px solid #ddd;
-      background: #f8fbff;
-    }
-
-    .resultItem .scientific {
-      font-size: 0.9em;
-    }
-
-    .resultItem:active {
-      background: #dcecff;
-    }
-
-    .activeNoteBtn {
-      background: #dcecff;
-    }
-
-    .item:last-child {
-      border-bottom: none;
-    }
-
-    .common {
-      font-weight: bold;
-      margin-right: 6px;
-    }
-
-    .scientific {
-      font-style: italic;
-    }
-
+/* Feedback / Utility */
     .inputRejected {
       background: #ffeaea;
     }
-
-    .longNote {
-      width: 100%;
-      min-height: 8em;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: white;
-      box-sizing: border-box;
-      resize: vertical;
-    }
-
 
   </style>
 </head>
@@ -444,7 +439,7 @@
   <div id="notesView" hidden>
 
       <!-- notes buttons -->
-    <div class = "header">
+    <div class = "noteActions">
       <button id="startBtn">Start Note</button>
       <button id="trailBtn">Trail Notes</button>
       <button id="closeBtn">Closing Note</button>
