@@ -2141,28 +2141,28 @@ function chooseAction(question, actions) {
 }
 
 function makeChoicePanel(question, actions, finish) {
-    const panel = document.createElement('div');
-    panel.className = 'choicePanel';
+  const panel = document.createElement('div');
+  panel.className = 'choicePanel';
 
-    const text = document.createElement('div');
-    text.className = 'choiceQuestion';
-    text.textContent = question;
+  const text = document.createElement('div');
+  text.className = 'choiceQuestion';
+  text.textContent = question;
 
-    const buttons = document.createElement('div');
-    buttons.className = 'choiceButtons';
+  const buttons = document.createElement('div');
+  buttons.className = 'choiceButtons';
 
-    for (const action of actions) {
-      const button = document.createElement('button');
-      button.textContent = action.label;
+  for (const action of actions) {
+    const button = document.createElement('button');
+    button.textContent = action.label;
 
-      button.addEventListener('click', () => {
-        finish(action.value);
-      });
-      buttons.appendChild(button);
-    }
-    panel.appendChild(text);
-    panel.appendChild(buttons);
-    return panel;
+    button.addEventListener('click', () => {
+      finish(action.value);
+    });
+    buttons.appendChild(button);
+  }
+  panel.appendChild(text);
+  panel.appendChild(buttons);
+  return panel;
 }
 
 function buildSurveyTsv(data) {
