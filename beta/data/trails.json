@@ -1,7 +1,7 @@
 {
   "trails": [
     {"id": "garden", "name": "Entrance/Native Garden"},
-    {"id": "clarkia", "name": "Clarkia"}
+    {"id": "clarkia", "name": "Clarkia"},
     {"id": "baywood", "name": "Baywood Glen"},
     {"id": "edgewood", "name": "Edgewood"},
     {"id": "franciscan", "name": "Franciscan"},
@@ -12,6 +12,6 @@
     {"id": "serpentine", "name": "Serpentine"},
     {"id": "stage", "name": "Old Stage Rd."},
     {"id": "sunset", "name": "Sunset"},
-    {"id": "sylvan", "name": "Sylvan"},
+    {"id": "sylvan", "name": "Sylvan"}
   ]
 }
