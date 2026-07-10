@@ -34,8 +34,6 @@ let  STORAGE_TAG = null;
 
 let appState = APP_STATE.BOOT;
 
-let DEFAULT_START_TRAIL = null;
-
 let version = null;
 let species = [];
 let trails = [];
@@ -121,7 +119,7 @@ async function init() {
   survey = loadSurvey();
 
   if (!survey) {
-    currentTrail = null;  // memory version only; leave localStorage alone
+    setCurrentTrail(null);
     setAppState(APP_STATE.EMPTY);
     return;
   }
@@ -617,7 +615,6 @@ function processSpecies(species) {
 
 function processTrails (trails) {
   // no processing yet
-  DEFAULT_START_TRAIL = trails[0].id;
   return trails;
 }
 
@@ -810,27 +807,39 @@ function switchTrail(id) {
 }
 
 function setCurrentTrail(id) {
-  currentTrail = id;
-  localStorage.setItem(storageKey('currentTrail'), id);
+
+  if (id === null) {
+    currentTrail = id;
+    localStorage.removeItem(storageKey('currentTrail'));
+  } else if (trails.some(t => t.id === id)) {
+    currentTrail = id;
+    localStorage.setItem(storageKey('currentTrail'), id);
+  } else {
+    throw new Error(`Invalid currentTrail: ${id}`);
+  }
 }
 
 function initializeCurrentTrail() {
   const saved = localStorage.getItem(storageKey("currentTrail"));
 
-  if (trails.some(t => t.id === saved)) {
-    // Normally we would use setCurrentTrail(), but we just read it in.
-    currentTrail = saved;
-    return;
+  if (saved === null) {
+    setCurrentTrail(null);
+  } else if (trails.some(t => t.id === saved)) {
+    setCurrentTrail(saved);
+  } else {
+    console.warn("Ignoring saved invalid currentTrail", saved);
+    setCurrentTrail(null);
   }
-  setCurrentTrail(DEFAULT_START_TRAIL);
 }
 
 function syncTrailSelectors() {
+  const value = currentTrail ?? "";
+
   if (ui.log.trailSelect)
-    ui.log.trailSelect.value = currentTrail;
+    ui.log.trailSelect.value = value;
 
   if (ui.notes.trail.trailSelect)
-    ui.notes.trail.trailSelect.value = currentTrail;
+    ui.notes.trail.trailSelect.value = value;
 }
 
 function populateTrailSelector(select) {
@@ -842,9 +851,17 @@ function populateTrailSelector(select) {
     opt.textContent = t.name;
     select.appendChild(opt);
   });
-  select.value = currentTrail;
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select Starting Location";
+  select.appendChild(placeholder);
+
+  select.value = currentTrail ?? "";
 
   select.addEventListener('change', (e) => {
+    if (!e.target.value)
+      return;
     switchTrail(e.target.value);
   });
 }
@@ -1299,7 +1316,7 @@ function newSurvey() {
 
   survey = createSurvey();
 
-  setCurrentTrail(DEFAULT_START_TRAIL);
+  setCurrentTrail(null);
 
   localStorage.setItem(storageKey("surveyExists"), "true");
 
@@ -2210,7 +2227,7 @@ async function importSurveyFile(event) {
 
     survey = imported;
 
-    const firstTrail = firstImportedTrail(imported) || DEFAULT_START_TRAIL;
+    const firstTrail = firstImportedTrail(imported) || null;
     setCurrentTrail(firstTrail);
 
     localStorage.setItem(storageKey("surveyExists"), "true");
