@@ -474,10 +474,10 @@ function makeInputHdlr(getTarget, key, persist) {
 }
 
 function makeTrailNoteHdlr(persist) {
-  if (!currentTrail)
-    throw new Error("Trail note input with no current trail");
-
   return (event) => {
+    if (!currentTrail)
+      throw new Error("Trail note input with no current trail");
+
     const text = event.target.value;
     if (text.trim())
       survey.trailNotes[currentTrail] = text;
