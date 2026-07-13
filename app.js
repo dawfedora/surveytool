@@ -240,6 +240,13 @@ function renderActiveState() {
 
   initializeSurveyPhase();
 
+  if (survey.phase === SURVEY_PHASE.START)
+    currentNotePanel = NOTE_PANEL.START;
+  else if (survey.phase === SURVEY_PHASE.END)
+    currentNotePanel = NOTE_PANEL.CLOSE;
+  else
+    currentNotePanel = NOTE_PANEL.TRAIL;
+
   syncTrailSelectors();
   renderControls();
   renderMode();
@@ -260,6 +267,8 @@ function renderControls() {
   ui.header.saveBtn.hidden = !(active && survey.phase === SURVEY_PHASE.END);
 
   ui.log.search.disabled = !(active && survey.phase !== SURVEY_PHASE.START);
+  ui.notes.trail.notes.disabled =
+    !(active && survey.phase !== SURVEY_PHASE.START);
   ui.log.trailSelect.disabled = !active;
   ui.notes.trail.trailSelect.disabled = !active;
 }
@@ -413,8 +422,6 @@ function initNotesView() {
   initStartNote();
   initTrailNote();
   initCloseNote();
-
-  showNotesPanel(NOTE_PANEL.START); // or whatever default
 }
 
 function initStartNote() {
@@ -467,6 +474,9 @@ function makeInputHdlr(getTarget, key, persist) {
 }
 
 function makeTrailNoteHdlr(persist) {
+  if (!currentTrail)
+    throw new Error("Trail note input with no current trail");
+
   return (event) => {
     const text = event.target.value;
     if (text.trim())
@@ -499,36 +509,30 @@ async function loadVersion(useFresh = false, signal = undefined) {
 }
 
 async function loadLocalData() {
-
   try {
-
     const dataFiles = [
       ['plants', './data/plants.json'],
       ['trails', './data/trails.json'],
       ['participants', './data/participants.json']
     ];
 
-    const responses = await Promise.all(
-        dataFiles.map(([, path]) => fetch(path))
+    const loaded = Object.fromEntries(
+      await Promise.all(
+        dataFiles.map(([name, path]) => loadJsonFile(name, path))
+      )
     );
 
-    responses.forEach(
-      (response, i) => {
-        if (!response.ok) throw new Error(`Failed to load ${dataFiles[i][1]}`);
-      }
+    species = processSpecies(
+      requireArray(loaded.plants, 'species', 'data/plants.json')
     );
 
-    const parsed = await Promise.all(responses.map(r => r.json()));
+    trails = processTrails(
+      requireArray(loaded.trails, 'trails', 'data/trails.json')
+    );
 
-    const loaded =
-      Object.fromEntries(dataFiles.map(([name], i) => [name, parsed[i]]));
-
-    species = requireArray(loaded.plants, 'species', 'data/plants.json');
-    species = processSpecies(species);
-    trails = requireArray(loaded.trails, 'trails', 'data/trails.json');
-    trails = processTrails(trails);
-    participants = requireArray(loaded.participants, 'participants', 'data/participants.json');
-    participants = processParticipants(participants);
+    participants = processParticipants(
+      requireArray(loaded.participants, 'participants', 'data/participants.json')
+    );
 
     console.log(
       `Loaded ${trails.length} trails, ${species.length} species, ${participants.length} participants`
@@ -536,8 +540,28 @@ async function loadLocalData() {
 
     return true;
   } catch (e) {
-    console.error('Failed to load local data', e);
+    console.error(`Failed to load local data: ${e.message}`, e);
+    showMessage(`Failed to load local data:\n${e.message}`);
     return false;
+  }
+}
+
+async function loadJsonFile(name, path) {
+  let response;
+
+  try {
+    response = await fetch(path);
+  } catch (e) {
+    throw new Error(`${path}: fetch failed: ${e.message}`);
+  }
+
+  if (!response.ok)
+    throw new Error(`${path}: HTTP ${response.status} ${response.statusText}`);
+
+  try {
+    return [name, await response.json()];
+  } catch (e) {
+    throw new Error(`${path}: invalid JSON: ${e.message}`);
   }
 }
 
@@ -850,14 +874,12 @@ function finishFieldOnEnter(event) {
 
 // --- Survey Phase ---
 function initializeSurveyPhase() {
-  const stored = localStorage.getItem(storageKey("surveyPhase"));
+  const stored = survey.phase;
 
   if (currentTrail === null) {
     setSurveyPhase(SURVEY_PHASE.START);
   } else if (isValidSurveyPhase(stored)) {
     setSurveyPhase(stored);
-  } else if (survey.closeNote?.time) {
-    setSurveyPhase(SURVEY_PHASE.END);
   } else {
     setSurveyPhase(SURVEY_PHASE.FIELD);
   }
@@ -972,8 +994,10 @@ function populateTrailSelector(select) {
   select.value = currentTrail ?? "";
 
   select.addEventListener('change', (e) => {
-    if (!e.target.value)
+    if (!e.target.value) {
+      syncTrailSelectors();
       return;
+    }
     switchTrail(e.target.value);
   });
 }
@@ -1206,14 +1230,13 @@ async function refreshApp() {
     // restore the old shell.
     await commitStagedCache(staging, cacheName, newAppShell, oldCacheName);
 
-    if (await activateMatchingWaitingWorker(cacheName)) {
-      location.reload();
-      return;
+    const activated = await activateMatchingWaitingWorker(cacheName);
+    if (!activated && oldCacheName !== cacheName) {
+      throw new Error(
+        "Refresh downloaded a new app, but no matching SW is waiting");
     }
-
     showMessage("Refresh complete", 5000);
     location.reload();
-
   } catch (e) {
     console.error("REFRESH FAILED:", e);
     alert("Refresh failed:\n" + e.message);
@@ -1410,10 +1433,8 @@ function createSurvey() {
 }
 
 function newSurvey() {
-
-  // Existing Survey - ask first
   if (survey) {
-
+    // Existing Survey - ask first
     const ok = confirm("Delete current survey and start a new one?");
     if (!ok)
       return;
@@ -1421,36 +1442,27 @@ function newSurvey() {
 
   // Create new survey and store it
 
-  localStorage.removeItem(storageKey("surveyExists"));
-
   cancelPendingStores();
 
+  localStorage.removeItem(storageKey("surveyExists"));
   clearStoredSurvey();
 
   survey = createSurvey();
-
   setCurrentTrail(null);
 
+  currentMode = MODE.NOTES;
+
+  storeSurvey();
   localStorage.setItem(storageKey("surveyExists"), "true");
 
   // now we're in active state
   setAppState(APP_STATE.ACTIVE);
-
-  // Go to start note
-  setSurveyPhase(SURVEY_PHASE.START);
-  currentMode = MODE.NOTES;
-  currentNotePanel = NOTE_PANEL.START;
-
-  // Populate UI
-  renderMode();
-
-  storeSurvey();
-
-  // put cursor in weather, we'll have populated time and date
-    requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
 }
 
 function endSurvey() {
+  if (!survey)
+    throw new Error("endSurvey called with no active survey!");
+
   const now = new Date();
 
   survey.closeNote.time = formatTime(now);
@@ -1497,7 +1509,7 @@ function loadSurvey() {
 }
 
 function clearStoredSurvey() {
-  localStorage.removeItem(storageKey("surveyExists"));
+  localStorage.removeItem(storageKey("phase"));
   localStorage.removeItem(storageKey("startNote"));
   localStorage.removeItem(storageKey("closeNote"));
   localStorage.removeItem(storageKey("trailNotes"));
@@ -1929,6 +1941,9 @@ function addSighting(item) {
     alert('No active survey');
     return;
   }
+  if (!currentTrail)
+    throw new Error("Cannot add sighting with no current trail");
+
   const trailId = currentTrail;
   const trailLog = ensureTrailLog(trailId);
   const entries = trailLog.entries;
@@ -2134,9 +2149,11 @@ function saveTextFile(filename, data, type) {
 
   const a = document.createElement('a');
   a.href = url;
-  a.save = filename;
+  a.download = filename;
 
+  document.body.appendChild(a);
   a.click();
+  a.remove();
 
   // Delay revoke slightly to ensure save started in all browsers
   setTimeout(() => URL.revokeObjectURL(url), 100);
@@ -2361,6 +2378,7 @@ async function importSurveyFile(event) {
 
     console.log("Imported survey:", imported);
 
+    localStorage.removeItem(storageKey("surveyExists"));
     clearStoredSurvey();
 
     survey = imported;
@@ -2368,8 +2386,8 @@ async function importSurveyFile(event) {
     const firstTrail = firstImportedTrail(imported) || null;
     setCurrentTrail(firstTrail);
 
-    localStorage.setItem(storageKey("surveyExists"), "true");
     storeSurvey();
+    localStorage.setItem(storageKey("surveyExists"), "true");
 
     currentMode = MODE.NOTES;
     currentNotePanel = NOTE_PANEL.START;
