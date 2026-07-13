@@ -474,9 +474,6 @@ function makeInputHdlr(getTarget, key, persist) {
 }
 
 function makeTrailNoteHdlr(persist) {
-  if (!currentTrail)
-    throw new Error("Trail note input with no current trail");
-
   return (event) => {
     if (!currentTrail)
       throw new Error("Trail note input with no current trail");
