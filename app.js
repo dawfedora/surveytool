@@ -7,17 +7,27 @@ const APP_STATE = {
   ACTIVE: "ACTIVE",
   LIMITED: "LIMITED"
 };
+let appState = APP_STATE.BOOT;
+
+const SURVEY_PHASE = {
+  START: "start",
+  FIELD: "field",
+  END: "end",
+  DONE: "done"
+};
 
 const MODE = {
   LOG: "log",
   NOTES: "notes"
 };
+let currentMode = MODE.LOG;
 
 const NOTE_PANEL = {
   START: "start",
   TRAIL: "trail",
-  END: "end"
+  CLOSE: "close"
 };
+let currentNotePanel = NOTE_PANEL.START;
 
 const ui = {
   header: {},
@@ -32,7 +42,6 @@ const ui = {
 
 let  STORAGE_TAG = null;
 
-let appState = APP_STATE.BOOT;
 
 let version = null;
 let species = [];
@@ -40,26 +49,26 @@ let trails = [];
 let participants = [];
 let survey = null;
 let currentTrail = null;
-let currentMode = MODE.LOG;
-let currentNotePanel = NOTE_PANEL.START;
 let messageTimeoutId = null;
 let headerInitialized = false;
 let logViewInitialized = false;
 let notesViewInitialized = false;
-let pendingSaves = [];
+let pendingStores = [];
 let activeChoiceOverlay = null;
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
-const storeStartNoteLater = flushableDebounce(storeStartNote, 1500, pendingSaves);
-const storeCloseNoteLater = flushableDebounce(storeCloseNote, 1500, pendingSaves);
-const storeTrailNotesLater = flushableDebounce(storeTrailNotes, 1500, pendingSaves);
-const storeTrailLogsLater = flushableDebounce(storeTrailLogs, 1500, pendingSaves);
+const storeStartNoteLater = flushableDebounce(storeStartNote, 1500, pendingStores);
+const storeCloseNoteLater = flushableDebounce(storeCloseNote, 1500, pendingStores);
+const storeTrailNotesLater = flushableDebounce(storeTrailNotes, 1500, pendingStores);
+const storeTrailLogsLater = flushableDebounce(storeTrailLogs, 1500, pendingStores);
 
 document.addEventListener("DOMContentLoaded", init);
 
 // --- APP STARTUP ---
 async function init() {
+
+  appState = APP_STATE.BOOT;
 
   initUI();
 
@@ -70,18 +79,17 @@ async function init() {
     return;
   }
 
-  ui.header.panel.hidden = false;
-  ui.bootFallback.hidden = true;
-
   // wire the buttons, especially refresh
   initHeader();
 
-  ui.header.refreshBtn.hidden = false;
+  renderControls();
+  ui.bootFallback.hidden = true;
+  ui.header.panel.hidden = false;
 
   // Version
   try {
     version = await loadVersion()
-    updateVersion();
+    showVersion();
   } catch(e) {
     console.error("Version load failed", e);
     showMessage("Version and config data not available\n");
@@ -129,7 +137,7 @@ async function init() {
   setAppState(APP_STATE.ACTIVE);
 }
 
-function updateVersion() {
+function showVersion() {
   let displayVersion = '';
 
   if (version.branch == "main")
@@ -185,14 +193,14 @@ function setAppState(state) {
     console.log(`App state changed: ${previousState} -> ${state}`);
 
   switch (state) {
+    case APP_STATE.LIMITED:
+      renderLimitedState();
+      break;
     case APP_STATE.EMPTY:
       renderEmptyState();
       break;
     case APP_STATE.ACTIVE:
       renderActiveState();
-      break;
-    case APP_STATE.LIMITED:
-      renderLimitedState();
       break;
   }
 }
@@ -204,13 +212,10 @@ function getAppState() {
 }
 
 function renderEmptyState() {
-  ui.header.refreshBtn.hidden = false;
-  ui.header.newBtn.hidden = false;
-  ui.header.modeBtn.hidden = true;
-  ui.header.downloadBtn.hidden = true;
-
   ui.log.panel.hidden = true;
   ui.notes.panel.hidden = true;
+
+  renderControls();
 
   setStatus("No Survey");
   setStateMessage("No current survey. Press New Survey to start one.");
@@ -218,13 +223,10 @@ function renderEmptyState() {
 
 function renderLimitedState() {
 
-  ui.header.refreshBtn.hidden = false;
-  ui.header.modeBtn.hidden = true;
-  ui.header.newBtn.hidden = true;
-  ui.header.downloadBtn.hidden = true;
-
   ui.log.panel.hidden = true;
   ui.notes.panel.hidden = true;
+
+  renderControls();
 
   setStateMessage("Survey tool is not complete. Connect to the net and press Refresh.");
   setStatus("Refresh required");
@@ -233,20 +235,33 @@ function renderLimitedState() {
 }
 
 function renderActiveState() {
-
-
-  ui.header.modeBtn.hidden = false;
-  ui.header.newBtn.hidden = false;
-  ui.header.downloadBtn.hidden = false;
-
-  initHeader();
   initLogView();
   initNotesView();
 
+  initializeSurveyPhase();
+
   syncTrailSelectors();
+  renderControls();
   renderMode();
+
   clearStateMessage();
   setStatus("Active Survey");
+}
+
+function renderControls() {
+  const active = appState === APP_STATE.ACTIVE;
+
+  ui.header.refreshBtn.hidden = false;
+
+  ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
+  ui.header.modeBtn.hidden = !active;
+
+  ui.header.endBtn.hidden = !(active && survey.phase === SURVEY_PHASE.FIELD);
+  ui.header.saveBtn.hidden = !(active && survey.phase === SURVEY_PHASE.END);
+
+  ui.log.search.disabled = !(active && survey.phase !== SURVEY_PHASE.START);
+  ui.log.trailSelect.disabled = !active;
+  ui.notes.trail.trailSelect.disabled = !active;
 }
 
 // --- UI Wiring ---
@@ -259,9 +274,10 @@ function initUI() {
     modeBtn: document.getElementById("modeBtn"),
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
+    endBtn: document.getElementById("endBtn"),
+    saveBtn: document.getElementById('saveBtn'),
     importBtn: document.getElementById("importBtn"),
     importInput: document.getElementById("importInput"),
-    downloadBtn: document.getElementById('downloadBtn'),
     version: document.getElementById('version'),
     status: document.getElementById('status')
   };
@@ -337,7 +353,8 @@ function initHeader() {
   ui.header.modeBtn.addEventListener('click', toggleMode);
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
-  ui.header.downloadBtn.addEventListener('click', downloadSurvey);
+  ui.header.saveBtn.addEventListener('click', saveSurvey);
+  ui.header.endBtn.addEventListener('click', endSurvey);
   ui.header.importBtn.addEventListener('click', () => {
     ui.header.importInput.click();
   });
@@ -388,7 +405,7 @@ function initNotesView() {
     showNotesPanel(NOTE_PANEL.TRAIL);
   });
   ui.notes.buttons.close.addEventListener("click", () => {
-    showNotesPanel(NOTE_PANEL.END);
+    showNotesPanel(NOTE_PANEL.CLOSE);
   });
 
   populateTrailSelector(ui.notes.trail.trailSelect);
@@ -405,11 +422,17 @@ function initStartNote() {
   const s = ui.notes.start;
 
   s.date.addEventListener("input", makeInputHdlr(() => survey?.startNote, "date", storeStartNoteLater));
+  s.date.addEventListener("blur", finishFieldOnBlur(focusNextStartField));
+  s.date.addEventListener("keydown", finishFieldOnEnter);
   s.time.addEventListener("input", makeInputHdlr(() => survey?.startNote, "time", storeStartNoteLater));
+  s.time.addEventListener("blur", finishFieldOnBlur(focusNextStartField));
+  s.time.addEventListener("keydown", finishFieldOnEnter);
   s.weather.addEventListener( "input", makeInputHdlr(() => survey?.startNote, "weather", storeStartNoteLater));
+  s.weather.addEventListener("blur", finishFieldOnBlur(focusNextStartField));
+  s.weather.addEventListener("keydown", finishFieldOnEnter);
   s.notes.addEventListener("input", makeInputHdlr(() => survey?.startNote, "notes", storeStartNoteLater));
-  s.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeStartNoteLater));
 
+  s.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeStartNoteLater));
   s.participants.addEventListener("beforeinput", validateParticipantInput);
   s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
   document.addEventListener("click", hideParticipantResults);
@@ -426,7 +449,9 @@ function initCloseNote() {
   const c = ui.notes.close;
 
   c.time.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "time", storeCloseNoteLater));
+  c.time.addEventListener("blur", finishFieldOnBlur(focusNextCloseField));
   c.weather.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "weather", storeCloseNoteLater));
+  c.weather.addEventListener("blur", finishFieldOnBlur(focusNextCloseField));
   c.notes.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "notes", storeCloseNoteLater));
 }
 
@@ -767,6 +792,33 @@ function focusField(field) {
   });
 }
 
+function focusFirstEmpty(fields) {
+  const field = fields.find(f => !f.value.trim());
+  if (field) {
+    focusField(field);
+    return true;
+  }
+  return false;
+}
+
+function focusNextStartField() {
+  focusFirstEmpty([
+    ui.notes.start.date,
+    ui.notes.start.time,
+    ui.notes.start.weather,
+    ui.notes.start.participants,
+    ui.notes.start.notes
+  ]);
+}
+
+function focusNextCloseField() {
+  focusFirstEmpty([
+    ui.notes.close.time,
+    ui.notes.close.weather,
+    ui.notes.close.notes
+  ]);
+}
+
 function refocusAfterSelection(input, afterFocus = null, delay = 150) {
   input.blur();
 
@@ -774,6 +826,55 @@ function refocusAfterSelection(input, afterFocus = null, delay = 150) {
     input.focus();
     afterFocus?.();
   }, delay);
+}
+
+function finishFieldOnBlur(advance) {
+  return () => {
+    flushPendingStores();
+
+    setTimeout(() => {
+      if (document.activeElement === document.body)
+        advance();
+    }, 0);
+  };
+}
+
+function finishFieldOnEnter(event) {
+  if (event.key !== "Enter")
+    return;
+
+  event.preventDefault();
+  flushPendingStores();
+  event.target.blur();
+}
+
+// --- Survey Phase ---
+function initializeSurveyPhase() {
+  const stored = localStorage.getItem(storageKey("surveyPhase"));
+
+  if (currentTrail === null) {
+    setSurveyPhase(SURVEY_PHASE.START);
+  } else if (isValidSurveyPhase(stored)) {
+    setSurveyPhase(stored);
+  } else if (survey.closeNote?.time) {
+    setSurveyPhase(SURVEY_PHASE.END);
+  } else {
+    setSurveyPhase(SURVEY_PHASE.FIELD);
+  }
+}
+
+function setSurveyPhase(phase) {
+  if (!survey)
+    throw new Error("Cannot set surveyPhase without an active survey");
+
+  survey.phase = phase;
+  storePhase();
+
+  renderControls();
+}
+
+function isValidSurveyPhase(phase) {
+  return Object.values(SURVEY_PHASE).includes(phase);
 }
 
 // --- MODE, TRAIL, and VIEW RENDERING
@@ -800,7 +901,18 @@ function renderMode() {
 }
 
 function switchTrail(id) {
+ const enteringField =
+    survey.phase === SURVEY_PHASE.START &&
+    currentTrail === null &&
+    id !== null;
+
   setCurrentTrail(id);
+
+  if (enteringField) {
+    setSurveyPhase(SURVEY_PHASE.FIELD);
+    currentNotePanel = NOTE_PANEL.TRAIL;
+  }
+
   syncTrailSelectors();
   renderLogView();
   renderTrailNotes();
@@ -820,14 +932,14 @@ function setCurrentTrail(id) {
 }
 
 function initializeCurrentTrail() {
-  const saved = localStorage.getItem(storageKey("currentTrail"));
+  const stored = localStorage.getItem(storageKey("currentTrail"));
 
-  if (saved === null) {
+  if (stored === null) {
     setCurrentTrail(null);
-  } else if (trails.some(t => t.id === saved)) {
-    setCurrentTrail(saved);
+  } else if (trails.some(t => t.id === stored)) {
+    setCurrentTrail(stored);
   } else {
-    console.warn("Ignoring saved invalid currentTrail", saved);
+    console.warn("Ignoring stored invalid currentTrail", stored);
     setCurrentTrail(null);
   }
 }
@@ -904,7 +1016,7 @@ function renderNotesView() {
     renderTrailNotes();
   }
 
-  if (currentNotePanel === NOTE_PANEL.END) {
+  if (currentNotePanel === NOTE_PANEL.CLOSE) {
     ui.notes.close.panel.hidden = false;
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
@@ -928,7 +1040,7 @@ function renderStartNote() {
   s.weather.value = data.weather || '';
   s.participants.value = data.participants || '';
   s.notes.value = data.notes || '';
-  focusField(s.weather);
+  focusNextStartField();
 }
 
 function renderTrailNotes() {
@@ -949,7 +1061,7 @@ function renderCloseNote() {
   c.time.value = data.time || '';
   c.weather.value = data.weather || '';
   c.notes.value = data.notes || '';
-  focusField(c.weather);
+  focusNextCloseField();
 }
 
 // --- MESSAGES and DIALOGS
@@ -1031,7 +1143,7 @@ function makeChoicePanel(question, actions, finish) {
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
 async function refreshApp() {
-  flushPendingSaves();
+  flushPendingStores();
   showMessage("Refreshing...");
 
   const oldCacheName = getCurrentCacheName();
@@ -1042,7 +1154,7 @@ async function refreshApp() {
 
     const freshVersion = await loadVersion(true);
 
-    // Stage downloads into a temporary cache first
+    // Stage saves into a temporary cache first
     // Use a branch-specific temporary staging name.
     stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
     const staging = await caches.open(stagingName);
@@ -1279,6 +1391,7 @@ function createSurvey() {
   const now = new Date();
 
   return {
+    phase: SURVEY_PHASE.START,
     startNote: {
       date: formatDate(now),
       time: formatTime(now),
@@ -1306,11 +1419,11 @@ function newSurvey() {
       return;
   }
 
-  // Create new survey and save it
+  // Create new survey and store it
 
   localStorage.removeItem(storageKey("surveyExists"));
 
-  cancelPendingSaves();
+  cancelPendingStores();
 
   clearStoredSurvey();
 
@@ -1320,12 +1433,13 @@ function newSurvey() {
 
   localStorage.setItem(storageKey("surveyExists"), "true");
 
-  // Go to start note
-  currentMode = MODE.NOTES;
-  currentNotePanel = NOTE_PANEL.START;
-
   // now we're in active state
   setAppState(APP_STATE.ACTIVE);
+
+  // Go to start note
+  setSurveyPhase(SURVEY_PHASE.START);
+  currentMode = MODE.NOTES;
+  currentNotePanel = NOTE_PANEL.START;
 
   // Populate UI
   renderMode();
@@ -1334,6 +1448,17 @@ function newSurvey() {
 
   // put cursor in weather, we'll have populated time and date
     requestAnimationFrame(() => { ui.notes.start.weather?.focus(); });
+}
+
+function endSurvey() {
+  const now = new Date();
+
+  survey.closeNote.time = formatTime(now);
+
+  setSurveyPhase(SURVEY_PHASE.END);
+  currentMode = MODE.NOTES;
+  currentNotePanel = NOTE_PANEL.CLOSE;
+  renderMode();
 }
 
 function storeSurvey() {
@@ -1354,10 +1479,9 @@ function loadSurvey() {
 
   const survey = {};
 
-//
-// These should all have been created and saved in newSurvey()
-//
+  // These should all have been created and stored in newSurvey()
   try {
+    survey.phase = loadPhase();
     survey.startNote = loadStartNote();
     survey.closeNote = loadCloseNote();
     survey.trailNotes = loadTrailNotes();
@@ -1366,7 +1490,7 @@ function loadSurvey() {
     return survey;
 
   } catch(e) {
-    showMessage("Survey data appears corrupted. Please download/reset.");
+    showMessage("Survey data appears corrupted. Please save/reset.");
     console.error('Bad survey data', e);
     return null;
   }
@@ -1382,7 +1506,7 @@ function clearStoredSurvey() {
 
 function loadSection(key) {
   const raw = localStorage.getItem(key);
-  // never saved
+  // never stored
   if (raw === null)
     return null;
 
@@ -1399,6 +1523,15 @@ function loadSection(key) {
     console.error(`Invalid ${key}`, e);
     throw new Error(`Corrupt survey data: ${key}`);
   }
+}
+
+function loadPhase() {
+  const phase = loadSection(storageKey("phase"));
+
+  if (!isValidSurveyPhase(phase))
+    throw new Error("Bad survey phase");
+
+  return phase;
 }
 
 function loadStartNote() {
@@ -1480,6 +1613,11 @@ function loadTrailLogs() {
 
   return trailLogs;
 }
+
+function storePhase() {
+  localStorage.setItem(storageKey('phase'), JSON.stringify(survey.phase));
+}
+
 function storeStartNote() {
   localStorage.setItem(storageKey('startNote'), JSON.stringify(survey.startNote));
 }
@@ -1498,8 +1636,8 @@ function storageKey(key) {
 
 function storeTrailLog(trailId) {
   void trailId;
-  // Right now we save all the trails at once
-  // later we may save trails individually
+  // Right now we store all the trails at once
+  // later we may store trails individually
   storeTrailLogs();
 }
 
@@ -1559,12 +1697,12 @@ function flushableDebounce(fn, delay = 1500, registry = null) {
   return debounced;
 }
 
-function cancelPendingSaves() {
-  pendingSaves.forEach(fn => fn.cancel());
+function cancelPendingStores() {
+  pendingStores.forEach(fn => fn.cancel());
 }
 
-function flushPendingSaves() {
-  pendingSaves.forEach(fn => fn.flush());
+function flushPendingStores() {
+  pendingStores.forEach(fn => fn.flush());
 }
 
 // --- SEARCH and AUTOCOMPLETE ---
@@ -1863,7 +2001,7 @@ function createLogRow(entry, trailId) {
   // initial size AFTER attachment/layout
   requestAnimationFrame(() => resizeNote(note));
 
-  // auto-grow + save
+  // auto-grow + store
   note.addEventListener('input', () => {
     resizeNote(note, true);
     entry.note = note.value;
@@ -1942,14 +2080,14 @@ function resizeNote(note, expanded = false) {
 }
 
 // --- DOWNLOAD / EXPORT ---
-async function downloadSurvey() {
+async function saveSurvey() {
   if (!survey)
     return;
 
   try {
-    flushPendingSaves();
+    flushPendingStores();
 
-    const choice = await chooseAction("Download survey", [
+    const choice = await chooseAction("Save survey", [
       { label: "JSON", value: "json" },
       { label: "TSV", value: "tsv" },
       { label: "Cancel", value: null }
@@ -1962,13 +2100,13 @@ async function downloadSurvey() {
 
     if (choice === "json") {
       const jsonData = JSON.stringify(survey, null, 2);
-      downloadTextFile(`${basename}.json`, jsonData, 'application/json');
+      saveTextFile(`${basename}.json`, jsonData, 'application/json');
     } else if (choice === "tsv") {
-      downloadTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
+      saveTextFile(`${basename}.tsv`, buildSurveyTsv(survey), 'text/tab-separated-values');
     }
   } catch (e) {
-    console.error("Download failed", e);
-    alert("Download failed:\n" + e.message);
+    console.error("Save failed", e);
+    alert("Save failed:\n" + e.message);
   }
 }
   
@@ -1990,17 +2128,17 @@ function surveyDateForFilename(data) {
     .replace(/^-+|-+$/g, '') || 'undated';
 }
 
-function downloadTextFile(filename, data, type) {
+function saveTextFile(filename, data, type) {
   const blob = new Blob([data], { type });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.save = filename;
 
   a.click();
 
-  // Delay revoke slightly to ensure download started in all browsers
+  // Delay revoke slightly to ensure save started in all browsers
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
@@ -2209,7 +2347,7 @@ async function importSurveyFile(event) {
       if (!ok)
         return;
     }
-    cancelPendingSaves();
+    cancelPendingStores();
 
     const text = await file.text();
     console.log("Import file:", {
@@ -2358,10 +2496,8 @@ function firstImportedTrail(imported) {
   return null;
 }
 
-//
-// local timestamp
-// YYYY-MM-DD HH:MM:SS
-//
+// --- Time and Date ---
+  // Timestamp: YYYY-MM-DD HH:MM:SS
 function formatTimestamp(date = new Date()) {
 
   const yyyy = date.getFullYear();
@@ -2374,14 +2510,16 @@ function formatTimestamp(date = new Date()) {
   return (`${yyyy}-${mm}-${dd} ` + `${hh}:${min}:${ss}`);
 }
 
+  // Date:      M/D/YYYY
 function formatDate(date) {
   return date.toLocaleDateString(
     "en-US", { month: "numeric", day: "numeric", year: "numeric" }
   );
 }
 
+  // Time:      H:MM am/pm
 function formatTime(date) {
   return date.toLocaleTimeString(
     "en-US", { hour: "numeric", minute: "2-digit" }
-  );
+  ).toLowerCase();
 }
