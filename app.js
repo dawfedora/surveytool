@@ -1457,7 +1457,7 @@ function endSurvey() {
 
   setSurveyPhase(SURVEY_PHASE.END);
   currentMode = MODE.NOTES;
-  currentNotePanel = NOTE_PANEL.END;
+  currentNotePanel = NOTE_PANEL.CLOSE;
   renderMode();
 }
 
