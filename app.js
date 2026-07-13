@@ -1040,7 +1040,7 @@ function renderStartNote() {
   s.weather.value = data.weather || '';
   s.participants.value = data.participants || '';
   s.notes.value = data.notes || '';
-  focusField(s.weather);
+  focusNextStartField();
 }
 
 function renderTrailNotes() {
@@ -1061,7 +1061,7 @@ function renderCloseNote() {
   c.time.value = data.time || '';
   c.weather.value = data.weather || '';
   c.notes.value = data.notes || '';
-  focusField(c.weather);
+  focusNextCloseField();
 }
 
 // --- MESSAGES and DIALOGS
