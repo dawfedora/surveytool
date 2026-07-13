@@ -253,7 +253,7 @@ function renderControls() {
 
   ui.header.refreshBtn.hidden = false;
 
-  ui.header.newSurveyBtn.hidden = !(appState === APP_STATE.EMPTY || active);
+  ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
   ui.header.modeBtn.hidden = !active;
 
   ui.header.endBtn.hidden = !(active && survey.phase === SURVEY_PHASE.FIELD);
