@@ -979,17 +979,17 @@ function syncTrailSelectors() {
 function populateTrailSelector(select) {
   select.innerHTML = "";
 
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select Starting Location";
+  select.appendChild(placeholder);
+
   trails.forEach(t => {
     const opt = document.createElement("option");
     opt.value = t.id;
     opt.textContent = t.name;
     select.appendChild(opt);
   });
-
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Select Starting Location";
-  select.appendChild(placeholder);
 
   select.value = currentTrail ?? "";
 
