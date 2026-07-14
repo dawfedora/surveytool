@@ -12,6 +12,9 @@
   <title>Edgewood Survey Tool</title>
 
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="./icons/foe-icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/foe-icon-192.png">
+
   <meta name="theme-color" content="#4a7c59">
 
   <!-- iOS PWA support -->
@@ -388,12 +391,13 @@
     </div>
 
     <div class="headerActions">
-      <button id="modeBtn">Notes</button>
-      <button id="newBtn">New Survey</button>
-      <button id="refreshBtn">Refresh</button>
-      <button id="importBtn" style="display:none">Import</button>
+      <button id="modeBtn" hidden>Notes</button>
+      <button id="newBtn" hidden>New Survey</button>
+      <button id="refreshBtn" hidden>Refresh</button>
+      <button id="endBtn" hidden>End</button>
+      <button id="saveBtn" hidden>Save</button>
+      <button id="importBtn" hidden>Import</button>
       <input id="importInput" type="file" accept="application/json,.json" hidden />
-      <button id="downloadBtn">Down</button>
     </div>
 
   </div> <!-- #globalHeader -->
@@ -414,6 +418,7 @@
     <!-- search stays fixed under header -->
     <div id="searchArea">
       <input
+        disabled
         id="search"
         type="text"
         placeholder="Search plant..."
