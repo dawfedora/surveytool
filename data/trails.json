@@ -1,17 +1,17 @@
 {
   "trails": [
     {"id": "garden", "name": "Entrance/Native Garden"},
-    {"id": "edgewood", "name": "Edgewood"},
-    {"id": "stage", "name": "Old Stage Rd."},
-    {"id": "franciscan", "name": "Franciscan"},
+    {"id": "clarkia", "name": "Clarkia"},
     {"id": "baywood", "name": "Baywood Glen"},
-    {"id": "serpentine", "name": "Serpentine"},
-    {"id": "ridgeview", "name": "Ridgeview"},
-    {"id": "sunset", "name": "Sunset"},
-    {"id": "sylvan", "name": "Sylvan"},
-    {"id": "lost", "name": "Lost Trail"},
-    {"id": "liveoak", "name": "Live Oak"},
+    {"id": "edgewood", "name": "Edgewood"},
+    {"id": "franciscan", "name": "Franciscan"},
     {"id": "inspiration", "name": "Inspiration Heights"},
-    {"id": "clarkia", "name": "Clarkia"}
+    {"id": "liveoak", "name": "Live Oak"},
+    {"id": "lost", "name": "Lost Trail"},
+    {"id": "ridgeview", "name": "Ridgeview"},
+    {"id": "serpentine", "name": "Serpentine"},
+    {"id": "stage", "name": "Old Stage Rd."},
+    {"id": "sunset", "name": "Sunset"},
+    {"id": "sylvan", "name": "Sylvan"}
   ]
 }
