@@ -2216,32 +2216,44 @@ function blankRows(count) {
 }
 
 function splitParticipants(participantsText) {
+  const FIRST_PARTICIPANT_LINE_LIMIT = 60;
+  const SECOND_PARTICIPANT_LINE_LIMIT = 74;
+  const shortLine = participantsText
+    .trim()
+    .replace(/(?:,\s*)+$/, '');
+
+  if (shortLine.length <= FIRST_PARTICIPANT_LINE_LIMIT)
+    return [shortLine, ''];
+
   const participants = participantsText
     .split(',')
     .map(name => name.trim())
     .filter(Boolean);
 
-  if (participants.length <= 1)
-    return [participants.join(', '), ''];
-
   let bestSplit = 1;
-  let bestDifference = Infinity;
+  let bestOverflow = Infinity;
+  let bestBalance = Infinity;
 
   for (let i = 1; i < participants.length; i++) {
     const first = participants.slice(0, i).join(', ');
     const second = participants.slice(i).join(', ');
-    const difference = Math.abs(
-      `Participants: ${first}`.length - second.length
+    const overflow = Math.max(
+      first.length - FIRST_PARTICIPANT_LINE_LIMIT,
+      second.length - SECOND_PARTICIPANT_LINE_LIMIT,
+      0
     );
+    const balance = Math.abs(first.length - second.length);
 
-    if (difference < bestDifference) {
+    if (overflow < bestOverflow ||
+        (overflow === bestOverflow && balance < bestBalance)) {
       bestSplit = i;
-      bestDifference = difference;
+      bestOverflow = overflow;
+      bestBalance = balance;
     }
   }
 
   return [
-    participants.slice(0, bestSplit).join(', '),
+    participants.slice(0, bestSplit).join(', ') + ',',
     participants.slice(bestSplit).join(', ')
   ];
 }
