@@ -3,6 +3,7 @@
     {"id": "garden", "name": "Entrance/Native Garden"},
     {"id": "clarkia", "name": "Clarkia"},
     {"id": "edgewood", "name": "Edgewood"},
+    {"id": "sunset", "name": "Sunset"},
     {"id": "baywood", "name": "Baywood Glen"},
     {"id": "franciscan", "name": "Franciscan"},
     {"id": "inspiration", "name": "Inspiration Heights"},
@@ -11,7 +12,6 @@
     {"id": "ridgeview", "name": "Ridgeview"},
     {"id": "serpentine", "name": "Serpentine"},
     {"id": "stage", "name": "Old Stage Rd."},
-    {"id": "sunset", "name": "Sunset"},
     {"id": "sylvan", "name": "Sylvan"}
   ],
   "segments": [
@@ -44,6 +44,7 @@
     {"startPost":"P15","trailId":"ridgeview","endPost":"P17","distance":4},
     {"startPost":"P16","trailId":"serpentine","endPost":"P19","distance":2},
     {"startPost":"P17","trailId":"liveoak","endPost":"P19","distance":1},
+    {"startPost":"P17","trailId":"inspiration","endPost":"insp_end","distance":1},
     {"startPost":"P19","trailId":"serpentine","endPost":"P20","distance":2},
     {"startPost":"P20","trailId":"sunset","endPost":"P21","distance":0.5},
     {"startPost":"P20","trailId":"sunset","endPost":"P22","distance":2},
