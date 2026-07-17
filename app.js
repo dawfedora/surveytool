@@ -526,9 +526,8 @@ async function loadLocalData() {
       requireArray(loaded.plants, 'species', 'data/plants.json')
     );
 
-    trails = processTrails(
-      requireArray(loaded.trails, 'trails', 'data/trails.json')
-    );
+    trailNetork = processTrailNetwork(loaded.trails);
+    trails = trailNetwork.trails;
 
     participants = processParticipants(
       requireArray(loaded.participants, 'participants', 'data/participants.json')
@@ -662,9 +661,31 @@ function processSpecies(species) {
   return species;
 }
 
-function processTrails (trails) {
-  // no processing yet
-  return trails;
+function processTrailNetwork(data) {
+  const trails = validateTrails(
+    requireArray(data, "trails", "data/trails.json")
+  );
+
+  const segments = validateSegments(
+    requireArray(data, "segments", "data/trails.json"),
+    trails
+  );
+
+  const startingPoints = validateStartingPoints(
+    requireArray(data, "startingPoints", "data/trails.json"),
+    trails,
+    segments
+  );
+
+  const directedSegments = makeDirectedSegments(segments);
+  const segmentsByPost = indexSegmentsByPost(directedSegments);
+
+  return {
+    trails,
+    startingPoints,
+    directedSegments,
+    segmentsByPost
+  };
 }
 
 function processParticipants(pIn) {
