@@ -1412,12 +1412,18 @@ async function verifyCacheContains(cache, appShell) {
 // --- SURVEY LIFECYCLE and PERSISTENCE ---
 function createSurvey() {
   const now = new Date();
+  const date = formatDate(now);
+  let time = formatTime(now);
+  
+  // The survey nominally starts at 8:00 am.  Hardcoding it  makes math easier
+  //  for timesheets.  We can always edit if we're doing the odd 4 pm survey
+  time = "8:00 am";
 
   return {
     phase: SURVEY_PHASE.START,
     startNote: {
-      date: formatDate(now),
-      time: formatTime(now),
+      date: date,
+      time: time,
       weather: "",
       participants: "",
       notes: ""
