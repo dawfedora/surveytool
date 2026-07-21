@@ -481,9 +481,9 @@ function makeTrailNoteHdlr(persist) {
 
     const text = event.target.value;
     if (text.trim())
-      survey.trailNotes[currentTrail] = text;
+      survey.trailNotes = text;
     else
-      delete survey.trailNotes[currentTrail];
+      survey.trailNotes = "";;
     persist();
   };
 }
@@ -1549,7 +1549,7 @@ function renderTrailNotes() {
   if (!survey || !currentTrail) 
     return;
 
-  ui.notes.trail.notes.value = survey.trailNotes[currentTrail]  || '';
+  ui.notes.trail.notes.value = survey.trailNotes  || "";
   focusField(ui.notes.trail.notes);
 }
 
@@ -1900,7 +1900,7 @@ function createSurvey() {
       participants: "",
       notes: ""
     },
-    trailNotes: {},
+    trailNotes: "",
     closeNote: {
       time: "",
       weather: "",
@@ -2066,12 +2066,8 @@ function loadTrailNotes() {
   if (notes === null)
     throw new Error("Missing trailNotes");
 
-  if (typeof notes !== "object" || Array.isArray(notes))
+  if (typeof notes !== "string")
     throw new Error("Bad format for trailNotes");
-
-  for (const trailId in notes) {
-    assertString(notes[trailId], `trailNotes.${trailId}`);
-  }
 
   return notes;
 }
@@ -2934,7 +2930,7 @@ function normalizeImportedTrailNotes(trailNotes) {
 
   for (const trailId in notes) {
     if (typeof notes[trailId] !== "string")
-      throw new Error(`Invalid trailNotes.${trailId}`);
+      throw new Error(`Invalid trailNotes`);
 
     normalized[trailId] = notes[trailId];
   }
