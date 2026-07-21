@@ -10,7 +10,7 @@
     {"id": "lost", "name": "Lost Trail"},
     {"id": "ridgeview", "name": "Ridgeview"},
     {"id": "serpentine", "name": "Serpentine"},
-    {"id": "stage", "name": "Old Stage Rd."},
+    {"id": "stage", "name": "Old Stage Rd"},
     {"id": "sylvan", "name": "Sylvan"}
   ],
   "posts": [
@@ -52,7 +52,7 @@
     {"startPost":"P6","trailId":"franciscan","endPost":"P8","length":0.3},
     {"startPost":"P6","trailId":"stage","endPost":"P10","length":0.3},
     {"startPost":"P7","trailId":"baywood","endPost":"P8","length":0.6},
-    {"startPost":"P7","trailId":"sylvan","endPost":"loststart","length":0.4},
+    {"startPost":"P7","trailId":"sylvan","endPost":"LS","length":0.4},
     {"startPost":"LS","trailId":"lost","endPost":"LE","length":0.3},
     {"startPost":"LS","trailId":"sylvan","endPost":"P16","length":0.5},
     {"startPost":"P8","trailId":"franciscan","endPost":"P11","length":0.4},
@@ -79,9 +79,9 @@
     {"startPost":"P22","trailId":"clarkia","endPost":"P23","length":0.6}
   ],
   "startingPoints": [
-    {"postId":"P1","trailId": "garden","name":"Entrance/Native Garden"},
-    {"postId":"P23","trailId": "clarkia","name":"Clarkia Trailhead"},
-    {"postId":"P18","trailId": "edgewood","name":"Edgewood Trailhead"},
-    {"postId":"SG","trailId": "sunset","name":"Sunset Gate"}
+    {"postId":"P1","trailId": "garden"},
+    {"postId":"P23","trailId": "clarkia"},
+    {"postId":"P18","trailId": "edgewood"},
+    {"postId":"SG","trailId": "sunset"}
   ]
 }
