@@ -539,7 +539,15 @@ async function loadLocalData() {
 
     return true;
   } catch (e) {
-    console.error(`Failed to load local data: ${e.message}`, e);
+    console.error(`Failed to load local data: ${e.message}`);
+
+    if (e instanceof DataValidationError) {
+      for (const detail of e.details)
+        console.error(detail);
+    } else {
+      console.error(e);
+    }
+
     showMessage(`Failed to load local data:\n${e.message}`);
     return false;
   }
