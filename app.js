@@ -46,6 +46,7 @@ let  STORAGE_TAG = null;
 let version = null;
 let species = [];
 let trails = [];
+let trailNetwork = {};
 let participants = [];
 let survey = null;
 let currentTrail = null;
@@ -526,7 +527,7 @@ async function loadLocalData() {
       requireArray(loaded.plants, 'species', 'data/plants.json')
     );
 
-    const trailNetwork = processTrailNetwork(loaded.trails);
+    trailNetwork = processTrailNetwork(loaded.trails);
     trails = trailNetwork.trails;
 
     participants = processParticipants(
