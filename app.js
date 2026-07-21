@@ -526,7 +526,7 @@ async function loadLocalData() {
       requireArray(loaded.plants, 'species', 'data/plants.json')
     );
 
-    trailNetork = processTrailNetwork(loaded.trails);
+    const trailNetwork = processTrailNetwork(loaded.trails);
     trails = trailNetwork.trails;
 
     participants = processParticipants(
@@ -661,33 +661,6 @@ function processSpecies(species) {
   return species;
 }
 
-function processTrailNetwork(data) {
-  const trails = validateTrails(
-    requireArray(data, "trails", "data/trails.json")
-  );
-
-  const segments = validateSegments(
-    requireArray(data, "segments", "data/trails.json"),
-    trails
-  );
-
-  const startingPoints = validateStartingPoints(
-    requireArray(data, "startingPoints", "data/trails.json"),
-    trails,
-    segments
-  );
-
-  const directedSegments = makeDirectedSegments(segments);
-  const segmentsByPost = indexSegmentsByPost(directedSegments);
-
-  return {
-    trails,
-    startingPoints,
-    directedSegments,
-    segmentsByPost
-  };
-}
-
 function processParticipants(pIn) {
 
   let pOut = [];
@@ -702,6 +675,504 @@ function processParticipants(pIn) {
     pOut.push(person);
   }
   return pOut;
+}
+
+function processTrailNetwork(data) {
+  if (!isPlainObject(data)) {
+    throw new DataValidationError(
+      'Trail data is invalid', ['data/trails.json:expected a top-level object']
+    );
+  }
+  const errors = [];
+
+  if (!Array.isArray(data.trails) || data.trails.length === 0)
+    errors.push('trails: expected a nonempty array');
+
+  if (!Array.isArray(data.posts) || data.posts.length === 0)
+    errors.push('posts: expected a nonempty array');
+
+  if (!Array.isArray(data.segments) || data.segments.length === 0)
+    errors.push('segments: expected a nonempty array');
+
+  if ( !Array.isArray(data.startingPoints) || data.startingPoints.length === 0)
+    errors.push('startingPoints: expected a nonempty array');
+
+  if (errors.length)
+    throw new DataValidationError('Trail data is incomplete', errors);
+
+  const trails = validateTrails(data.trails, errors);
+  const trailIds = new Set(trails.map(trail => trail.id));
+
+  const posts = validatePosts(data.posts, errors);
+  const postIds = new Set(posts.map(post => post.id));
+
+  const directedSegments = processSegments(
+    data.segments,
+    trailIds,
+    postIds,
+    errors
+  );
+
+  const segmentsByPost = indexSegmentsByPost(directedSegments);
+
+  validatePostCoverage(posts, segmentsByPost, errors);
+
+  validateTrailCoverage(trails, directedSegments, errors);
+
+  const startingPoints = validateStartingPoints(
+    data.startingPoints,
+    trailIds,
+    postIds,
+    segmentsByPost,
+    errors
+  );
+
+  if (errors.length)
+    throw new DataValidationError("Trail data is invalid", errors);
+
+  return {
+    trails,
+    posts,
+    startingPoints,
+    directedSegments,
+    segmentsByPost
+  };
+}
+
+const TRAILID_PAT = /^[a-z]+$/;
+const TRAILNAME_PAT = /^[A-Za-z]+(?:[ /][A-Za-z]+)*$/;
+const TRAIL_KEYS = new Set(['id', 'name']);
+
+function validateTrails(rawTrails, errors) {
+  const trails = [];
+  const ids = new Set();
+  const names = new Set();
+
+  rawTrails.forEach((rawTrail, index) => {
+    const path = `trails[${index}]`;
+
+    if (!isPlainObject(rawTrail)) {
+      errors.push(`${path}: expected an object`);
+      return;
+    }
+    let valid = true;
+
+    const id = rawTrail.id;
+    if (typeof id !== 'string') {
+      errors.push(`${path}.id: expected a string`);
+      valid = false;
+    } else if (!TRAILID_PAT.test(id)) {
+      errors.push(`${path}.id: expected all lowercase letters`);
+      valid = false;
+    } else if (ids.has(id)) {
+      errors.push(`${path}.id: duplicate trail ID "${id}"`);
+      valid = false;
+    } else {
+      // reserve the trailId
+      ids.add(id);
+    }
+
+    const name = rawTrail.name;
+    if (typeof name !== 'string') {
+      errors.push(`${path}.name: expected a string`);
+      valid = false;
+    } else if (!TRAILNAME_PAT.test(rawTrail.name)) {
+      errors.push(`${path}.name: illegal characters`);
+      valid = false;
+    } else if (names.has(name)) {
+      errors.push(`${path}.name: duplicate trail name "${rawTrail.name}"`);
+      valid = false;
+    } else {
+      // reserve the trailName
+      names.add(name);
+    }
+
+    for (const key of Object.keys(rawTrail)) {
+      if (!TRAIL_KEYS.has(key)) {
+        errors.push(`${path}.${key}: unexpected field`);
+        valid = false;
+      }
+    }
+
+    if (valid) {
+      trails.push({
+        id: id,
+        name: name
+      });
+    }
+  });
+
+  return trails;
+}
+
+const POSTID_PAT = /^(?:P[1-9][0-9]?|[A-Z]{2,})$/;
+const POSTNAME_PAT = /^[A-Za-z]+(?:[ /][A-Za-z]+)*$/;
+const POST_KEYS = new Set(['id', 'name']);
+
+function validatePosts(rawPosts, errors) {
+  const posts = [];
+  const ids = new Set();
+  const names = new Set();
+
+  rawPosts.forEach((rawPost, index) => {
+    const path = `posts[${index}]`;
+
+    if (!isPlainObject(rawPost)) {
+      errors.push(`${path}: expected an object`);
+      return;
+    }
+
+    let valid = true;
+
+    const id = rawPost.id;
+    if (typeof id !== 'string') {
+      errors.push(`${path}.id: expected a string`);
+      valid = false;
+    } else if (!POSTID_PAT.test(id)) {
+      errors.push(`${path}.id: illegal id`);
+      valid = false;
+    } else if (ids.has(id)) {
+      errors.push(`${path}.id: duplicate post ID "${id}"`);
+      valid = false;
+    } else {
+      ids.add(id);
+    }
+    const idValid = valid;
+
+    let name = rawPost.name;
+    if (name === undefined) {
+      if (idValid) {
+         // id was good
+        name = id;
+        if (names.has(name)) {
+          errors.push(`${path}.name: duplicate post name "${name}"`);
+          valid = false;
+        } else {
+          names.add(name);
+        }
+      }
+    } else if (typeof name !== 'string') {
+      errors.push(`${path}.name: expected a string`);
+      valid = false;
+    } else if (!POSTNAME_PAT.test(name)) {
+      errors.push(`${path}.name: illegal characters`);
+      valid = false;
+    } else if (names.has(name)) {
+      errors.push(`${path}.name: duplicate post name "${name}"`);
+      valid = false;
+    } else {
+      names.add(name);
+    }
+
+    for (const key of Object.keys(rawPost)) {
+      if (!POST_KEYS.has(key)) {
+        errors.push(`${path}.${key}: unexpected field`);
+        valid = false;
+      }
+    }
+
+    if (valid) {
+      posts.push({
+        id: id,
+        name: name
+      });
+    }
+  });
+
+  return posts;
+}
+
+function processSegments(rawSegments, trailIds, postIds, errors) {
+  const directedSegments = [];
+  const connections = new Set();
+
+  rawSegments.forEach((rawSegment, index) => {
+    const segment = validateSegment(
+      rawSegment,
+      index,
+      trailIds,
+      postIds,
+      errors
+    );
+
+    if (!segment)
+      return;
+
+    const connectionKey = makeConnectionKey(segment);
+
+    if (connections.has(connectionKey)) {
+      errors.push(
+        `segments[${index}]: duplicate segment`
+      );
+      return;
+    }
+
+    connections.add(connectionKey);
+
+    directedSegments.push({
+      sourceIndex: index,
+      trailId: segment.trailId,
+      fromPost: segment.startPost,
+      toPost: segment.endPost,
+      length: segment.length
+    });
+
+    if (segment.startPost !== segment.endPost) {
+      directedSegments.push({
+        sourceIndex: index,
+        trailId: segment.trailId,
+        fromPost: segment.endPost,
+        toPost: segment.startPost,
+        length: segment.length
+      });
+    }
+  });
+
+  return directedSegments;
+}
+
+function validateSegment( rawSegment, index, trailIds, postIds, errors) {
+  const path = `segments[${index}]`;
+
+  if (!isPlainObject(rawSegment)) {
+      errors.push(`${path}: expected an object`);
+      return null;
+  }
+
+  let valid = true;
+
+  let startPostValid = false;
+
+  const startPost = rawSegment.startPost;
+  if (typeof startPost !== "string") {
+    errors.push(`${path}.startPost: expected a string`);
+    valid = false;
+  } else if (!postIds.has(startPost)) {
+    errors.push(`${path}.startPost: unknown post "${startPost}"`);
+    valid = false;
+  } else {
+    startPostValid = true;
+  }
+
+  const trailId = rawSegment.trailId;
+  if (typeof trailId !== "string") {
+    errors.push(`${path}.trailId: expected a string`);
+    valid = false;
+  } else if (!trailIds.has(trailId)) {
+    errors.push(`${path}.trailId: unknown trail "${trailId}"`);
+    valid = false;
+  }
+
+  let endPostValid = false;
+  const endPost = rawSegment.endPost;
+  if (typeof endPost !== "string") {
+    errors.push(`${path}.endPost: expected a string`);
+    valid = false;
+  } else if (!postIds.has(endPost)) {
+    errors.push(`${path}.endPost: unknown post "${endPost}"`);
+    valid = false;
+  } else {
+    endPostValid = true;
+  }
+
+  let lengthValid = false;
+  const length = rawSegment.length;
+  if (typeof length !== "number" || !Number.isFinite(length)) {
+    errors.push(`${path}.length: expected a finite number`);
+    valid = false;
+  } else if (length < 0) {
+    errors.push(`${path}.length: must not be negative`);
+    valid = false;
+  } else {
+    lengthValid = true;
+  }
+
+  if (startPostValid && endPostValid && lengthValid) {
+    if (startPost === endPost && length !== 0) {
+      errors.push(`${path}: a self-loop must have zero length`);
+      valid = false;
+    } else if (startPost !== endPost && length === 0) {
+      errors.push(`${path}: a zero-length segment must be a self-loop`);
+      valid = false;
+    }
+  }
+
+  for (const field of Object.keys(rawSegment)) {
+    if (
+      field !== 'startPost' &&
+      field !== 'trailId' &&
+      field !== 'endPost' &&
+      field !== 'length'
+    ) {
+      errors.push(`${path}.${field}: unexpected field`);
+      valid = false;
+    }
+  }
+  if (!valid)
+     return null;
+
+  return {
+    startPost,
+    trailId,
+    endPost,
+    length
+  };
+}
+
+function makeConnectionKey(segment) {
+  const first =
+    segment.startPost < segment.endPost
+      ? segment.startPost
+      : segment.endPost;
+
+  const second =
+    segment.startPost < segment.endPost
+      ? segment.endPost
+      : segment.startPost;
+
+  return `${segment.trailId}:${first}:${second}`;
+}
+
+function indexSegmentsByPost(directedSegments) {
+  const segmentsByPost = new Map();
+
+  for (const segment of directedSegments) {
+    let segments = segmentsByPost.get(segment.fromPost);
+
+    if (!segments) {
+      segments = [];
+      segmentsByPost.set(segment.fromPost, segments);
+    }
+
+    segments.push(segment);
+  }
+
+  return segmentsByPost;
+}
+
+function validatePostCoverage(posts, segmentsByPost, errors) {
+  for (const post of posts) {
+    if (!segmentsByPost.has(post.id)) {
+      errors.push(
+        `posts: post "${post.id}" is not used by any segment`
+      );
+    }
+  }
+}
+
+function validateTrailCoverage(
+  trails,
+  directedSegments,
+  errors
+) {
+  const usedTrailIds = new Set(
+    directedSegments.map(segment => segment.trailId)
+  );
+
+  for (const trail of trails) {
+    if (!usedTrailIds.has(trail.id)) {
+      errors.push(
+        `trails: trail "${trail.id}" is not used by any segment`
+      );
+    }
+  }
+}
+
+function validateStartingPoints(
+  rawStartingPoints,
+  trailIds,
+  postIds,
+  segmentsByPost,
+  errors
+) {
+  const startingPoints = [];
+  const startingPointKeys = new Set();
+
+  rawStartingPoints.forEach((rawStart, index) => {
+    const path = `startingPoints[${index}]`;
+
+    if (!isPlainObject(rawStart)) {
+      errors.push(`${path}: expected an object`);
+      return null;
+    }
+
+    let valid = true;
+
+    const postId = rawStart.postId;
+    if (typeof postId !== "string") {
+      errors.push(`${path}.postId: expected a string`);
+      valid = false;
+    } else if (!postIds.has(postId)) {
+      errors.push(`${path}.postId: unknown post "${postId}"`);
+      valid = false;
+    }
+
+    const trailId = rawStart.trailId;
+    if (typeof trailId !== "string") {
+      errors.push(`${path}.trailId: expected a string`);
+      valid = false;
+    } else if (!trailIds.has(trailId)) {
+      errors.push(`${path}.trailId: unknown trail "${trailId}"`);
+      valid = false;
+    }
+
+    for (const field of Object.keys(rawStart)) {
+      if (field !== 'postId' && field !== 'trailId') {
+        errors.push(`${path}.${field}: unexpected field`);
+        valid = false;
+      }
+    }
+
+    if (!valid)
+      return;
+
+    const edges = segmentsByPost.get(postId);
+    if (!edges || !edges.some(edge => edge.trailId === trailId)) {
+      errors.push(`${path}: trail "${trailId}" does not meet post "${postId}"`);
+      return;
+    }
+
+    const key = `${postId}:${trailId}`;
+    if (startingPointKeys.has(key)) {
+      errors.push(`${path}: duplicate starting point ${key}`);
+      return;
+    }
+    startingPointKeys.add(key);
+    startingPoints.push({ postId, trailId });
+  });
+
+  return startingPoints;
+}
+
+function validateParticipantInput(event) {
+  validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
+}
+
+function validateTextInput(event, allowed) {
+  // deletes/backspace
+  if (event.inputType?.startsWith("delete"))
+    return;
+
+  // IME/autocomplete
+  if (!event.data)
+    return;
+
+  // what input field?
+  const input = event.target;
+
+  // normalize punctuation
+  const c = normalizeInputChar(event.data);
+
+  if (c !== event.data) {
+    event.preventDefault();
+    input.setRangeText(c, input.selectionStart, input.selectionEnd, "end");
+  }
+
+  // validate normalized char against allowed regex
+  if (!allowed.test(c)) {
+    event.preventDefault();
+    flashInvalidTextInput(input);
+  }
 }
 
 function assertString(value, name) {
@@ -778,37 +1249,6 @@ function validateSearchInput(event) {
   validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
 }
 
-function validateParticipantInput(event) {
-  validateTextInput(event, /^[a-zA-Z\s,.\-/'’]+$/);
-}
-
-function validateTextInput(event, allowed) {
-  // deletes/backspace
-  if (event.inputType?.startsWith("delete"))
-    return;
-
-  // IME/autocomplete
-  if (!event.data)
-    return;
-
-  // what input field?
-  const input = event.target;
-
-  // normalize punctuation
-  const c = normalizeInputChar(event.data);
-
-  if (c !== event.data) {
-    event.preventDefault();
-    input.setRangeText(c, input.selectionStart, input.selectionEnd, "end");
-  }
-
-  // validate normalized char against allowed regex
-  if (!allowed.test(c)) {
-    event.preventDefault();
-    flashInvalidTextInput(input);
-  }
-}
-
 function normalizeInputChar(c) {
   switch (c) {
     case "‘":
@@ -823,6 +1263,14 @@ function normalizeInputChar(c) {
 
     default:
       return c;
+  }
+}
+
+class DataValidationError extends Error {
+  constructor(message, details) {
+    super(message);
+    this.name = "DataValidationError";
+    this.details = details;
   }
 }
 
@@ -2519,8 +2967,12 @@ function normalizeImportedLogEntry(entry, path) {
   };
 }
 
+function isPlainObject(value) {
+  return (value !== null && typeof value === 'object' && !Array.isArray(value));
+}
+
 function requirePlainObject(value, name) {
-  if (value === null || typeof value !== "object" || Array.isArray(value))
+  if (!isPlainObject(value))
     throw new Error(`Invalid ${name}`);
 
   return value;
