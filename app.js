@@ -1906,6 +1906,10 @@ function createSurvey() {
       weather: "",
       notes: ""
     },
+    route: {
+      currentLeg: {},
+      Legs: []
+    },
     trailLogs: {}
   };
 }
@@ -1955,9 +1959,11 @@ function storeSurvey() {
   if (!survey)
     return;
 
+  storePhase();
   storeStartNote();
   storeTrailNotes();
   storeCloseNote();
+  storeRoute();
   storeTrailLogs();
 }
 
@@ -1975,6 +1981,7 @@ function loadSurvey() {
     survey.startNote = loadStartNote();
     survey.closeNote = loadCloseNote();
     survey.trailNotes = loadTrailNotes();
+    survey.route = loadRoute();
     survey.trailLogs = loadTrailLogs();
 
     return survey;
@@ -1991,6 +1998,7 @@ function clearStoredSurvey() {
   localStorage.removeItem(storageKey("startNote"));
   localStorage.removeItem(storageKey("closeNote"));
   localStorage.removeItem(storageKey("trailNotes"));
+  localStorage.removeItem(storageKey("route"));
   localStorage.removeItem(storageKey("trailLogs"));
 }
 
@@ -2022,6 +2030,10 @@ function loadPhase() {
     throw new Error("Bad survey phase");
 
   return phase;
+}
+
+function storePhase() {
+  localStorage.setItem(storageKey('phase'), JSON.stringify(survey.phase));
 }
 
 function loadStartNote() {
@@ -2072,8 +2084,22 @@ function loadTrailNotes() {
   return notes;
 }
 
-function storeTrailLogs() {
-  localStorage.setItem(storageKey('trailLogs'), JSON.stringify(survey.trailLogs));
+function loadRoute() {
+
+  const route = loadSection(storageKey("route"));
+
+  if (!isPlainObject(route))
+    throw new Error("Bad stored route");
+  
+  if (!isPlainObject(route.currentLeg))
+    throw new Error("Bad route.currentLeg");
+
+  if (!Array.isArray(route.Legs))
+     throw new Error("Invalid route.legs");
+
+  // should check the legs to make sure they're all appropriate object
+
+  return route;
 }
 
 function loadTrailLogs() {
@@ -2100,10 +2126,6 @@ function loadTrailLogs() {
   return trailLogs;
 }
 
-function storePhase() {
-  localStorage.setItem(storageKey('phase'), JSON.stringify(survey.phase));
-}
-
 function storeStartNote() {
   localStorage.setItem(storageKey('startNote'), JSON.stringify(survey.startNote));
 }
@@ -2116,6 +2138,10 @@ function storeTrailNotes() {
   localStorage.setItem(storageKey('trailNotes'), JSON.stringify(survey.trailNotes));
 }
 
+function storeRoute() {
+  localStorage.setItem(storageKey('route'). JSON.stringify(survey.route));
+}
+
 function storageKey(key) {
   return `${STORAGE_TAG}:${key}`;
 }
@@ -2125,6 +2151,12 @@ function storeTrailLog(trailId) {
   // Right now we store all the trails at once
   // later we may store trails individually
   storeTrailLogs();
+}
+
+function storeTrailLogs() {
+  localStorage.setItem(
+    storageKey('trailLogs'), JSON.stringify(survey.trailLogs)
+  );
 }
 
 function storeTrailLogLater(trailId) {
