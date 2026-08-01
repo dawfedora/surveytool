@@ -1483,6 +1483,7 @@ function storeSurvey() {
   if (!survey)
     return;
 
+  storePhase();
   storeStartNote();
   storeTrailNotes();
   storeCloseNote();
