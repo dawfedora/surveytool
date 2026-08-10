@@ -3,11 +3,12 @@
 
 <head>
 
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
 
   <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0,viewport-fit=cover"
-  />
+    content="width=device-width, initial-scale=1.0,
+    maximum-scale=1.0,viewport-fit=cover"
+  >
 
   <title>Edgewood Survey Tool</title>
 
@@ -108,7 +109,8 @@
       gap: 4px;
     }
 
-    .headerActions button {
+    .headerActions button,
+    .headerActions select {
       padding: 4px 8px;
       font-size: 0.8em;
     }
@@ -293,17 +295,6 @@
       min-height: 0;
     }
 
-    .noteActions {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-
-    .noteActions button {
-      padding: 4px 8px;
-      font-size: 0.8em;
-    }
-
     .longNote {
       min-height: 8em;
     }
@@ -391,13 +382,18 @@
     </div>
 
     <div class="headerActions">
-      <button id="modeBtn" hidden>Notes</button>
+      <select id="viewSelect" aria-label="View" hidden>
+        <option value="LOG" selected>Log</option>
+        <option value="NOTES">Notes</option>
+        <option value="REVIEW">Review</option>
+      </select>
       <button id="newBtn" hidden>New Survey</button>
       <button id="refreshBtn" hidden>Refresh</button>
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
       <button id="importBtn" hidden>Import</button>
-      <input id="importInput" type="file" accept="application/json,.json" hidden />
+      <input id="importInput" type="file"
+        accept="application/json,.json" hidden >
     </div>
 
   </div> <!-- #globalHeader -->
@@ -426,7 +422,7 @@
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
-      />
+      >
       <button id="clearSearch" type="button" aria-label="Clear search">
         X
       </button>
@@ -443,38 +439,20 @@
   </div> <!-- #logView -->
 
   <div id="notesView" hidden>
-
-      <!-- notes buttons -->
-    <div class = "noteActions">
-      <button id="startBtn">Start Note</button>
-      <button id="trailBtn">Trail Notes</button>
-      <button id="closeBtn">Closing Note</button>
-    </div>
-
-    <div id="startPanel">
-      <input id="startDate" />
-      <input id="startTime" />
-      <input id="startWeather" placeholder="75 F, partly cloudy" />
+    <div id="notesPanel">
+      <input id="startDate">
       <div class="participantWrapper">
         <textarea id="participants" rows="2" placeholder="Participants"></textarea>
         <div id="participantResults"
           class="participantResults">
         </div>
       </div>
-      <textarea id="startNote" class="longNote" placeholder="Starting notes"></textarea>
+      <input id="startTime">
+      <input id="startWeather" placeholder="55 F, partly cloudy">
+      <input id="closeTime">
+      <input id="closeWeather" placeholder="88 F, sunny">	
+      <textarea id="notes" class="longNote" placeholder="Notes"></textarea>
     </div>
-
-    <div id="trailPanel" hidden>
-      <select id="notesTrailSelect" hidden></select>
-      <textarea id="trailNotes" class="longNote" placeholder="Notes..." ></textarea>
-    </div>
-
-    <div id="closePanel"  hidden>
-      <input id="closeTime" />
-      <input id="closeWeather" placeholder="82 F, sunny" />	
-      <textarea id="closeNote" class="longNote" placeholder="Closing notes"></textarea>
-    </div>
-
   </div> <!-- #notesView -->
 
   <script src="shell-config.js"></script>
