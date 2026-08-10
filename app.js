@@ -1946,7 +1946,7 @@ function storeSurvey() {
   storeStartNote();
   storeTrailNotes();
   storeCloseNote();
-  storeRoute();
+//  storeRoute();
   storeTrailLogs();
 }
 
