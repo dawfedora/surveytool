@@ -16,11 +16,11 @@ const SURVEY_PHASE = {
   DONE: "done"
 };
 
-const MODE = {
+const VIEW = {
   LOG: "log",
   NOTES: "notes"
 };
-let currentMode = MODE.LOG;
+let currentView = VIEW.LOG;
 
 const NOTE_PANEL = {
   START: "start",
@@ -250,7 +250,7 @@ function renderActiveState() {
 
   syncTrailSelectors();
   renderControls();
-  renderMode();
+  renderView();
 
   clearStateMessage();
   setStatus("Active Survey");
@@ -262,7 +262,7 @@ function renderControls() {
   ui.header.refreshBtn.hidden = false;
 
   ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
-  ui.header.modeBtn.hidden = !active;
+  ui.header.viewSelect.hidden = !active;
 
   ui.header.endBtn.hidden = !(active && survey.phase === SURVEY_PHASE.FIELD);
   ui.header.saveBtn.hidden = !(active && survey.phase === SURVEY_PHASE.END);
@@ -281,7 +281,7 @@ function initUI() {
 
   ui.header = {
     panel: document.getElementById("globalHeader"),
-    modeBtn: document.getElementById("modeBtn"),
+    viewSelect: document.getElementById("viewSelect"),
     newBtn: document.getElementById("newBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     endBtn: document.getElementById("endBtn"),
@@ -310,30 +310,13 @@ function initUI() {
 
   ui.notes = {
     panel: document.getElementById('notesView'),
-    buttons: {
-      start: document.getElementById('startBtn'),
-      trail: document.getElementById('trailBtn'),
-      close: document.getElementById('closeBtn')
-    },
-    start: {
-      panel: document.getElementById('startPanel'),
-      date: document.getElementById('startDate'),
-      time: document.getElementById('startTime'),
-      weather: document.getElementById('startWeather'),
-      participants: document.getElementById('participants'),
-      notes: document.getElementById('startNote')
-    },
-    trail: {
-      panel: document.getElementById('trailPanel'),
-      trailSelect: document.getElementById('notesTrailSelect'),
-      notes: document.getElementById('trailNotes')
-    },
-    close: {
-      panel: document.getElementById('closePanel'),
-      time: document.getElementById('closeTime'),
-      weather: document.getElementById('closeWeather'),
-      notes: document.getElementById('closeNote')
-    }
+    date: document.getElementById('startDate'),
+    participants: document.getElementById('participants'),
+    starttime: document.getElementById('startTime'),
+    startweather: document.getElementById('startWeather'),
+    closetime: document.getElementById('closeTime'),
+    closeweather: document.getElementById('closeWeather'),
+    notes: document.getElementById('notes')
   };
 }
 
@@ -360,7 +343,10 @@ function initHeader() {
   headerInitialized = true;
 
   // Hook up buttons
-  ui.header.modeBtn.addEventListener('click', toggleMode);
+  ui.header.viewSelect.addEventListener('change', event => {
+    currentView = event.target.value;
+    renderView();
+  });
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
   ui.header.saveBtn.addEventListener('click', saveSurvey);
@@ -1378,25 +1364,22 @@ function isValidSurveyPhase(phase) {
 }
 
 // --- MODE, TRAIL, and VIEW RENDERING
-function toggleMode() {
-  currentMode =
-    currentMode === MODE.LOG
-      ? MODE.NOTES
-      : MODE.LOG;
-  renderMode();
-}
-
-function renderMode() {
-  if (currentMode === MODE.LOG) {
+function renderView() {
+  if (currentView === VIEW.LOG) {
     ui.log.panel.hidden = false;
     ui.notes.panel.hidden = true;
-    ui.header.modeBtn.textContent = 'Notes';
+    ui.review.panel.hidden = true;
     renderLogView();
-  } else {
+  } else if (currentView === VIEW.Notes) {
     ui.log.panel.hidden = true;
     ui.notes.panel.hidden = false;
-    ui.header.modeBtn.textContent = 'Log';
+    ui.review.panel.hidden = true;
     renderNotesView();
+  } else if (currentView === VIEW.REVIEW) {
+    ui.log.panel.hidden = true;
+    ui.notes.panel.hidden = true;
+    ui.review.panel.hidden = false;
+    renderRouteView();
   }
 }
 
@@ -1523,6 +1506,9 @@ function renderNotesView() {
     ui.notes.buttons.close.classList.add('activeNoteBtn');
     renderCloseNote();
   }
+}
+
+function renderRouteView() {
 }
 
 function showNotesPanel(panel) {
@@ -1932,7 +1918,7 @@ function newSurvey() {
   survey = createSurvey();
   setCurrentTrail(null);
 
-  currentMode = MODE.NOTES;
+  currentView = VIEW.NOTES;
 
   storeSurvey();
   localStorage.setItem(storageKey("surveyExists"), "true");
@@ -1950,9 +1936,9 @@ function endSurvey() {
   survey.closeNote.time = formatTime(now);
 
   setSurveyPhase(SURVEY_PHASE.END);
-  currentMode = MODE.NOTES;
+  currentView = VIEW.NOTES;
   currentNotePanel = NOTE_PANEL.CLOSE;
-  renderMode();
+  renderView();
 }
 
 function storeSurvey() {
@@ -2907,11 +2893,11 @@ async function importSurveyFile(event) {
     storeSurvey();
     localStorage.setItem(storageKey("surveyExists"), "true");
 
-    currentMode = MODE.NOTES;
+    currentView = VIEW.NOTES;
     currentNotePanel = NOTE_PANEL.START;
 
     setAppState(APP_STATE.ACTIVE);
-    renderMode();
+    renderView();
     showMessage(`Imported ${file.name}`, 5000);
 
   } catch(e) {
