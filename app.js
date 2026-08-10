@@ -268,10 +268,7 @@ function renderControls() {
   ui.header.saveBtn.hidden = !(active && survey.phase === SURVEY_PHASE.END);
 
   ui.log.search.disabled = !(active && survey.phase !== SURVEY_PHASE.START);
-  ui.notes.trail.notes.disabled =
-    !(active && survey.phase !== SURVEY_PHASE.START);
   ui.log.trailSelect.disabled = !active;
-  ui.notes.trail.trailSelect.disabled = !active;
 }
 
 // --- UI Wiring ---
