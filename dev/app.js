@@ -116,7 +116,7 @@ async function init() {
 
   survey = loadSurvey();
 
-  if (!survey) {
+  if (survey) {
     setCurrentTrail(null);
     setAppState(APP_STATE.EMPTY);
     return;
@@ -1772,7 +1772,7 @@ function createSurvey() {
     },
     route: {
       currentLeg: {},
-      Legs: []
+      legs: []
     },
     trailLogs: {}
   };
