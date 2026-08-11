@@ -1958,7 +1958,7 @@ function loadTrailLogs() {
 }
 
 function storeNotes() {
-  localStorage.setItem(storageKey('notes'), JSON.stringify(survey.Notes));
+  localStorage.setItem(storageKey('notes'), JSON.stringify(survey.notes));
 }
 
 function storeRoute() {
