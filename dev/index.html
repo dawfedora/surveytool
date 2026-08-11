@@ -68,15 +68,13 @@
     .headerTop {
       display: flex;
       align-items: center;
-      gap: 8px;
-      justify-content: space-between;
       gap: clamp(8px, calc(3.33vw - 2.67px), 12px);
     }
 
 /* logo + title group */
     .headerIdentity {
       display: flex;
-      flex: 0 0 auto;
+      flex: 1 1 auto;
       align-items: center;
       gap: clamp(8px, calc(3.33vw - 2.67px), 12px);
     }
@@ -88,10 +86,13 @@
     }
 
     .title {
+      flex: 1 1 auto;
+      min-width: max-content;
+      text-align: center;
+      white-space: nowrap;
       font-size: clamp(16px, calc(3.33vw + 8.53px), 0.9rem);
       line-height: 1;
       font-weight: 600;
-      white-space: nowrap;
     }
 
     .headerMeta {
