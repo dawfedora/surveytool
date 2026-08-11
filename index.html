@@ -124,16 +124,16 @@
 
     .headerActions button,
     .headerActions select {
-      padding: 4px 8px;
-      font-size: 0.8em;
+      padding: 4px 4px;
+      font-size: 1rem;
     }
 
 /* messages */
     #stateMessagePanel {
-      padding: 8px 10px;
+      padding: 8px 4px;
       border: 1px solid #d8b45a;
       background: #fff7d6;
-      font-size: 0.9rem;
+      font-size: 1rem;
       line-height: 1.25;
     }
     /* if we decide we need #bootFallback or #messagePanel, they go here */
@@ -313,43 +313,57 @@
       min-height: 0;
     }
 
+    #notesPanel {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
     #notesPanel > input,
     #notesPanel > textarea,
     .participantWrapper,
     .participantWrapper textarea {
       box-sizing: border-box;
-      max-width: 100%;
       width: 100%;
     }
 
     .longNote {
       min-height: 8em;
+      resize: vertical;
+    }
+
+    .participantWrapper {
+      position: relative;
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    #participants {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 2.5em;
+      resize: vertical;
     }
 
     .participantResults {
       position: absolute;
+      top: 100%;
       left: 0;
       right: 0;
-      background: #eef5ff;
-      border: 1px solid #ccc;
+      z-index: 2000;
+
       max-height: 200px;
       overflow-y: auto;
-      z-index: 2000;
-    }
-    .participantWrapper {
-      position: relative;
-    }
-    #participants {
-      width: 100%;
-      resize: vertical;
-      min-height: 2.5em;
+
+      background: #eef5ff;
+      border: 1px solid #ccc;
     }
 
     .surveyTimeRow {
       display: grid;
-      grid-template-columns: max-content max-content minmax(0, 1fr);
+      grid-template-columns: max-content 5.5rem minmax(0, 1fr);
       column-gap: 0.35rem;
-      align-items: center;
+      align-items: baseline;
       width: 100%;
     }
 
@@ -362,6 +376,7 @@
     .surveyTimeRow input {
       box-sizing: border-box;
       min-width: 0;
+      width: 100%;
       padding: 8px 4px;
       margin-bottom: 0;
     }
