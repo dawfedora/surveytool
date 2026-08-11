@@ -1317,12 +1317,12 @@ function renderView() {
   if (currentView === VIEW.LOG) {
     ui.log.panel.hidden = false;
     ui.notes.panel.hidden = true;
-    ui.route.panel.hidden = true;
+//    ui.route.panel.hidden = true;
     renderLogView();
   } else if (currentView === VIEW.NOTES) {
     ui.log.panel.hidden = true;
     ui.notes.panel.hidden = false;
-    ui.route.panel.hidden = true;
+//    ui.route.panel.hidden = true;
     renderNotesView();
   } else if (currentView === VIEW.ROUTE) {
     ui.log.panel.hidden = true;
