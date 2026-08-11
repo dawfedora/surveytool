@@ -296,7 +296,7 @@ function initUI() {
 
   ui.notes = {
     panel: document.getElementById('notesView'),
-    date: document.getElementById('startDate'),
+    date: document.getElementById('date'),
     participants: document.getElementById('participants'),
     startTime: document.getElementById('startTime'),
     startWeather: document.getElementById('startWeather'),
