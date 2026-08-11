@@ -262,6 +262,11 @@
       box-sizing: border-box;
     }
 
+    .headerActions select {
+      width: auto;
+      margin-bottom: 0;
+    }
+
     textarea {
       box-sizing: border-box;
       padding: 10px;
@@ -410,9 +415,9 @@
 
     <div class="headerActions">
       <select id="viewSelect" aria-label="View" hidden>
-        <option value="LOG" selected>Log</option>
-        <option value="NOTES">Notes</option>
-        <option value="ROUTE">Route</option>
+        <option value="log">Log</option>
+        <option value="notes">Notes</option>
+        <option value="route" disabled>Route</option>
       </select>
       <button id="newBtn" hidden>New Survey</button>
       <button id="refreshBtn" hidden>Refresh</button>

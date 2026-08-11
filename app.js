@@ -116,7 +116,7 @@ async function init() {
 
   survey = loadSurvey();
 
-  if (survey) {
+  if (!survey) {
     setCurrentTrail(null);
     setAppState(APP_STATE.EMPTY);
     return;
@@ -383,20 +383,36 @@ function initNotesView() {
 
   const n = ui.notes;
 
-  n.date.addEventListener("input", makeInputHdlr(() => survey?.notes, "date", storeNotesLater));
+  n.date.addEventListener("input", makeInputHdlr(
+    () => survey?.notes, "date", storeNotesLater));
   n.date.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.date.addEventListener("keydown", finishFieldOnEnter);
-  n.startTime.addEventListener("input", makeInputHdlr(() => survey?.notes, "startTime", storeNotesLater));
-  n.startTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
-  n.startTime.addEventListener("keydown", finishFieldOnEnter);
-  n.startWeather.addEventListener( "input", makeInputHdlr(() => survey?.notes, "startWeather", storeNotesLater));
-  n.startWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
-  n.startWeather.addEventListener("keydown", finishFieldOnEnter);
-  n.notes.addEventListener("input", makeInputHdlr(() => survey?.notes, "notes", storeNotesLater));
 
-  n.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeNotesLater));
+  n.participants.addEventListener("input", makeInputHdlr(
+    () => survey?.notes, "participants", storeNotesLater));
   n.participants.addEventListener("beforeinput", validateParticipantInput);
   n.participants.addEventListener("input", debounce(handleParticipantInput, 50));
+
+  n.startTime.addEventListener("input", makeInputHdlr(
+    () => survey?.notes, "startTime", storeNotesLater));
+  n.startTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.startTime.addEventListener("keydown", finishFieldOnEnter);
+
+  n.startWeather.addEventListener( "input", makeInputHdlr(
+    () => survey?.notes, "startWeather", storeNotesLater));
+  n.startWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.startWeather.addEventListener("keydown", finishFieldOnEnter);
+
+  n.endTime.addEventListener("input", makeInputHdlr(() => survey?.notes, "endTime", storeNotesLater));
+  n.endTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.endTime.addEventListener("keydown", finishFieldOnEnter);
+
+  n.endWeather.addEventListener( "input", makeInputHdlr(() => survey?.notes, "startWeather", storeNotesLater));
+  n.endWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.endWeather.addEventListener("keydown", finishFieldOnEnter);
+
+  n.notes.addEventListener("input", makeInputHdlr(() => survey?.notes, "notes", storeNotesLater));
+
   document.addEventListener("click", hideParticipantResults);
 }
 
@@ -1296,20 +1312,22 @@ function isValidSurveyPhase(phase) {
 
 // --- MODE, TRAIL, and VIEW RENDERING
 function renderView() {
+  ui.header.viewSelect.value = currentView;
+
   if (currentView === VIEW.LOG) {
     ui.log.panel.hidden = false;
     ui.notes.panel.hidden = true;
     ui.review.panel.hidden = true;
     renderLogView();
-  } else if (currentView === VIEW.Notes) {
+  } else if (currentView === VIEW.NOTES) {
     ui.log.panel.hidden = true;
     ui.notes.panel.hidden = false;
     ui.review.panel.hidden = true;
     renderNotesView();
-  } else if (currentView === VIEW.REVIEW) {
+  } else if (currentView === VIEW.ROUTE) {
     ui.log.panel.hidden = true;
     ui.notes.panel.hidden = true;
-    ui.review.panel.hidden = false;
+    ui.route.panel.hidden = false;
     renderRouteView();
   }
 }
@@ -1361,9 +1379,6 @@ function syncTrailSelectors() {
 
   if (ui.log.trailSelect)
     ui.log.trailSelect.value = value;
-
-  if (ui.notes.trail.trailSelect)
-    ui.notes.trail.trailSelect.value = value;
 }
 
 function populateTrailSelector(select) {
@@ -1811,11 +1826,10 @@ function endSurvey() {
 
   const now = new Date();
 
-  survey.note.endTime = formatTime(now);
+  survey.notes.endTime = formatTime(now);
 
   setSurveyPhase(SURVEY_PHASE.END);
   currentView = VIEW.NOTES;
-//  currentNotePanel = NOTE_PANEL.CLOSE;
   renderView();
 }
 
@@ -1925,7 +1939,7 @@ function loadRoute() {
   if (!isPlainObject(route.currentLeg))
     throw new Error("Bad route.currentLeg");
 
-  if (!Array.isArray(route.Legs))
+  if (!Array.isArray(route.legs))
      throw new Error("Invalid route.legs");
 
   // should check the legs to make sure they're all appropriate object
@@ -1962,7 +1976,7 @@ function storeNotes() {
 }
 
 function storeRoute() {
-  localStorage.setItem(storageKey('route'). JSON.stringify(survey.route));
+  localStorage.setItem(storageKey('route'), JSON.stringify(survey.route));
 }
 
 function storageKey(key) {
@@ -2188,7 +2202,7 @@ function matchParticipants(input) {
 
 function renderParticipantResults(list) {
 
-  const box = ui.notes.start.participants.parentElement.querySelector("#participantResults");
+  const box = ui.notes.participants.parentElement.querySelector("#participantResults");
 
   box.innerHTML = "";
 
@@ -2228,7 +2242,7 @@ function insertParticipant(name) {
 
   input.value = pieces.join(", ") + ", ";
 
-  survey.note.participants = input.value;
+  survey.notes.participants = input.value;
   storeNotes();
 
   input.focus();
@@ -2455,7 +2469,7 @@ async function saveSurvey() {
 }
   
 function surveyDateForFilename(data) {
-  const date = (data?.note?.date || '').trim();
+  const date = (data?.notes?.date || '').trim();
 
   const match = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
@@ -2728,9 +2742,6 @@ async function importSurveyFile(event) {
 
     storeSurvey();
     localStorage.setItem(storageKey("surveyExists"), "true");
-
-//    currentView = VIEW.NOTES;
-//    currentNotePanel = NOTE_PANEL.START;
 
     setAppState(APP_STATE.ACTIVE);
     renderView();
