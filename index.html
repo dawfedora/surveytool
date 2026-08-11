@@ -295,6 +295,15 @@
       min-height: 0;
     }
 
+    #notesPanel > input,
+    #notesPanel > textarea,
+    .participantWrapper,
+    .participantWrapper textarea {
+      box-sizing: border-box;
+      max-width: 100%;
+      width: 100%;
+    }
+
     .longNote {
       min-height: 8em;
     }
@@ -317,6 +326,24 @@
       resize: vertical;
       min-height: 2.5em;
     }
+
+  .surveyTimeRow {
+    display: grid;
+    grid-template-columns: 2.75rem 5.25rem minmax(0, 1fr);
+    gap: 0.35rem;
+    align-items: center;
+    width: 100%;
+  }
+
+  .surveyTimeRow input {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .surveyTimeRow label {
+    white-space: nowrap;
+  }
 
 /* Choice dialog */
     .choiceOverlay {
@@ -385,7 +412,7 @@
       <select id="viewSelect" aria-label="View" hidden>
         <option value="LOG" selected>Log</option>
         <option value="NOTES">Notes</option>
-        <option value="REVIEW">Review</option>
+        <option value="ROUTE">Route</option>
       </select>
       <button id="newBtn" hidden>New Survey</button>
       <button id="refreshBtn" hidden>Refresh</button>
@@ -440,18 +467,33 @@
 
   <div id="notesView" hidden>
     <div id="notesPanel">
-      <input id="startDate">
+      <input id="date" aria-label="Survey date">
+
       <div class="participantWrapper">
-        <textarea id="participants" rows="2" placeholder="Participants"></textarea>
-        <div id="participantResults"
-          class="participantResults">
-        </div>
+        <textarea id="participants" rows="2" placeholder="Participants"
+          aria-label="Participants">
+        </textarea>
+        <div id="participantResults" class="participantResults" ></div>
       </div>
-      <input id="startTime">
-      <input id="startWeather" placeholder="55 F, partly cloudy">
-      <input id="closeTime">
-      <input id="closeWeather" placeholder="88 F, sunny">	
-      <textarea id="notes" class="longNote" placeholder="Notes"></textarea>
+
+      <div class="surveyTimeRow">
+        <label for="startTime">Start</label>
+        <input id="startTime">
+        <input id="startWeather" placeholder="55 F, partly cloudy" 
+          aria-label="Starting weather">
+      </div>
+
+      <div class="surveyTimeRow">
+        <label for="endTime">End</label>
+        <input id="endTime">
+        <input id="endWeather" placeholder="88 F, sunny"
+          aria-label="Ending weather">
+      </div>
+
+      <textarea id="notes" class="longNote" placeholder="Notes"
+        aria-label="Survey notes">
+      </textarea>
+
     </div>
   </div> <!-- #notesView -->
 

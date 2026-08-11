@@ -18,26 +18,17 @@ const SURVEY_PHASE = {
 
 const VIEW = {
   LOG: "log",
-  NOTES: "notes"
+  NOTES: "notes",
+  ROUTE: "route"
 };
 let currentView = VIEW.LOG;
-
-const NOTE_PANEL = {
-  START: "start",
-  TRAIL: "trail",
-  CLOSE: "close"
-};
-let currentNotePanel = NOTE_PANEL.START;
 
 const ui = {
   header: {},
   message: {},
   log: {},
-  notes: {
-    start:{},
-    trail: {},
-    close: {}
-  }
+  notes: {},
+  route: {}
 };
 
 let  STORAGE_TAG = null;
@@ -59,9 +50,7 @@ let activeChoiceOverlay = null;
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
-const storeStartNoteLater = flushableDebounce(storeStartNote, 1500, pendingStores);
-const storeCloseNoteLater = flushableDebounce(storeCloseNote, 1500, pendingStores);
-const storeTrailNotesLater = flushableDebounce(storeTrailNotes, 1500, pendingStores);
+const storeNotesLater = flushableDebounce(storeNotes, 1500, pendingStores);
 const storeTrailLogsLater = flushableDebounce(storeTrailLogs, 1500, pendingStores);
 
 document.addEventListener("DOMContentLoaded", init);
@@ -241,12 +230,12 @@ function renderActiveState() {
 
   initializeSurveyPhase();
 
-  if (survey.phase === SURVEY_PHASE.START)
-    currentNotePanel = NOTE_PANEL.START;
-  else if (survey.phase === SURVEY_PHASE.END)
-    currentNotePanel = NOTE_PANEL.CLOSE;
-  else
-    currentNotePanel = NOTE_PANEL.TRAIL;
+//  if (survey.phase === SURVEY_PHASE.START)
+//    currentNotePanel = NOTE_PANEL.START;
+//  else if (survey.phase === SURVEY_PHASE.END)
+//    currentNotePanel = NOTE_PANEL.CLOSE;
+//  else
+//    currentNotePanel = NOTE_PANEL.TRAIL;
 
   syncTrailSelectors();
   renderControls();
@@ -309,10 +298,10 @@ function initUI() {
     panel: document.getElementById('notesView'),
     date: document.getElementById('startDate'),
     participants: document.getElementById('participants'),
-    starttime: document.getElementById('startTime'),
-    startweather: document.getElementById('startWeather'),
-    closetime: document.getElementById('closeTime'),
-    closeweather: document.getElementById('closeWeather'),
+    startTime: document.getElementById('startTime'),
+    startWeather: document.getElementById('startWeather'),
+    endTime: document.getElementById('endTime'),
+    endWeather: document.getElementById('endWeather'),
     notes: document.getElementById('notes')
   };
 }
@@ -391,59 +380,24 @@ function initNotesView() {
     return;
   notesViewInitialized = true;
 
-  ui.notes.buttons.start.addEventListener("click", () => {
-    showNotesPanel(NOTE_PANEL.START);
-  });
-  ui.notes.buttons.trail.addEventListener("click", () => {
-    showNotesPanel(NOTE_PANEL.TRAIL);
-  });
-  ui.notes.buttons.close.addEventListener("click", () => {
-    showNotesPanel(NOTE_PANEL.CLOSE);
-  });
 
-  populateTrailSelector(ui.notes.trail.trailSelect);
+  const n = ui.notes;
 
-  initStartNote();
-  initTrailNote();
-  initCloseNote();
-}
+  n.date.addEventListener("input", makeInputHdlr(() => survey?.notes, "date", storeNotesLater));
+  n.date.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.date.addEventListener("keydown", finishFieldOnEnter);
+  n.time.addEventListener("input", makeInputHdlr(() => survey?.notes, "startTime", storeNotesLater));
+  n.startTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.startTime.addEventListener("keydown", finishFieldOnEnter);
+  n.startWeather.addEventListener( "input", makeInputHdlr(() => survey?.notes, "startWeather", storeNotesLater));
+  n.startWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
+  n.startWeather.addEventListener("keydown", finishFieldOnEnter);
+  n.notes.addEventListener("input", makeInputHdlr(() => survey?.notes, "notes", storeNotesLater));
 
-function initStartNote() {
-
-  const s = ui.notes.start;
-
-  s.date.addEventListener("input", makeInputHdlr(() => survey?.startNote, "date", storeStartNoteLater));
-  s.date.addEventListener("blur", finishFieldOnBlur(focusNextStartField));
-  s.date.addEventListener("keydown", finishFieldOnEnter);
-  s.time.addEventListener("input", makeInputHdlr(() => survey?.startNote, "time", storeStartNoteLater));
-  s.time.addEventListener("blur", finishFieldOnBlur(focusNextStartField));
-  s.time.addEventListener("keydown", finishFieldOnEnter);
-  s.weather.addEventListener( "input", makeInputHdlr(() => survey?.startNote, "weather", storeStartNoteLater));
-  s.weather.addEventListener("blur", finishFieldOnBlur(focusNextStartField));
-  s.weather.addEventListener("keydown", finishFieldOnEnter);
-  s.notes.addEventListener("input", makeInputHdlr(() => survey?.startNote, "notes", storeStartNoteLater));
-
-  s.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeStartNoteLater));
-  s.participants.addEventListener("beforeinput", validateParticipantInput);
-  s.participants.addEventListener("input", debounce(handleParticipantInput, 50));
+  n.participants.addEventListener("input", makeInputHdlr(() => survey?.startNote, "participants", storeNotesLater));
+  n.participants.addEventListener("beforeinput", validateParticipantInput);
+  n.participants.addEventListener("input", debounce(handleParticipantInput, 50));
   document.addEventListener("click", hideParticipantResults);
-}
-
-function initTrailNote() {
-  const t = ui.notes.trail;
-
-  t.notes.addEventListener("input", makeTrailNoteHdlr(storeTrailNotesLater));
-}
-
-function initCloseNote() {
-
-  const c = ui.notes.close;
-
-  c.time.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "time", storeCloseNoteLater));
-  c.time.addEventListener("blur", finishFieldOnBlur(focusNextCloseField));
-  c.weather.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "weather", storeCloseNoteLater));
-  c.weather.addEventListener("blur", finishFieldOnBlur(focusNextCloseField));
-  c.notes.addEventListener("input", makeInputHdlr(() => survey?.closeNote, "notes", storeCloseNoteLater));
 }
 
 function makeInputHdlr(getTarget, key, persist) {
@@ -453,20 +407,6 @@ function makeInputHdlr(getTarget, key, persist) {
       return;
 
     target[key] = event.target.value;
-    persist();
-  };
-}
-
-function makeTrailNoteHdlr(persist) {
-  return (event) => {
-    if (!currentTrail)
-      throw new Error("Trail note input with no current trail");
-
-    const text = event.target.value;
-    if (text.trim())
-      survey.trailNotes = text;
-    else
-      survey.trailNotes = "";;
     persist();
   };
 }
@@ -1286,21 +1226,15 @@ function focusFirstEmpty(fields) {
   return false;
 }
 
-function focusNextStartField() {
+function focusNextNotesField() {
   focusFirstEmpty([
-    ui.notes.start.date,
-    ui.notes.start.time,
-    ui.notes.start.weather,
-    ui.notes.start.participants,
-    ui.notes.start.notes
-  ]);
-}
-
-function focusNextCloseField() {
-  focusFirstEmpty([
-    ui.notes.close.time,
-    ui.notes.close.weather,
-    ui.notes.close.notes
+    ui.notes.date,
+    ui.notes.participants,
+    ui.notes.startTime,
+    ui.notes.startWeather,
+    ui.notes.endTime,
+    ui.notes.endWeather,
+    ui.notes.notes
   ]);
 }
 
@@ -1390,12 +1324,10 @@ function switchTrail(id) {
 
   if (enteringField) {
     setSurveyPhase(SURVEY_PHASE.FIELD);
-    currentNotePanel = NOTE_PANEL.TRAIL;
   }
 
   syncTrailSelectors();
   renderLogView();
-  renderTrailNotes();
 }
 
 function setCurrentTrail(id) {
@@ -1478,76 +1410,29 @@ function renderLogView() {
 }
 
 function renderNotesView() {
-  ui.notes.start.panel.hidden = true;
-  ui.notes.trail.panel.hidden = true;
-  ui.notes.close.panel.hidden = true;
+  if (!survey)
+    return;
 
-  ui.notes.buttons.start.classList.remove('activeNoteBtn');
-  ui.notes.buttons.trail.classList.remove('activeNoteBtn');
-  ui.notes.buttons.close.classList.remove('activeNoteBtn');
+  const n = ui.notes;
+  const data = survey.notes || {};
 
-  if (currentNotePanel === NOTE_PANEL.START) {
-    ui.notes.start.panel.hidden = false;
-    ui.notes.buttons.start.classList.add('activeNoteBtn');
-    renderStartNote();
-  }
-
-  if (currentNotePanel === NOTE_PANEL.TRAIL) {
-    ui.notes.trail.panel.hidden = false;
-    ui.notes.buttons.trail.classList.add('activeNoteBtn');
-    renderTrailNotes();
-  }
-
-  if (currentNotePanel === NOTE_PANEL.CLOSE) {
-    ui.notes.close.panel.hidden = false;
-    ui.notes.buttons.close.classList.add('activeNoteBtn');
-    renderCloseNote();
-  }
+  n.date.value = data.date || '';
+  n.startTime.value = data.startTime || '';
+  n.startWeather.value = data.startWeather || '';
+  n.participants.value = data.participants || '';
+  n.endTime.value = data.endTime || '';
+  n.endWeather.value = data.endWeather || '';
+  n.notes.value = data.notes || '';
+  focusNextNotesField();
 }
 
 function renderRouteView() {
 }
 
-function showNotesPanel(panel) {
-  currentNotePanel = panel;
-  renderNotesView();
-}
-
-function renderStartNote() {
-  if (!survey)
-    return;
-
-  const s = ui.notes.start;
-  const data = survey.startNote || {};
-
-  s.date.value = data.date || '';
-  s.time.value = data.time || '';
-  s.weather.value = data.weather || '';
-  s.participants.value = data.participants || '';
-  s.notes.value = data.notes || '';
-  focusNextStartField();
-}
-
-function renderTrailNotes() {
-  if (!survey || !currentTrail) 
-    return;
-
-  ui.notes.trail.notes.value = survey.trailNotes  || "";
-  focusField(ui.notes.trail.notes);
-}
-
-function renderCloseNote() {
-  if (!survey)
-    return;
-
-  const c = ui.notes.close;
-  const data = survey.closeNote || {};
-
-  c.time.value = data.time || '';
-  c.weather.value = data.weather || '';
-  c.notes.value = data.notes || '';
-  focusNextCloseField();
-}
+//function showNotesPanel(panel) {
+//  currentNotePanel = panel;
+//  renderNotesView();
+//}
 
 // --- MESSAGES and DIALOGS
 function showMessage(text, duration = 30000) {
@@ -1876,17 +1761,13 @@ function createSurvey() {
 
   return {
     phase: SURVEY_PHASE.START,
-    startNote: {
+    notes: {
       date: formatDate(now),
-      time: formatTime(now),
-      weather: "",
       participants: "",
-      notes: ""
-    },
-    trailNotes: "",
-    closeNote: {
-      time: "",
-      weather: "",
+      startTime: formatTime(now),
+      startWeather: "",
+      endTime: "",
+      endWeather: "",
       notes: ""
     },
     route: {
@@ -1930,11 +1811,11 @@ function endSurvey() {
 
   const now = new Date();
 
-  survey.closeNote.time = formatTime(now);
+  survey.note.endTime = formatTime(now);
 
   setSurveyPhase(SURVEY_PHASE.END);
   currentView = VIEW.NOTES;
-  currentNotePanel = NOTE_PANEL.CLOSE;
+//  currentNotePanel = NOTE_PANEL.CLOSE;
   renderView();
 }
 
@@ -1943,10 +1824,8 @@ function storeSurvey() {
     return;
 
   storePhase();
-  storeStartNote();
-  storeTrailNotes();
-  storeCloseNote();
-//  storeRoute();
+  storeNotes();
+  storeRoute();
   storeTrailLogs();
 }
 
@@ -1961,9 +1840,7 @@ function loadSurvey() {
   // These should all have been created and stored in newSurvey()
   try {
     survey.phase = loadPhase();
-    survey.startNote = loadStartNote();
-    survey.closeNote = loadCloseNote();
-    survey.trailNotes = loadTrailNotes();
+    survey.notes = loadNotes();
     survey.route = loadRoute();
     survey.trailLogs = loadTrailLogs();
 
@@ -1978,9 +1855,7 @@ function loadSurvey() {
 
 function clearStoredSurvey() {
   localStorage.removeItem(storageKey("phase"));
-  localStorage.removeItem(storageKey("startNote"));
-  localStorage.removeItem(storageKey("closeNote"));
-  localStorage.removeItem(storageKey("trailNotes"));
+  localStorage.removeItem(storageKey("notes"));
   localStorage.removeItem(storageKey("route"));
   localStorage.removeItem(storageKey("trailLogs"));
 }
@@ -2019,50 +1894,23 @@ function storePhase() {
   localStorage.setItem(storageKey('phase'), JSON.stringify(survey.phase));
 }
 
-function loadStartNote() {
+function loadNotes() {
 
-  const start = loadSection(storageKey("startNote"));
-
-  if (start === null)
-    throw new Error("Missing startNote");
-
-  if (typeof start !== "object" || Array.isArray(start))
-    throw new Error("Bad format for startNote");
-
-  assertString(start.date, "startNote.date");
-  assertString(start.time, "startNote.time");
-  assertString(start.weather, "startNote.weather");
-  assertString(start.participants, "startNote.participants");
-  assertString(start.notes, "startNote.notes");
-
-  return start;
-}
-
-function loadCloseNote() {
-
-  const close = loadSection(storageKey("closeNote"));
-
-  if (close === null)
-    throw new Error("Missing closeNote");
-
-  if (typeof close !== "object" || Array.isArray(close))
-    throw new Error("Bad format for closeNote");
-
-  assertString(close.time, "closeNote.time");
-  assertString(close.weather, "closeNote.weather");
-  assertString(close.notes, "closeNote.notes");
-
-  return close;
-}
-
-function loadTrailNotes() {
-  const notes = loadSection(storageKey("trailNotes"));
+  const notes = loadSection(storageKey("notes"));
 
   if (notes === null)
-    throw new Error("Missing trailNotes");
+    throw new Error("Missing notes");
 
-  if (typeof notes !== "string")
-    throw new Error("Bad format for trailNotes");
+  if (typeof notes !== "object" || Array.isArray(notes))
+    throw new Error("Bad format for notes");
+
+  assertString(notes.date, "notes.date");
+  assertString(notes.participants, "notes.participants");
+  assertString(notes.startTime, "notes.startTime");
+  assertString(notes.startWeather, "notes.startWeather");
+  assertString(notes.endTime, "notes.endTime");
+  assertString(notes.endWeather, "notes.endWeather");
+  assertString(notes.notes, "notes.notes");
 
   return notes;
 }
@@ -2109,16 +1957,8 @@ function loadTrailLogs() {
   return trailLogs;
 }
 
-function storeStartNote() {
-  localStorage.setItem(storageKey('startNote'), JSON.stringify(survey.startNote));
-}
-
-function storeCloseNote() {
-  localStorage.setItem(storageKey('closeNote'), JSON.stringify(survey.closeNote));
-}
-
-function storeTrailNotes() {
-  localStorage.setItem(storageKey('trailNotes'), JSON.stringify(survey.trailNotes));
+function storeNotes() {
+  localStorage.setItem(storageKey('notes'), JSON.stringify(survey.Notes));
 }
 
 function storeRoute() {
@@ -2376,7 +2216,7 @@ function renderParticipantResults(list) {
 
 function insertParticipant(name) {
 
-  const input = ui.notes.start.participants;
+  const input = ui.notes.participants;
 
   const pieces =
     input.value
@@ -2388,8 +2228,8 @@ function insertParticipant(name) {
 
   input.value = pieces.join(", ") + ", ";
 
-  survey.startNote.participants = input.value;
-  storeStartNote();
+  survey.note.participants = input.value;
+  storeNotes();
 
   input.focus();
 
@@ -2401,7 +2241,7 @@ function insertParticipant(name) {
 
 function hideParticipantResults(e) {
   const box = document.getElementById("participantResults");
-  const input = ui.notes.start.participants;
+  const input = ui.notes.participants;
   if (!box)
     return;
 
@@ -2615,7 +2455,7 @@ async function saveSurvey() {
 }
   
 function surveyDateForFilename(data) {
-  const date = (data?.startNote?.date || '').trim();
+  const date = (data?.note?.date || '').trim();
 
   const match = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
@@ -2648,11 +2488,11 @@ function saveTextFile(filename, data, type) {
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
-function buildSurveyTsv(data) {
+function buildSurveyTsv(survey) {
   const rows = [
-    ...buildSurveyHeaderRows(data),
+    ...buildSurveyHeaderRows(survey),
     ...blankRows(4),
-    ...buildSurveyLogRows(data)
+    ...buildSurveyLogRows(survey)
   ];
 
   return rows
@@ -2660,14 +2500,13 @@ function buildSurveyTsv(data) {
     .join('\n') + '\n';
 }
 
-function buildSurveyHeaderRows(data) {
-  const start = data.startNote || {};
-  const close = data.closeNote || {};
-  const participantLines = splitParticipants(start.participants || '');
+function buildSurveyHeaderRows(survey) {
+  const notes = survey.notes || {};
+  const participantLines = splitParticipants(notes.participants || '');
   const rows = [];
 
   rows.push([
-    `Date: ${start.date || ''}`,
+    `Date: ${notes.date || ''}`,
     `Participants: ${participantLines[0]}`
   ]);
 
@@ -2677,10 +2516,10 @@ function buildSurveyHeaderRows(data) {
   ]);
 
   rows.push([
-    `Weather: ${formatSurveyWeather(start, close)}`
+    `Weather: ${formatSurveyWeather(notes)}`
   ]);
 
-  const observedNotes = [start.notes, close.notes]
+  const observedNotes = notes.notes
     .map(note => (note || '').trim())
     .filter(Boolean);
 
@@ -2690,7 +2529,7 @@ function buildSurveyHeaderRows(data) {
     ]);
   }
 
-  const trailNoteRows = buildTrailNoteRows(data);
+  const trailNoteRows = buildTrailNoteRows(survey);
   if (trailNoteRows.length) {
     rows.push(...blankRows(3));
     rows.push(['Trail notes:', '', '', '', '']);
@@ -2747,18 +2586,18 @@ function splitParticipants(participantsText) {
   ];
 }
 
-function formatSurveyWeather(start, close) {
-  const startWeather = [start.time, start.weather]
+function formatSurveyWeather(notes) {
+  const startWeather = [notes.startTime, notes.startWeather]
     .map(value => (value || '').trim())
     .filter(Boolean)
     .join(', ');
 
-  const closeWeather = [close.time, close.weather]
+  const endWeather = [notes.endTime, notes.endWeather]
     .map(value => (value || '').trim())
     .filter(Boolean)
     .join(', ');
 
-  return [startWeather, closeWeather]
+  return [startWeather, endWeather]
     .filter(Boolean)
     .join(' - ');
 }
@@ -2890,8 +2729,8 @@ async function importSurveyFile(event) {
     storeSurvey();
     localStorage.setItem(storageKey("surveyExists"), "true");
 
-    currentView = VIEW.NOTES;
-    currentNotePanel = NOTE_PANEL.START;
+//    currentView = VIEW.NOTES;
+//    currentNotePanel = NOTE_PANEL.START;
 
     setAppState(APP_STATE.ACTIVE);
     renderView();
