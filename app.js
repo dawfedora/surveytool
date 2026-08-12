@@ -407,7 +407,7 @@ function initNotesView() {
   n.endTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.endTime.addEventListener("keydown", finishFieldOnEnter);
 
-  n.endWeather.addEventListener( "input", makeInputHdlr(() => survey?.notes, "startWeather", storeNotesLater));
+  n.endWeather.addEventListener( "input", makeInputHdlr(() => survey?.notes, "endWeather", storeNotesLater));
   n.endWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.endWeather.addEventListener("keydown", finishFieldOnEnter);
 
