@@ -302,9 +302,6 @@
       flex: 1;
       overflow-y: auto;
       min-height: 0;
-    }
-
-    #notesPanel {
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -359,6 +356,24 @@
       min-width: 0;
       padding: 8px 4px;
       margin-bottom: 0;
+    }
+
+/* Route view */
+    #routeView {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #routeTrailSelect {
+      flex: 0 0 auto;
+    }
+
+    #routeLog {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
     }
 
 /* Choice dialog */
@@ -426,14 +441,15 @@
 
     <div class="headerActions">
       <select id="viewSelect" aria-label="View" hidden>
-        <option value="log">Log</option>
-        <option value="notes">Notes</option>
+        <option value="log" disabled>Log</option>
+        <option value="notes" disabled>Notes</option>
         <option value="route" disabled>Route</option>
       </select>
-      <button id="newBtn" hidden>New Survey</button>
-      <button id="refreshBtn" hidden>Refresh</button>
+      <button id="startBtn" hidden disabled>Start</button>
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
+      <button id="newBtn" hidden>New Survey</button>
+      <button id="refreshBtn" hidden>Refresh</button>
       <button id="importBtn" hidden>Import</button>
       <input id="importInput" type="file"
         accept="application/json,.json" hidden >
@@ -482,35 +498,38 @@
   </div> <!-- #logView -->
 
   <div id="notesView" hidden>
-    <div id="notesPanel">
-      <input id="date" aria-label="Survey date">
+    <input id="date" aria-label="Survey date">
 
-      <div class="participantWrapper">
-        <textarea id="participants" rows="2" placeholder="Participants"
-          aria-label="Participants"></textarea>
+    <div class="participantWrapper">
+      <textarea id="participants" rows="2" placeholder="Participants"
+        aria-label="Participants"></textarea>
 
-        <div id="participantResults" class="participantResults" ></div>
-      </div>
-
-      <div class="surveyTimeRow">
-        <label for="startTime">Start</label>
-        <input id="startTime">
-        <input id="startWeather" placeholder="55 F, partly cloudy" 
-          aria-label="Starting weather">
-      </div>
-
-      <div class="surveyTimeRow">
-        <label for="endTime">End</label>
-        <input id="endTime">
-        <input id="endWeather" placeholder="88 F, sunny"
-          aria-label="Ending weather">
-      </div>
-
-      <textarea id="notes" class="longNote" placeholder="Notes"
-        aria-label="Survey notes"></textarea>
-
+      <div id="participantResults" class="participantResults" ></div>
     </div>
+
+    <div class="surveyTimeRow">
+      <label for="startTime">Start</label>
+      <input id="startTime">
+      <input id="startWeather" placeholder="55 F, partly cloudy" 
+        aria-label="Starting weather">
+    </div>
+
+    <div class="surveyTimeRow">
+      <label for="endTime">End</label>
+      <input id="endTime" disabled>
+      <input id="endWeather" disabled placeholder="88 F, sunny"
+        aria-label="Ending weather">
+    </div>
+
+    <textarea id="notes" class="longNote" placeholder="Notes"
+      aria-label="Survey notes"></textarea>
+
   </div> <!-- #notesView -->
+
+  <div id="routeView" hidden>
+    <select id="routeTrailSelect"></select>
+    <div id="routeLog"></div>
+  </div> <!-- #routeView -->
 
   <script src="shell-config.js"></script>
   <script src="app.js"></script>

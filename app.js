@@ -40,11 +40,11 @@ let trails = [];
 let trailNetwork = {};
 let participants = [];
 let survey = null;
-let currentTrail = null;
 let messageTimeoutId = null;
 let headerInitialized = false;
 let logViewInitialized = false;
 let notesViewInitialized = false;
+let routeViewInitialized = false;
 let pendingStores = [];
 let activeChoiceOverlay = null;
 
@@ -117,12 +117,9 @@ async function init() {
   survey = loadSurvey();
 
   if (!survey) {
-    setCurrentTrail(null);
     setAppState(APP_STATE.EMPTY);
     return;
   }
-
-  initializeCurrentTrail();
 
   setAppState(APP_STATE.ACTIVE);
 }
@@ -130,7 +127,7 @@ async function init() {
 function showVersion() {
   let displayVersion = '';
 
-  if (version.branch == "main")
+  if (version.branch === "main")
     displayVersion = version.version.replace(/^main:/,"V");
   else
     displayVersion = version.version.replace(/:/,"");
@@ -202,8 +199,9 @@ function getAppState() {
 }
 
 function renderEmptyState() {
-  ui.log.panel.hidden = true;
-  ui.notes.panel.hidden = true;
+  ui.log.view.hidden = true;
+  ui.notes.view.hidden = true;
+  ui.route.view.hidden = true;
 
   renderControls();
 
@@ -213,8 +211,8 @@ function renderEmptyState() {
 
 function renderLimitedState() {
 
-  ui.log.panel.hidden = true;
-  ui.notes.panel.hidden = true;
+  ui.log.view.hidden = true;
+  ui.notes.view.hidden = true;
 
   renderControls();
 
@@ -227,17 +225,8 @@ function renderLimitedState() {
 function renderActiveState() {
   initLogView();
   initNotesView();
+  initRouteView();
 
-  initializeSurveyPhase();
-
-//  if (survey.phase === SURVEY_PHASE.START)
-//    currentNotePanel = NOTE_PANEL.START;
-//  else if (survey.phase === SURVEY_PHASE.END)
-//    currentNotePanel = NOTE_PANEL.CLOSE;
-//  else
-//    currentNotePanel = NOTE_PANEL.TRAIL;
-
-  syncTrailSelectors();
   renderControls();
   renderView();
 
@@ -248,34 +237,89 @@ function renderActiveState() {
 function renderControls() {
   const active = appState === APP_STATE.ACTIVE;
 
-  ui.header.refreshBtn.hidden = false;
+  const starting = active && survey.phase === SURVEY_PHASE.START;
+  const choosingStartingTrail = starting && currentView === VIEW.LOG;
+  const field = active && survey.phase === SURVEY_PHASE.FIELD;
+  const ended = active && survey.phase === SURVEY_PHASE.END;
+  const options = ui.header.viewOptions;
 
-  ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
+
+  // view selector
+    
   ui.header.viewSelect.hidden = !active;
+  options.notes.disabled = !active || choosingStartingTrail;
+  options.log.disabled = !(field || choosingStartingTrail);
+  options.route.disabled = !active || survey.route.legs.length === 0;
 
-  ui.header.endBtn.hidden = !(active && survey.phase === SURVEY_PHASE.FIELD);
-  ui.header.saveBtn.hidden = !(active && survey.phase === SURVEY_PHASE.END);
+  ui.header.startBtn.hidden = !starting || choosingStartingTrail;
+  ui.header.startBtn.disabled = !startInfoComplete();
 
-  ui.log.search.disabled = !(active && survey.phase !== SURVEY_PHASE.START);
-  ui.log.trailSelect.disabled = !active;
+  ui.header.endBtn.hidden = !(choosingStartingTrail || field);
+  ui.header.endBtn.disabled = !field;
+
+  ui.header.saveBtn.hidden = !ended;
+  ui.header.saveBtn.disabled = !endInfoComplete();
+
+  // new survey button
+  ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
+
+  // app refresh button
+  ui.header.refreshBtn.hidden = false;
+ 
+  // notes end fields
+  ui.notes.endTime.disabled = !ended;
+  ui.notes.endWeather.disabled = !ended;
+
+  // log search and trail select fields
+  ui.log.search.disabled = !field;
+  ui.log.trailSelect.disabled = !(choosingStartingTrail || field);
+}
+
+function startInfoComplete() {
+  const notes = survey?.notes;
+
+  return Boolean(
+    notes &&
+    notes.date.trim() &&
+    notes.participants.trim() &&
+    notes.startTime.trim() &&
+    notes.startWeather.trim()
+  );
+}
+
+function endInfoComplete() {
+  const notes = survey?.notes;
+
+  return Boolean(
+    notes &&
+    notes.endTime.trim() &&
+    notes.endWeather.trim()
+  );
 }
 
 // --- UI Wiring ---
 function initUI() {
 
   ui.bootFallback = document.getElementById("bootFallback");
+  const viewSelect = document.getElementById("viewSelect");
 
   ui.header = {
     panel: document.getElementById("globalHeader"),
-    viewSelect: document.getElementById("viewSelect"),
-    newBtn: document.getElementById("newBtn"),
-    refreshBtn: document.getElementById("refreshBtn"),
+    version: document.getElementById('version'),
+    status: document.getElementById('status'),
+    viewSelect: viewSelect,
+    viewOptions: {
+      log: viewSelect.querySelector(`option[value="log"]`),
+      notes: viewSelect.querySelector(`option[value="notes"]`),
+      route: viewSelect.querySelector(`option[value="route"]`)
+    },
+    startBtn: document.getElementById("startBtn"),
     endBtn: document.getElementById("endBtn"),
     saveBtn: document.getElementById('saveBtn'),
+    newBtn: document.getElementById("newBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
     importBtn: document.getElementById("importBtn"),
-    importInput: document.getElementById("importInput"),
-    version: document.getElementById('version'),
-    status: document.getElementById('status')
+    importInput: document.getElementById("importInput")
   };
 
   ui.message = {
@@ -286,7 +330,7 @@ function initUI() {
   };
 
   ui.log ={
-    panel: document.getElementById('logView'),
+    view: document.getElementById('logView'),
     trailSelect: document.getElementById('logTrailSelect'),
     search: document.getElementById('search'),
     clearSearch: document.getElementById('clearSearch'),
@@ -295,7 +339,7 @@ function initUI() {
   };
 
   ui.notes = {
-    panel: document.getElementById('notesView'),
+    view: document.getElementById('notesView'),
     date: document.getElementById('date'),
     participants: document.getElementById('participants'),
     startTime: document.getElementById('startTime'),
@@ -303,6 +347,12 @@ function initUI() {
     endTime: document.getElementById('endTime'),
     endWeather: document.getElementById('endWeather'),
     notes: document.getElementById('notes')
+  };
+
+  ui.route ={
+    view: document.getElementById('routeView'),
+    trailSelect: document.getElementById('routeTrailSelect'),
+    log: document.getElementById('routeLog'),
   };
 }
 
@@ -333,10 +383,11 @@ function initHeader() {
     currentView = event.target.value;
     renderView();
   });
+  ui.header.startBtn.addEventListener('click', startSurvey);
+  ui.header.endBtn.addEventListener('click', endSurvey);
+  ui.header.saveBtn.addEventListener('click', saveSurvey);
   ui.header.newBtn.addEventListener('click', newSurvey);
   ui.header.refreshBtn.addEventListener('click', refreshApp);
-  ui.header.saveBtn.addEventListener('click', saveSurvey);
-  ui.header.endBtn.addEventListener('click', endSurvey);
   ui.header.importBtn.addEventListener('click', () => {
     ui.header.importInput.click();
   });
@@ -369,10 +420,23 @@ function initLogView() {
   );
 
   window.addEventListener("resize", debounce(positionResults, 50));
-  window.visualViewport?.addEventListener( "resize",debounce(positionResults, 50)
+  window.visualViewport?.addEventListener( "resize",
+    debounce(positionResults, 50)
   );
 
-  populateTrailSelector(ui.log.trailSelect);
+  initTrailSelector(ui.log.trailSelect);
+}
+
+function initTrailSelector(select) {
+  const currentTrail = survey.route.currentLeg;
+
+  if (currentTrail === null) {
+    populateStartingPointSelector(select);
+    select.addEventListener( "change", handleStartingTrailChange);
+  } else {
+    populateTrailSelector(select);
+    select.addEventListener("change", handleTrailChange);
+  }
 }
 
 function initNotesView() {
@@ -387,33 +451,107 @@ function initNotesView() {
     () => survey?.notes, "date", storeNotesLater));
   n.date.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.date.addEventListener("keydown", finishFieldOnEnter);
+  n.date.addEventListener("input", updateNoteReadiness);
 
   n.participants.addEventListener("input", makeInputHdlr(
     () => survey?.notes, "participants", storeNotesLater));
   n.participants.addEventListener("beforeinput", validateParticipantInput);
   n.participants.addEventListener("input", debounce(handleParticipantInput, 50));
+  n.participants.addEventListener("input", updateNoteReadiness);
 
   n.startTime.addEventListener("input", makeInputHdlr(
     () => survey?.notes, "startTime", storeNotesLater));
   n.startTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.startTime.addEventListener("keydown", finishFieldOnEnter);
+  n.startTime.addEventListener("input", updateNoteReadiness);
 
   n.startWeather.addEventListener( "input", makeInputHdlr(
     () => survey?.notes, "startWeather", storeNotesLater));
   n.startWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.startWeather.addEventListener("keydown", finishFieldOnEnter);
+  n.startWeather.addEventListener("input", updateNoteReadiness);
 
   n.endTime.addEventListener("input", makeInputHdlr(() => survey?.notes, "endTime", storeNotesLater));
   n.endTime.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.endTime.addEventListener("keydown", finishFieldOnEnter);
+  n.endTime.addEventListener("input", updateNoteReadiness);
 
   n.endWeather.addEventListener( "input", makeInputHdlr(() => survey?.notes, "endWeather", storeNotesLater));
   n.endWeather.addEventListener("blur", finishFieldOnBlur(focusNextNotesField));
   n.endWeather.addEventListener("keydown", finishFieldOnEnter);
+  n.endWeather.addEventListener("input", updateNoteReadiness);
 
   n.notes.addEventListener("input", makeInputHdlr(() => survey?.notes, "notes", storeNotesLater));
 
   document.addEventListener("click", hideParticipantResults);
+}
+
+function updateNoteReadiness() {
+  if (survey?.phase === SURVEY_PHASE.START)
+    updateStartReadiness();
+  else if (survey?.phase === SURVEY_PHASE.END)
+    updateSaveReadiness();
+}
+
+function updateStartReadiness() {
+  if (survey?.phase !== SURVEY_PHASE.START)
+    return;
+
+  const disabled = !startInfoComplete();
+
+  if (ui.header.startBtn.disabled !== disabled)
+    ui.header.startBtn.disabled = disabled;
+}
+     
+function updateSaveReadiness() {
+  if (survey?.phase !== SURVEY_PHASE.END)
+    return;
+
+  const disabled = !saveInfoComplete();
+
+  if (ui.header.saveBtn.disabled !== disabled)
+    ui.header.saveBtn.disabled = disabled;
+}
+
+function saveInfoComplete () {
+   return startInfoComplete && endInfoComplete();
+}
+
+function initRouteView() {
+  if (routeViewInitialized)
+    return;
+  routeViewInitialized = true;
+
+  initRouteTrailSelector();
+
+}
+
+function initRouteTrailSelector() {
+  // we load the trail selector options from survey.route.legs
+  populateRouteTrailSelector();
+
+  // then we add a handler.
+  ui.route.trailSelect.addEventListener();
+}
+
+function populateRouteTrailSelector() {
+  const select = ui.route.trailSelect;
+  const legs = survey.route.legs;
+
+  select.innerHTML = "";
+
+  for (let index = legs.length - 1; index >= 0; index--) {
+    const trailId = legs[index];
+    const option = document.createElement("option");
+
+    option.value = String(index);
+    option.textContent = `${index + 1}. ${trailId}`;
+
+    select.appendChild(option);
+  }
+
+  if (legs.length > 0)
+    select.value = String(legs.length - 1);
 }
 
 function makeInputHdlr(getTarget, key, persist) {
@@ -615,7 +753,7 @@ function processParticipants(pIn) {
 
   for (let person of pIn) {
     person = cleanData(person, "name");
-    if (person == null)
+    if (person === null)
       continue;
     if (!/^[A-Za-z .,'-]+$/.test(person))
       console.warn(`processParticipants: Unexpected character`, person);
@@ -1233,17 +1371,8 @@ function focusField(field) {
   });
 }
 
-function focusFirstEmpty(fields) {
-  const field = fields.find(f => !f.value.trim());
-  if (field) {
-    focusField(field);
-    return true;
-  }
-  return false;
-}
-
 function focusNextNotesField() {
-  focusFirstEmpty([
+  const fields = [
     ui.notes.date,
     ui.notes.participants,
     ui.notes.startTime,
@@ -1251,7 +1380,15 @@ function focusNextNotesField() {
     ui.notes.endTime,
     ui.notes.endWeather,
     ui.notes.notes
-  ]);
+  ];
+  
+  const next = fields.find(field =>
+    !field.disabled &&
+    !field.readOnly &&
+    field.value.trim() === ""
+  )
+
+  next?.focus();
 }
 
 function refocusAfterSelection(input, afterFocus = null, delay = 150) {
@@ -1284,18 +1421,6 @@ function finishFieldOnEnter(event) {
 }
 
 // --- Survey Phase ---
-function initializeSurveyPhase() {
-  const stored = survey.phase;
-
-  if (currentTrail === null) {
-    setSurveyPhase(SURVEY_PHASE.START);
-  } else if (isValidSurveyPhase(stored)) {
-    setSurveyPhase(stored);
-  } else {
-    setSurveyPhase(SURVEY_PHASE.FIELD);
-  }
-}
-
 function setSurveyPhase(phase) {
   if (!survey)
     throw new Error("Cannot set surveyPhase without an active survey");
@@ -1315,96 +1440,53 @@ function renderView() {
   ui.header.viewSelect.value = currentView;
 
   if (currentView === VIEW.LOG) {
-    ui.log.panel.hidden = false;
-    ui.notes.panel.hidden = true;
-//    ui.route.panel.hidden = true;
+    ui.log.view.hidden = false;
+    ui.notes.view.hidden = true;
+    ui.route.view.hidden = true;
     renderLogView();
   } else if (currentView === VIEW.NOTES) {
-    ui.log.panel.hidden = true;
-    ui.notes.panel.hidden = false;
-//    ui.route.panel.hidden = true;
+    ui.log.view.hidden = true;
+    ui.notes.view.hidden = false;
+    ui.route.view.hidden = true;
     renderNotesView();
   } else if (currentView === VIEW.ROUTE) {
-    ui.log.panel.hidden = true;
-    ui.notes.panel.hidden = true;
-    ui.route.panel.hidden = false;
+    ui.log.view.hidden = true;
+    ui.notes.view.hidden = true;
+    ui.route.view.hidden = false;
     renderRouteView();
   }
 }
 
-function switchTrail(id) {
- const enteringField =
-    survey.phase === SURVEY_PHASE.START &&
-    currentTrail === null &&
-    id !== null;
+function populateStartingPointSelector(select) {
+  select.innerHTML = "";
 
-  setCurrentTrail(id);
+  const prompt = document.createElement("option");
+  prompt.value = "";
+  prompt.textContent = "Choose Starting Point";
+  prompt.disabled = true;
+  prompt.selected = true;
+  select.appendChild(prompt);
 
-  if (enteringField) {
-    setSurveyPhase(SURVEY_PHASE.FIELD);
-  }
-
-  syncTrailSelectors();
-  renderLogView();
-}
-
-function setCurrentTrail(id) {
-
-  if (id === null) {
-    currentTrail = id;
-    localStorage.removeItem(storageKey('currentTrail'));
-  } else if (trails.some(t => t.id === id)) {
-    currentTrail = id;
-    localStorage.setItem(storageKey('currentTrail'), id);
-  } else {
-    throw new Error(`Invalid currentTrail: ${id}`);
-  }
-}
-
-function initializeCurrentTrail() {
-  const stored = localStorage.getItem(storageKey("currentTrail"));
-
-  if (stored === null) {
-    setCurrentTrail(null);
-  } else if (trails.some(t => t.id === stored)) {
-    setCurrentTrail(stored);
-  } else {
-    console.warn("Ignoring stored invalid currentTrail", stored);
-    setCurrentTrail(null);
-  }
-}
-
-function syncTrailSelectors() {
-  const value = currentTrail ?? "";
-
-  if (ui.log.trailSelect)
-    ui.log.trailSelect.value = value;
+  // populate selector from starting points
+  trailNetwork.startingPoints.forEach(s => {
+     const opt = document.createElement("option");
+     opt.value = s.trailId;
+     opt.textContent = s.trailId;
+     select.appendChild(opt);
+  });
 }
 
 function populateTrailSelector(select) {
   select.innerHTML = "";
 
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Select Starting Location";
-  select.appendChild(placeholder);
-
-  trails.forEach(t => {
+  trailNetwork.trails.forEach(t => {
     const opt = document.createElement("option");
     opt.value = t.id;
     opt.textContent = t.name;
     select.appendChild(opt);
   });
 
-  select.value = currentTrail ?? "";
-
-  select.addEventListener('change', (e) => {
-    if (!e.target.value) {
-      syncTrailSelectors();
-      return;
-    }
-    switchTrail(e.target.value);
-  });
+  select.value = survey.route.currentLeg;
 }
 
 function renderLogView() {
@@ -1414,7 +1496,7 @@ function renderLogView() {
   }
 
   // render sightings list
-  renderLog();
+  renderTrailLog(ui.log.log, survey.route.currentLeg);
 
   // clear search UI state (optional but clean)
   ui.log.results.innerHTML = '';
@@ -1441,13 +1523,44 @@ function renderNotesView() {
   focusNextNotesField();
 }
 
-function renderRouteView() {
+function handleStartingTrailChange(event) {
+  const select = event.currentTarget;
+  const nextTrailId = select.value;
+  if (nextTrailId === "")
+    return;
+
+  select.removeEventListener("change", handleStartingTrailChange);
+
+  const route = survey.route
+  route.currentLeg = nextTrailId;
+  storeRoute();
+
+  ensureTrailLog(nextTrailId);
+  setSurveyPhase(SURVEY_PHASE.FIELD);
+
+  populateTrailSelector(select);
+  select.addEventListener("change", handleTrailChange);
+  renderLogView();
 }
 
-//function showNotesPanel(panel) {
-//  currentNotePanel = panel;
-//  renderNotesView();
-//}
+function handleTrailChange(event) {
+  const nextTrailId = event.currentTarget.value;
+  if (nextTrailId === "")
+    return;
+
+  const route = survey.route
+  route.legs.push(route.currentLeg);
+  route.currentLeg = nextTrailId;
+  storeRoute();
+  renderLogView();
+}
+
+function renderRouteView() {
+  const index = Number(ui.route.trailSelect.value);
+  const trailId = survey.route.legs[index];
+
+  renderTrailLog(ui.route.log, trailId);
+}
 
 // --- MESSAGES and DIALOGS
 function showMessage(text, duration = 30000) {
@@ -1786,7 +1899,7 @@ function createSurvey() {
       notes: ""
     },
     route: {
-      currentLeg: {},
+      currentLeg: "",
       legs: []
     },
     trailLogs: {}
@@ -1809,7 +1922,6 @@ function newSurvey() {
   clearStoredSurvey();
 
   survey = createSurvey();
-  setCurrentTrail(null);
 
   currentView = VIEW.NOTES;
 
@@ -1820,17 +1932,42 @@ function newSurvey() {
   setAppState(APP_STATE.ACTIVE);
 }
 
+function startSurvey() {
+  
+  // verify starting fields: date, time, weather, paricipants
+  if (!startInfoComplete())
+    return;
+
+  flushPendingStores();
+
+  currentView = VIEW.LOG;
+  renderControls();
+  renderView();
+  
+  // focus selector
+  ui.log.trailSelect.focus();
+}
+
 function endSurvey() {
   if (!survey)
     throw new Error("endSurvey called with no active survey!");
 
-  const now = new Date();
+  // Confirm end
 
+  // set endTime
+  const now = new Date();
   survey.notes.endTime = formatTime(now);
+  storeNotes();
+
+  survey.route.legs.push(survey.route.currentLeg);
+  survey.route.currentLeg = "";
+  storeRoute();
 
   setSurveyPhase(SURVEY_PHASE.END);
   currentView = VIEW.NOTES;
+  renderControls();
   renderView();
+  ui.notes.endWeather.focus();
 }
 
 function storeSurvey() {
@@ -1936,13 +2073,17 @@ function loadRoute() {
   if (!isPlainObject(route))
     throw new Error("Bad stored route");
   
-  if (!isPlainObject(route.currentLeg))
-    throw new Error("Bad route.currentLeg");
+//  For now currentLeg is a string
+//  if (!isPlainObject(route.currentLeg))
+//    throw new Error("Bad route.currentLeg");
+
+  assertString(route.currentLeg, "route.currentLeg");
 
   if (!Array.isArray(route.legs))
      throw new Error("Invalid route.legs");
 
-  // should check the legs to make sure they're all appropriate object
+// For now legs is an array of strings
+// later should check the legs to make sure they're all appropriate object
 
   return route;
 }
@@ -2284,10 +2425,10 @@ function addSighting(item) {
     alert('No active survey');
     return;
   }
-  if (!currentTrail)
+  const trailId = survey.route.currentLeg;
+  if (!trailId)
     throw new Error("Cannot add sighting with no current trail");
 
-  const trailId = currentTrail;
   const trailLog = ensureTrailLog(trailId);
   const entries = trailLog.entries;
 
@@ -2320,19 +2461,19 @@ function highlightLogRow(row) {
   setTimeout(() => row.style.background = '', 400);
 }
 
-function renderLog() {
-  const container = ui.log.log;
+function renderTrailLog(container, trailId) {
   container.innerHTML = '';
 
-  if (!survey || !currentTrail) return;
+  if (!survey || !trailId)
+    return;
 
-  const trailId = currentTrail;
   const trailLog = getTrailLog(trailId);
-  if (!trailLog) return;
+  if (!trailLog)
+    return;
 
   trailLog.entries.slice().reverse().forEach((entry) => {
-    const div = createLogRow(entry, trailId);
-    container.appendChild(div);
+    const row = createLogRow(entry, trailId);
+    container.appendChild(row);
   });
 }
 
