@@ -1,7 +1,7 @@
 {
   "header": {
     "version": "1.0",
-    "count": "604"
+    "count": "606"
   },
   "species": [
     {"scientificName":"Hypericum calycinum","commonName":"Aaron's beard","status":"*"},
@@ -167,6 +167,8 @@
     {"scientificName":"Micropus californicus var. californicus","commonName":"cottontop","status":""},
     {"scientificName":"Heracleum maximum","commonName":"cow parsnip","status":""},
     {"scientificName":"Baccharis pilularis ssp. consanguinea","commonName":"coyote brush","status":""},
+    {"scientificName":"Baccharis pilularis ssp. consanguinea","commonName":"coyote brush (f)","status":""},
+    {"scientificName":"Baccharis pilularis ssp. consanguinea","commonName":"coyote brush (m)","status":""},
     {"scientificName":"Monardella villosa ssp. villosa","commonName":"coyote mint","status":""},
     {"scientificName":"Geranium molle","commonName":"cranesbill","status":"*"},
     {"scientificName":"Platystemon californicus","commonName":"cream cups","status":""},
