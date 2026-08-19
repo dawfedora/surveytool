@@ -41,10 +41,6 @@ let trailNetwork = {};
 let participants = [];
 let survey = null;
 let messageTimeoutId = null;
-let headerInitialized = false;
-let logViewInitialized = false;
-let notesViewInitialized = false;
-let routeViewInitialized = false;
 let pendingStores = [];
 let activeChoiceOverlay = null;
 
@@ -71,6 +67,9 @@ async function init() {
 
   // wire the buttons, especially refresh
   initHeader();
+  initLogView();
+  initNotesView();
+  initRouteView();
 
   renderControls();
   ui.bootFallback.hidden = true;
@@ -223,9 +222,7 @@ function renderLimitedState() {
 }
 
 function renderActiveState() {
-  initLogView();
-  initNotesView();
-  initRouteView();
+  configureSurveyViews();
 
   renderControls();
   renderView();
@@ -374,9 +371,6 @@ function validateUI(obj, path = 'ui') {
 }
 
 function initHeader() {
-  if (headerInitialized)
-    return;
-  headerInitialized = true;
 
   // Hook up buttons
   ui.header.viewSelect.addEventListener('change', event => {
@@ -396,10 +390,6 @@ function initHeader() {
 }
 
 function initLogView() {
-  if (logViewInitialized)
-    return;
-  logViewInitialized = true;
-
   ui.log.search.addEventListener("beforeinput", validateSearchInput);
 
   let searchTimer;
@@ -440,11 +430,6 @@ function initTrailSelector(select) {
 }
 
 function initNotesView() {
-  if (notesViewInitialized)
-    return;
-  notesViewInitialized = true;
-
-
   const n = ui.notes;
 
   n.date.addEventListener("input", makeInputHdlr(
@@ -518,10 +503,6 @@ function saveInfoComplete () {
 }
 
 function initRouteView() {
-  if (routeViewInitialized)
-    return;
-  routeViewInitialized = true;
-
   initRouteTrailSelector();
 
 }
@@ -531,7 +512,7 @@ function initRouteTrailSelector() {
   populateRouteTrailSelector();
 
   // then we add a handler.
-  ui.route.trailSelect.addEventListener();
+  ui.route.trailSelect.addEventListener(routeTrailHandler);
 }
 
 function populateRouteTrailSelector() {
@@ -1887,12 +1868,15 @@ async function verifyCacheContains(cache, appShell) {
 function createSurvey() {
   const now = new Date();
 
+  startTime = formatTime(now);
+  startTime = "8:00 am";
+
   return {
     phase: SURVEY_PHASE.START,
     notes: {
       date: formatDate(now),
       participants: "",
-      startTime: formatTime(now),
+      startTime: startTime,
       startWeather: "",
       endTime: "",
       endWeather: "",
