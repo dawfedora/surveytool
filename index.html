@@ -451,7 +451,7 @@
       <button id="newBtn" hidden>New Survey</button>
       <button id="refreshBtn" hidden>Refresh</button>
       <button id="importBtn" hidden>Import</button>
-      <input id="importInput" type="file"
+      <input id="importInput" type="file" autocapitalize="none"
         accept="application/json,.json" hidden >
     </div>
 
@@ -472,16 +472,9 @@
 
     <!-- search stays fixed under header -->
     <div id="searchArea">
-      <input
-        disabled
-        id="search"
-        type="text"
-        placeholder="Search plant..."
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-      >
+      <input id="search" type="text" autocomplete="off" autocorrect="off"
+        autocapitalize="none" spellcheck="false"
+        placeholder="Search plant..." disabled >
       <button id="clearSearch" type="button" aria-label="Clear search">
         X
       </button>
@@ -501,8 +494,8 @@
     <input id="date" aria-label="Survey date">
 
     <div class="participantWrapper">
-      <textarea id="participants" rows="2" placeholder="Participants"
-        aria-label="Participants"></textarea>
+      <textarea id="participants" rows="2" autocapitalize="words"
+        placeholder="Participants" aria-label="Participants"></textarea>
 
       <div id="participantResults" class="participantResults" ></div>
     </div>
@@ -510,19 +503,19 @@
     <div class="surveyTimeRow">
       <label for="startTime">Start</label>
       <input id="startTime">
-      <input id="startWeather" placeholder="55 F, partly cloudy" 
-        aria-label="Starting weather">
+      <input id="startWeather" autocapitalize="none"
+        placeholder="55 F, partly cloudy" aria-label="Starting weather">
     </div>
 
     <div class="surveyTimeRow">
       <label for="endTime">End</label>
       <input id="endTime" disabled>
-      <input id="endWeather" disabled placeholder="88 F, sunny"
-        aria-label="Ending weather">
+      <input id="endWeather" disabled autocapitalize="none"
+        placeholder="88 F, sunny" aria-label="Ending weather">
     </div>
 
-    <textarea id="notes" class="longNote" placeholder="Notes"
-      aria-label="Survey notes"></textarea>
+    <textarea id="notes" class="longNote" autocapitalize="none"
+      placeholder="Notes" aria-label="Survey notes"></textarea>
 
   </div> <!-- #notesView -->
 
