@@ -369,10 +369,7 @@
   </style>
 </head>
 
-<body
-  autocorrect="off"
-  spellcheck="false"
->
+<body autocorrect="off" spellcheck="false">
 
   <div id="bootFallback">
     Survey Tool did not finish loading.
@@ -400,7 +397,8 @@
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
       <button id="importBtn" hidden>Import</button>
-      <input id="importInput" type="file" accept="application/json,.json" hidden>
+      <input id="importInput" type="file" accept="application/json,.json"
+        autocapitalize="none" hidden>
     </div>
 
   </div> <!-- #globalHeader -->
@@ -472,18 +470,22 @@
           class="participantResults">
         </div>
       </div>
-      <textarea id="startNote" class="longNote" placeholder="Starting notes"></textarea>
+      <textarea id="startNote" class="longNote" autocapitalize="none"
+        placeholder="Starting notes"></textarea>
     </div>
 
     <div id="trailPanel" hidden>
       <select id="notesTrailSelect"></select>
-      <textarea id="trailNotes" class="longNote" placeholder="Notes..." ></textarea>
+      <textarea id="trailNotes" class="longNote" autocapitalize="none"
+        placeholder="Notes..." ></textarea>
     </div>
 
     <div id="closePanel"  hidden>
       <input id="closeTime">
-      <input id="closeWeather" placeholder="82 F, sunny">	
-      <textarea id="closeNote" class="longNote" placeholder="Closing notes"></textarea>
+      <input id="closeWeather" autocapitalize="none"
+        placeholder="82 F, sunny">	
+      <textarea id="closeNote" class="longNote" autocapitalize="none"
+        placeholder="Closing notes"></textarea>
     </div>
 
   </div> <!-- #notesView -->
