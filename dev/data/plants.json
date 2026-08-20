@@ -1,7 +1,7 @@
 {
   "header": {
     "version": "1.0",
-    "count": "603"
+    "count": "606"
   },
   "species": [
     {"scientificName":"Hypericum calycinum","commonName":"Aaron's beard","status":"*"},
@@ -167,6 +167,8 @@
     {"scientificName":"Micropus californicus var. californicus","commonName":"cottontop","status":""},
     {"scientificName":"Heracleum maximum","commonName":"cow parsnip","status":""},
     {"scientificName":"Baccharis pilularis ssp. consanguinea","commonName":"coyote brush","status":""},
+    {"scientificName":"Baccharis pilularis ssp. consanguinea","commonName":"coyote brush (f)","status":""},
+    {"scientificName":"Baccharis pilularis ssp. consanguinea","commonName":"coyote brush (m)","status":""},
     {"scientificName":"Monardella villosa ssp. villosa","commonName":"coyote mint","status":""},
     {"scientificName":"Geranium molle","commonName":"cranesbill","status":"*"},
     {"scientificName":"Platystemon californicus","commonName":"cream cups","status":""},
@@ -352,6 +354,7 @@
     {"scientificName":"Platanthera transversa","commonName":"mountain rein orchid","status":""},
     {"scientificName":"Erodium moschatum","commonName":"musk storksbill","status":"*"},
     {"scientificName":"Brassicaceae","commonName":"mustard species","status":""},
+    {"scientificName":"Amaryllis belladonna","commonName":"naked ladies","status":"*"},
     {"scientificName":"Eriogonum nudum var. auriculatum","commonName":"naked-stemmed buckwheat","status":""},
     {"scientificName":"Asclepias fascicularis","commonName":"narrow-leaf milkweed","status":""},
     {"scientificName":"Typha angustifolia","commonName":"narrow-leaved cattail","status":""},
@@ -587,7 +590,7 @@
     {"scientificName":"Silene gallica","commonName":"windmill pink","status":"*"},
     {"scientificName":"Rigiopappus leptocladus","commonName":"wire-weed","status":""},
     {"scientificName":"Antirrhinum vexillocalyculatum ssp. vexillocalyculatum","commonName":"wiry snapdragon","status":""},
-    {"scientificName":"Rosa gymnocarpa ssp. gymnocarpa","commonName":"wood rose","status":""},
+    {"scientificName":"Rosa gymnocarpa var. gymnocarpa","commonName":"wood rose","status":""},
     {"scientificName":"Osmorhiza berteroi","commonName":"wood sweet cicely","status":""},
     {"scientificName":"Parthenocissus inserta","commonName":"woodbine","status":"*"},
     {"scientificName":"Monolopia gracilens","commonName":"woodland monolopia","status":"#"},
