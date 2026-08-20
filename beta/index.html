@@ -370,6 +370,11 @@
 </head>
 
 <body>
+<body
+  autocapitalize="none"
+  autocorrect="off"
+  spellcheck="false"
+>
 
   <div id="bootFallback">
     Survey Tool did not finish loading.
@@ -455,8 +460,15 @@
       <input id="startDate" />
       <input id="startTime" />
       <input id="startWeather" placeholder="75 F, partly cloudy" />
+
       <div class="participantWrapper">
-        <textarea id="participants" rows="2" placeholder="Participants"></textarea>
+
+        <textarea id="participants"
+          autocapitalize="words"
+          rows="2"
+          placeholder="Participants"
+        ></textarea>
+
         <div id="participantResults"
           class="participantResults">
         </div>
