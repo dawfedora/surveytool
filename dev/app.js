@@ -202,10 +202,34 @@ function renderEmptyState() {
   ui.notes.view.hidden = true;
   ui.route.view.hidden = true;
 
+  clearSurveyUI();
+
   renderControls();
 
   setStatus("No Survey");
   setStateMessage("No current survey. Press New Survey to start one.");
+}
+
+function clearSurveyUI() {
+  cancelPendingStores();
+
+  ui.log.search.value = "";
+  ui.log.results.innerHTML = "";
+  ui.log.log.innerHTML = "";
+  ui.log.trailSelect.innerHTML = "";
+
+  ui.route.log.innerHTML = "";
+  ui.route.trailSelect.innerHTML = "";
+
+  ui.notes.date.value = "";
+  ui.notes.participants.value = "";
+  ui.notes.startTime.value = "";
+  ui.notes.startWeather.value = "";
+  ui.notes.endTime.value = "";
+  ui.notes.endWeather.value = "";
+  ui.notes.notes.value = "";
+
+  hideParticipantResults();
 }
 
 function renderLimitedState() {
@@ -229,6 +253,33 @@ function renderActiveState() {
 
   clearStateMessage();
   setStatus("Active Survey");
+}
+
+function configureSurveyViews() {
+  chooseInitialView();
+  populateLogTrailSelector();
+  populateRouteTrailSelector();
+}
+
+function chooseInitialView() {
+  switch (survey.phase) {
+    case SURVEY_PHASE.START:
+      currentView = VIEW.NOTES;
+      break;
+
+    case SURVEY_PHASE.FIELD:
+      currentView = VIEW.LOG;
+      break;
+
+    case SURVEY_PHASE.END:
+      currentView = VIEW.NOTES;
+      break;
+
+    default:
+      throw new Error(
+        `Cannot choose view for phase "${survey.phase}"`
+      );
+  }
 }
 
 function renderControls() {
@@ -255,7 +306,7 @@ function renderControls() {
   ui.header.endBtn.disabled = !field;
 
   ui.header.saveBtn.hidden = !ended;
-  ui.header.saveBtn.disabled = !endInfoComplete();
+  ui.header.saveBtn.disabled = !saveInfoComplete();
 
   // new survey button
   ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
@@ -414,19 +465,7 @@ function initLogView() {
     debounce(positionResults, 50)
   );
 
-  initTrailSelector(ui.log.trailSelect);
-}
-
-function initTrailSelector(select) {
-  const currentTrail = survey.route.currentLeg;
-
-  if (currentTrail === null) {
-    populateStartingPointSelector(select);
-    select.addEventListener( "change", handleStartingTrailChange);
-  } else {
-    populateTrailSelector(select);
-    select.addEventListener("change", handleTrailChange);
-  }
+  ui.log.trailSelect.addEventListener("change", handleTrailChange);
 }
 
 function initNotesView() {
@@ -499,20 +538,23 @@ function updateSaveReadiness() {
 }
 
 function saveInfoComplete () {
-   return startInfoComplete && endInfoComplete();
+   return startInfoComplete() && endInfoComplete();
 }
 
 function initRouteView() {
-  initRouteTrailSelector();
+  ui.route.trailSelect.addEventListener("change", renderRouteView);
 
 }
 
-function initRouteTrailSelector() {
-  // we load the trail selector options from survey.route.legs
-  populateRouteTrailSelector();
-
-  // then we add a handler.
-  ui.route.trailSelect.addEventListener(routeTrailHandler);
+function populateLogTrailSelector() {
+  if (
+    survey.phase === SURVEY_PHASE.START &&
+    survey.route.currentLeg === ""
+  ) {
+    populateStartingPointSelector(ui.log.trailSelect);
+  } else {
+    populateTrailSelector(ui.log.trailSelect);
+  }
 }
 
 function populateRouteTrailSelector() {
@@ -1401,7 +1443,7 @@ function finishFieldOnEnter(event) {
   event.target.blur();
 }
 
-// --- Survey Phase ---
+// --- SURVEY PHASE ---
 function setSurveyPhase(phase) {
   if (!survey)
     throw new Error("Cannot set surveyPhase without an active survey");
@@ -1504,36 +1546,50 @@ function renderNotesView() {
   focusNextNotesField();
 }
 
-function handleStartingTrailChange(event) {
+function handleTrailChange(event) {
   const select = event.currentTarget;
   const nextTrailId = select.value;
+  const route = survey.route
+  
   if (nextTrailId === "")
     return;
 
-  select.removeEventListener("change", handleStartingTrailChange);
+  if (survey.phase === SURVEY_PHASE.START && route.currentLeg === "") {
+    route.currentLeg = nextTrailId;
 
-  const route = survey.route
-  route.currentLeg = nextTrailId;
-  storeRoute();
+    storeRoute();
+    setSurveyPhase(SURVEY_PHASE.FIELD);
+
+    populateTrailSelector(select);
+  } else if (survey.phase === SURVEY_PHASE.FIELD &&
+    route.currentLeg !== ""
+  ) {
+    if (nextTrailId === route.currentLeg)
+      return;
+
+    completeCurrentLeg(nextTrailId);
+
+    renderControls();
+  } else {
+    throw new Error(
+      `Trail selection is invalid during phase "${survey.phase}"`
+    );
+  }
 
   ensureTrailLog(nextTrailId);
-  setSurveyPhase(SURVEY_PHASE.FIELD);
-
-  populateTrailSelector(select);
-  select.addEventListener("change", handleTrailChange);
+  populateRouteTrailSelector();
   renderLogView();
 }
 
-function handleTrailChange(event) {
-  const nextTrailId = event.currentTarget.value;
-  if (nextTrailId === "")
-    return;
+function completeCurrentLeg(nextTrailId) {
+  const route = survey.route;
 
-  const route = survey.route
+  if (route.currentLeg === "")
+    throw new Error("Cannot complete an empty current leg");
+
   route.legs.push(route.currentLeg);
   route.currentLeg = nextTrailId;
   storeRoute();
-  renderLogView();
 }
 
 function renderRouteView() {
@@ -1867,14 +1923,16 @@ async function verifyCacheContains(cache, appShell) {
 // --- SURVEY LIFECYCLE and PERSISTENCE ---
 function createSurvey() {
   const now = new Date();
+  const date = formatDate(now);
+  let startTime = formatTime(now);
 
-  startTime = formatTime(now);
+  // for now
   startTime = "8:00 am";
 
   return {
     phase: SURVEY_PHASE.START,
     notes: {
-      date: formatDate(now),
+      date: date,
       participants: "",
       startTime: startTime,
       startWeather: "",
@@ -1905,6 +1963,8 @@ function newSurvey() {
   localStorage.removeItem(storageKey("surveyExists"));
   clearStoredSurvey();
 
+  clearSurveyUI();
+
   survey = createSurvey();
 
   currentView = VIEW.NOTES;
@@ -1919,8 +1979,11 @@ function newSurvey() {
 function startSurvey() {
   
   // verify starting fields: date, time, weather, paricipants
-  if (!startInfoComplete())
+  if (!startInfoComplete()) {
+    showMessage("Fill in the starting information first");
+    focusNextNotesField();
     return;
+  }
 
   flushPendingStores();
 
@@ -1936,22 +1999,26 @@ function endSurvey() {
   if (!survey)
     throw new Error("endSurvey called with no active survey!");
 
-  // Confirm end
+  if (survey.phase !== SURVEY_PHASE.FIELD ||
+    survey.route.currentLeg === "") {
+    throw new Error("Cannot end a survey without a current leg");
+  }
+  // Confirm end button
+
+  flushPendingStores();
+
+  completeCurrentLeg("");
 
   // set endTime
-  const now = new Date();
-  survey.notes.endTime = formatTime(now);
+  survey.notes.endTime = formatTime(new Date);
   storeNotes();
 
-  survey.route.legs.push(survey.route.currentLeg);
-  survey.route.currentLeg = "";
-  storeRoute();
-
+  populateRouteTrailSelector();
   setSurveyPhase(SURVEY_PHASE.END);
+
   currentView = VIEW.NOTES;
-  renderControls();
   renderView();
-  ui.notes.endWeather.focus();
+  focusField(ui.notes.endWeather);
 }
 
 function storeSurvey() {
@@ -2480,6 +2547,7 @@ function createLogRow(entry, trailId) {
   note.value = entry.note || '';
   note.placeholder = 'note';
   note.rows = 1;
+  note.autocapitalize = "none";
 
   // initial size AFTER attachment/layout
   requestAnimationFrame(() => resizeNote(note));
@@ -2658,23 +2726,18 @@ function buildSurveyHeaderRows(survey) {
     `Weather: ${formatSurveyWeather(notes)}`
   ]);
 
-  const observedNotes = notes.notes
-    .map(note => (note || '').trim())
-    .filter(Boolean);
+  const observedNotes = (notes.notes || "")
+    .split(/\r?\n/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .join(", ");
 
-  if (observedNotes.length) {
+  if (observedNotes) {
+    rows.push(...blankRows(3));
     rows.push([
-      `Also observed: ${observedNotes.join(' ')}`
+      `Also Observed: ${observedNotes}`
     ]);
   }
-
-  const trailNoteRows = buildTrailNoteRows(survey);
-  if (trailNoteRows.length) {
-    rows.push(...blankRows(3));
-    rows.push(['Trail notes:', '', '', '', '']);
-    rows.push(...trailNoteRows);
-  }
-
   return rows;
 }
 
@@ -2739,21 +2802,6 @@ function formatSurveyWeather(notes) {
   return [startWeather, endWeather]
     .filter(Boolean)
     .join(' - ');
-}
-
-function buildTrailNoteRows(data) {
-  const trailNotes = data.trailNotes || {};
-  const rows = [];
-
-  for (const trail of getOrderedSurveyTrails(data)) {
-    const note = (trailNotes[trail.id] || '').trim();
-    if (!note)
-      continue;
-
-    rows.push([`${trail.name}: ${note}`, '', '', '', '']);
-  }
-
-  return rows;
 }
 
 function buildSurveyLogRows(data) {
