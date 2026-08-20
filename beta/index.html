@@ -3,11 +3,11 @@
 
 <head>
 
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
 
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0,viewport-fit=cover"
-  />
+  >
 
   <title>Edgewood Survey Tool</title>
 
@@ -370,7 +370,6 @@
 </head>
 
 <body
-  autocapitalize="none"
   autocorrect="off"
   spellcheck="false"
 >
@@ -401,7 +400,7 @@
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
       <button id="importBtn" hidden>Import</button>
-      <input id="importInput" type="file" accept="application/json,.json" hidden />
+      <input id="importInput" type="file" accept="application/json,.json" hidden>
     </div>
 
   </div> <!-- #globalHeader -->
@@ -430,7 +429,7 @@
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
-      />
+      >
       <button id="clearSearch" type="button" aria-label="Clear search">
         X
       </button>
@@ -456,9 +455,10 @@
     </div>
 
     <div id="startPanel">
-      <input id="startDate" />
-      <input id="startTime" />
-      <input id="startWeather" placeholder="75 F, partly cloudy" />
+      <input id="startDate">
+      <input id="startTime">
+      <input id="startWeather" autocapitalize="none"
+        placeholder="75 F, partly cloudy">
 
       <div class="participantWrapper">
 
@@ -481,8 +481,8 @@
     </div>
 
     <div id="closePanel"  hidden>
-      <input id="closeTime" />
-      <input id="closeWeather" placeholder="82 F, sunny" />	
+      <input id="closeTime">
+      <input id="closeWeather" placeholder="82 F, sunny">	
       <textarea id="closeNote" class="longNote" placeholder="Closing notes"></textarea>
     </div>
 
