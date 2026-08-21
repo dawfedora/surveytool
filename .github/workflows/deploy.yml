@@ -6,6 +6,7 @@ on:
       - main
       - dev
       - beta
+      - alpha
 
 permissions:
   contents: write
@@ -56,6 +57,9 @@ jobs:
           elif [ "$BRANCH" = "beta" ]; then
             mkdir -p publish/beta
             rsync -a --delete publish-temp/ publish/beta/
+          elif [ "$BRANCH" = "alpha" ]; then
+            mkdir -p publish/alpha
+            rsync -a --delete publish-temp/ publish/alpha/
           else
             echo "Branch '$BRANCH' not configured for publishing — publish will be empty."
           fi
