@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0,
+    maximum-scale=1.0,viewport-fit=cover"
+  >
+
+  <title>Edgewood Survey Tool</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="./icons/foe-icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/foe-icon-192.png">
+
+  <meta name="theme-color" content="#4a7c59">
+
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SurveyTool">
+
+  <!-- Older Android support -->
+  <meta name="mobile-web-app-capable" content="yes">
+
+<!-- CSS -->
+  <style>
+
+/* Base */
+    html {
+      height: 100%;
+      overflow: hidden;
+      font-size: 100%;
+      touch-action: manipulation;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      height: 100%;
+      overflow: hidden;
+      margin: 0;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+      padding-left: calc(env(safe-area-inset-left, 0px) + 4px);
+      padding-right: calc(env(safe-area-inset-right, 0px) + 4px);
+      font-size: 1rem;
+      line-height: 1.25;
+      touch-action: manipulation;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    #globalHeader {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* top row */
+    .headerTop {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, calc(3.33vw - 2.67px), 12px);
+    }
+
+/* logo + title group */
+    .headerIdentity {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      gap: clamp(8px, calc(3.33vw - 2.67px), 12px);
+    }
+
+    #foeLogo {
+      height: clamp(38px, calc(10vw + 6px), 50px);
+      width: auto;
+      display: block;
+    }
+
+    .title {
+      flex: 1 1 auto;
+      min-width: max-content;
+      text-align: center;
+      white-space: nowrap;
+      font-size: clamp(16px, calc(3.33vw + 5.33px), 20px);
+      line-height: 1;
+      font-weight: 600;
+    }
+
+    .headerMeta {
+      display: flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      align-items: flex-end;
+      line-height: 1.1;
+      text-align: right;
+    }
+
+    #version {
+      font-size: clamp(0.8rem, calc(1.33vw + 8.53px), 0.9rem);
+      white-space: nowrap;
+    }
+
+    #status {
+      font-size: clamp(0.9rem, calc(1.33vw + 10.13px), 1rem);
+      white-space: nowrap;
+    }
+
+
+    /* bottom row */
+    .headerActions {
+      display: flex;
+      flex-wrap: wrap;   /* allows graceful wrap instead of breaking layout */
+      gap: 4px;
+    }
+
+    #viewSelect option:disabled {
+      color:888;
+    }
+
+    .headerActions button,
+    .headerActions select {
+      padding: 4px 4px;
+      font-size: 1rem;
+    }
+
+/* messages */
+    #stateMessagePanel {
+      padding: 8px 4px;
+      border: 1px solid #d8b45a;
+      background: #fff7d6;
+      font-size: 1rem;
+    }
+    /* if we decide we need #bootFallback or #messagePanel, they go here */
+
+/* logView */
+
+    #logView {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #searchArea {
+      position: relative;
+      flex: 0 0 auto;
+      padding-top: 6px;
+      background: #f5f5f5;
+      z-index: 100;
+    }
+
+    #search {
+      padding: 6px 38px 6px 4px;
+      margin-bottom: 6px;
+    }
+
+    #clearSearch {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: none;
+      font-size: 1.375rem;
+      padding: 6px;
+      cursor: pointer;
+    }
+
+    #logTrailSelect {
+      flex: 0 0 auto;
+    }
+
+    #log {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    #results {
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      overflow-y: auto;
+      background: #eef5ff;
+      display: none;
+    }
+
+    #results:not(:empty) {
+      display: block;
+    }
+
+    .resultItem {
+      padding: 8px 4px;
+      border-bottom: 1px solid #ddd;
+      background: #f8fbff;
+    }
+
+    .item {
+      padding: 8px 4px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+    .common {
+      font-weight: bold;
+      margin-right: 4px;
+    }
+
+    .scientific {
+      font-style: italic;
+    }
+
+    .logRow {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    
+    .logNote {
+      flex: 0 1 auto;
+      width: auto;
+      min-width: 5ch;
+      max-width: 50%;
+
+      resize: none;
+      overflow: hidden;
+      white-space: pre;
+      overflow-wrap: anywhere;
+      padding: 0 4px;
+      vertical-align: top;
+    }
+
+    /* "x" delete button for log entries */
+    .deleteBtn {
+      flex: 0 0 auto;
+      font-size: 1.125rem;
+      padding: 2px 8px;
+      margin-left: 4px;
+      border: none;
+      border-radius: 6px;
+      background: #eee;
+      color: #900;
+      cursor: pointer;
+    }
+
+    select, input {
+      padding: 8px 4px;
+      margin-bottom: 4px;
+    }
+
+    .headerActions select {
+      width: auto;
+      margin-bottom: 0;
+    }
+
+    textarea {
+      padding: 8px 4px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      resize: vertical;
+    }
+
+    .resultItem .scientific {
+      font-size: 0.9em;
+    }
+
+    .resultItem:active {
+      background: #dcecff;
+    }
+
+    .activeNoteBtn {
+      background: #dcecff;
+    }
+
+/* Notes View */
+
+    #notesView {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .longNote {
+      min-height: 8em;
+      resize: vertical;
+    }
+
+    .participantWrapper {
+      position: relative;
+    }
+
+    #participants {
+      min-height: 2.5em;
+      resize: vertical;
+    }
+
+    .participantResults {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 2000;
+
+      max-height: 200px;
+      overflow-y: auto;
+
+      background: #eef5ff;
+      border: 1px solid #ccc;
+    }
+
+    .surveyTimeRow {
+      display: grid;
+      grid-template-columns: 2.5rem 4.5rem minmax(0, 1fr);
+      column-gap: 0.35rem;
+      align-items: baseline;
+      width: 100%;
+    }
+
+    .surveyTimeRow label {
+      text-align: right;
+    }
+
+    .surveyTimeRow input:first-of-type {
+      text-align: right;
+    }
+
+    .surveyTimeRow input {
+      min-width: 0;
+      padding: 8px 4px;
+      margin-bottom: 0;
+    }
+
+/* Route view */
+    #routeView {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #routeTrailSelect {
+      flex: 0 0 auto;
+    }
+
+    #routeLog {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+/* Choice dialog */
+    .choiceOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: calc(env(safe-area-inset-top) + 72px) 12px 12px;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .choicePanel {
+      width: min(100%, 360px);
+      padding: 12px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+    }
+
+    .choiceQuestion {
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .choiceButtons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+/* Feedback / Utility */
+    .inputRejected {
+      background: #ffeaea;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <div id="bootFallback">
+    Survey Tool did not finish loading.
+    Find network coverage and reopen the app.
+  </div>
+
+  <div id="globalHeader" hidden>
+
+    <div class="headerTop">
+      <div class="headerIdentity">
+        <img id="foeLogo" src="./icons/foe-logo.png" alt="FoE logo">
+        <div class="title">Survey Tool</div>
+      </div>
+
+      <div class="headerMeta">
+        <div id="version"></div>
+        <div id="status"></div>
+      </div>
+    </div>
+
+    <div class="headerActions">
+      <select id="viewSelect" aria-label="View" hidden>
+        <option value="log" disabled>Log</option>
+        <option value="notes" disabled>Notes</option>
+        <option value="route" disabled>Route</option>
+      </select>
+      <button id="startBtn" hidden disabled>Start</button>
+      <button id="endBtn" hidden>End</button>
+      <button id="saveBtn" hidden>Save</button>
+      <button id="newBtn" hidden>New Survey</button>
+      <button id="refreshBtn" hidden>Refresh</button>
+      <button id="importBtn" hidden>Import</button>
+      <input id="importInput" type="file" autocapitalize="none"
+        accept="application/json,.json" hidden >
+    </div>
+
+  </div> <!-- #globalHeader -->
+
+  <div id="messagePanel" hidden>
+    <span id="messageText"></span>
+    <button id="dismissMessageBtn"
+      aria-label="Dismiss message">
+      x 
+    </button>
+  </div>
+
+  <div id="stateMessagePanel" hidden></div>
+
+
+  <div id="logView" hidden>
+
+    <!-- search stays fixed under header -->
+    <div id="searchArea">
+      <input id="search" type="text" autocomplete="off" autocorrect="off"
+        autocapitalize="none" spellcheck="false"
+        placeholder="Search plant..." disabled >
+      <button id="clearSearch" type="button" aria-label="Clear search">
+        X
+      </button>
+    </div>
+
+    <!-- normal content -->
+    <select id="logTrailSelect"></select>
+
+    <div id="log"></div>
+
+    <!-- overlays selector + log -->
+    <div id="results"></div>
+
+  </div> <!-- #logView -->
+
+  <div id="notesView" hidden>
+    <input id="date" aria-label="Survey date">
+
+    <div class="participantWrapper">
+      <textarea id="participants" rows="2" autocapitalize="words"
+        placeholder="Participants" aria-label="Participants"></textarea>
+
+      <div id="participantResults" class="participantResults" ></div>
+    </div>
+
+    <div class="surveyTimeRow">
+      <label for="startTime">Start</label>
+      <input id="startTime">
+      <input id="startWeather" autocapitalize="none"
+        placeholder="55 F, partly cloudy" aria-label="Starting weather">
+    </div>
+
+    <div class="surveyTimeRow">
+      <label for="endTime">End</label>
+      <input id="endTime" disabled>
+      <input id="endWeather" disabled autocapitalize="none"
+        placeholder="88 F, sunny" aria-label="Ending weather">
+    </div>
+
+    <textarea id="notes" class="longNote" autocapitalize="none"
+      placeholder="Notes" aria-label="Survey notes"></textarea>
+
+  </div> <!-- #notesView -->
+
+  <div id="routeView" hidden>
+    <select id="routeTrailSelect"></select>
+    <div id="routeLog"></div>
+  </div> <!-- #routeView -->
+
+  <script src="shell-config.js"></script>
+  <script src="app.js"></script>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+      try {
+        await navigator.serviceWorker.register('./sw.js');
+        console.log('Service worker registered');
+      } catch (err) {
+        console.error( 'SW registration failed', err);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

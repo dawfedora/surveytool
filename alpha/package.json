@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "globals": "^17.7.0"
+  },
+  "scripts": {
+    "build:plants": "node scripts/build-plants.mjs",
+    "lint": "eslint app.js sw.js.in scripts/*.mjs"
+  }
+}
