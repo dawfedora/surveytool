@@ -1,7 +1,5 @@
 "use strict";
 
-// Push
-
 // --- GLOBAL STATE ---
 const APP_STATE = {
   BOOT: "BOOT",
