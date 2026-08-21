@@ -1415,12 +1415,12 @@ function focusNextNotesField() {
 }
 
 function refocusAfterSelection(input, afterFocus = null, delay = 150) {
-  input.blur();
-
-  setTimeout(() => {
+//  input.blur();
+//
+//  setTimeout(() => {
     input.focus();
-    afterFocus?.();
-  }, delay);
+//    afterFocus?.();
+//  }, delay);
 }
 
 function finishFieldOnBlur(advance) {
