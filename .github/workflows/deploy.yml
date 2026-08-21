@@ -83,6 +83,36 @@ jobs:
             exit 1
           fi
 
+      - name: Verify required website files
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+
+          if [ "$BRANCH" = "main" ]; then
+            TARGET="publish"
+          else
+            TARGET="publish/$BRANCH"
+          fi
+
+          for file in \
+            index.html \
+            app.js \
+            shell-config.js \
+            version.json \
+            sw.js \
+            manifest.json \
+            data/plants.json \
+            data/trails.json \
+            data/participants.json \
+            icons/foe-logo.png \
+            icons/foe-icon-192.png \
+            icons/foe-icon-512.png
+          do
+            if [ ! -f "$TARGET/$file" ]; then
+              echo "ERROR: missing $TARGET/$file"
+              exit 1
+            fi
+          done
+
       - name: Publish
         uses: peaceiris/actions-gh-pages@v4
         with:
