@@ -492,12 +492,11 @@ function makeTrailNoteHdlr(persist) {
 // --- DATA LOADING and NORMALIZATION ---
 async function loadVersion(useFresh = false, signal = undefined) {
 
-  const response = await fetch("./version.json",
-    {
-      cache: useFresh ? "reload" : "default",
-      signal
-    }
-  );
+  const request = useFresh
+    ? makeRefreshRequest("./version.json")
+    : new Request("./version.json");
+
+  const response = await fetch(request, { signal });
 
   if (!response.ok)
     throw new Error("Failed to load version");
@@ -1182,11 +1181,14 @@ async function refreshApp() {
 
     // Stage saves into a temporary cache first
     // Use a branch-specific temporary staging name.
+
     stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
     const staging = await caches.open(stagingName);
 
-    const shellReq = new Request('./shell-config.js');
-    const freshShellReq = new Request('./shell-config.js', { cache: "reload" });
+    // first get shell-config to see what files we need
+
+    const shellReq = new Request("./shell-config.js");
+    const freshShellReq = makeRefreshRequest("./shell-config.js");
 
     let shellRes = await fetch(freshShellReq);
     if (!shellRes.ok)
@@ -1196,12 +1198,16 @@ async function refreshApp() {
     shellRes = await staging.match(shellReq);
     if (!shellRes)
       throw new Error('shell-config.js missing in staging');
-    // Evaluate in isolated function scope and return only the two expected values
+
+    // Evaluate in isolated function scope; return only the two expected values
+
     const shellText = await shellRes.text();
     const cfg = (new Function(shellText + '\nreturn { CACHE_NAME, APP_SHELL };'))();
     const cacheName = cfg.CACHE_NAME;
     const newAppShell = cfg.APP_SHELL;
     console.log('Extracted cacheName from shell-config.js:', cacheName);
+
+    // Now get the files
 
     for (const file of newAppShell) {
       const req = new Request(file);
@@ -1209,7 +1215,7 @@ async function refreshApp() {
       if (await staging.match(req))
         continue;
 
-      const freshReq = new Request(file, { cache: "reload" });
+      const freshReq = makeRefreshRequest(file);
       const res = await fetch(freshReq);
 
       if (!res.ok)
@@ -1222,15 +1228,19 @@ async function refreshApp() {
     }
 
     // Verify staged version.json matches the fresh version
+
     const vRes = await staging.match('./version.json');
     if (!vRes) throw new Error('version.json missing in staging');
     const vData = await vRes.json();
-    if (vData.version !== freshVersion.version) throw new Error('Staging version mismatch');
+    if (vData.version !== freshVersion.version)
+      throw new Error('Staging version mismatch');
 
     // Commit only after staging is complete and verified. If the target cache
     // is the currently active cache, preserve a backup so refresh failure can
     // restore the old shell.
     await commitStagedCache(staging, cacheName, newAppShell, oldCacheName);
+
+    // Now fire off the new Service Worker
 
     const activated = await activateMatchingWaitingWorker(cacheName);
     if (!activated && oldCacheName !== cacheName) {
@@ -1254,6 +1264,37 @@ async function refreshApp() {
   }
 }
 
+function makeRefreshRequest(url) {
+  return new Request(url, {
+    cache: "reload",
+    headers: {
+      "X-Survey-Refresh": "true"
+    }
+  });
+}
+
+async function waitForWorkerInstallation(worker, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (true) {
+    if ( worker.state === "installed" || worker.state === "activated")
+      return worker;
+
+    if (worker.state === "redundant")
+      throw new Error( "New service worker installation failed");
+
+    const remaining = deadline - Date.now();
+
+    if (remaining <= 0)
+      throw new Error("Timed out waiting for new service worker to install");
+
+    const stateChange = await waitForEvent(worker, "statechange", remaining);
+
+    if (!stateChange)
+      throw new Error( "Timed out waiting for new service worker to install");
+  }
+}
+
 async function activateMatchingWaitingWorker(expectedCacheName) {
   if (!('serviceWorker' in navigator))
     return false;
@@ -1262,29 +1303,35 @@ async function activateMatchingWaitingWorker(expectedCacheName) {
   if (!reg)
     return false;
 
-  try {
-    await reg.update();
-  } catch (e) {
-    throw new Error(`Service worker update failed: ${e.message}`);
-  }
+  reg = await reg.update();
 
-  reg = await navigator.serviceWorker.getRegistration();
-  if (!reg.waiting)
+  let worker = reg.installing || reg.waiting;
+
+  if (!worker)
     return false;
 
-  const info = await getServiceWorkerCacheInfo(reg.waiting, 3000);
+  worker = await waitForWorkerInstallation(worker, 15000);
 
-  if (info.cacheName !== expectedCacheName) {
+  const info = await getServiceWorkerCacheInfo(worker, 3000);
+
+  if (info.cacheName !== expectedCacheName)
     throw new Error(
-      `Waiting service worker cache mismatch: expected ${expectedCacheName}, got ${info.cacheName || 'unknown'}`
+      `Waiting service worker cache mismatch: expected ${expectedCacheName}, ` +
+      `got ${info.cacheName || 'unknown'}`
     );
+
+  if (navigator.serviceWorker.controller !== worker) {
+    const controllerChange =
+      waitForEvent(navigator.serviceWorker, "controllerchange", 5000);
+
+    if (worker.state !== "activated")
+      worker.postMessage({ type: 'SKIP_WAITING' });
+
+    if (!await controllerChange)
+      throw new Error(
+       "Timed out waiting for new service worker to take control"
+      );
   }
-
-  const controllerChange = waitForControllerChange(5000);
-  reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-
-  if (!await controllerChange)
-    console.warn('Timed out waiting for service worker controllerchange; reloading anyway');
 
   return true;
 }
@@ -1315,15 +1362,35 @@ function getServiceWorkerCacheInfo(worker, timeoutMs) {
   });
 }
 
-function waitForControllerChange(timeoutMs) {
-  return new Promise(resolve => {
-    const timeout = setTimeout(() => resolve(false), timeoutMs);
+function waitForEvent(target, eventName, timeoutMs) {
+  let resolveResult;
+  let timeout;
+  let finished = false;
 
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      clearTimeout(timeout);
-      resolve(true);
-    }, { once: true });
+  function finishWait(event) {
+    if (finished)
+      return;
+
+    finished = true;
+
+    clearTimeout(timeout);
+    target.removeEventListener(eventName, finishWait);
+
+    resolveResult(event || null);
+  }
+
+  const result = new Promise(resolve => {
+    resolveResult = resolve;
   });
+
+  target.addEventListener(eventName, finishWait);
+
+  timeout = setTimeout(
+    finishWait,
+    timeoutMs
+  );
+
+  return result;
 }
 
 function getCurrentCacheName() {
