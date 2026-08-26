@@ -121,7 +121,19 @@
       font-size: 0.9rem;
       line-height: 1.25;
     }
-    /* if we decide we need #bootFallback or #messagePanel, they go here */
+
+    /* if we decide we need #messagePanel, it goes here */
+
+    #bootFallback {
+      visibility: hidden;
+      animation: showBootFallback 0s 750ms forwards;
+    }
+
+    @keyframes showBootFallback {
+      to {
+        visibility: visible;
+      }
+    }
 
 /* logView */
 
