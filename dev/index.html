@@ -153,7 +153,19 @@
       background: #fff7d6;
       font-size: 1rem;
     }
-    /* if we decide we need #bootFallback or #messagePanel, they go here */
+
+    /* if we decide we need #messagePanel, it goes here */
+
+    #bootFallback {
+      visibility: hidden;
+      animation: showBootFallback 0s 750ms forwards;
+    }
+
+    @keyframes showBootFallback {
+      to {
+        visibility: visible;
+      }
+    }
 
 /* logView */
 
