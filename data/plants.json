@@ -1,7 +1,7 @@
 {
   "header": {
     "version": "1.0",
-    "count": "606"
+    "count": "618"
   },
   "species": [
     {"scientificName":"Hypericum calycinum","commonName":"Aaron's beard","status":"*"},
@@ -102,6 +102,8 @@
     {"scientificName":"Helianthus californicus","commonName":"California sunflower","status":""},
     {"scientificName":"Rupertia physodes","commonName":"California tea","status":""},
     {"scientificName":"Morella californica","commonName":"California wax myrtle","status":""},
+    {"scientificName":"Morella californica","commonName":"California wax myrtle (f)","status":""},
+    {"scientificName":"Morella californica","commonName":"California wax myrtle (m)","status":""},
     {"scientificName":"Navarretia heterodoxa","commonName":"Calistoga navarretia","status":""},
     {"scientificName":"Zantedeschia aethiopica","commonName":"calla lily","status":"*"},
     {"scientificName":"Camellia species","commonName":"camellia","status":"*"},
@@ -123,6 +125,8 @@
     {"scientificName":"Cichorium intybus","commonName":"chicory","status":"*"},
     {"scientificName":"Acmispon wrangelianus","commonName":"Chile trefoil","status":""},
     {"scientificName":"Trachycarpus fortunei","commonName":"Chinese windmill palm","status":"*"},
+    {"scientificName":"Trachycarpus fortunei","commonName":"Chinese windmill palm (f)","status":"*"},
+    {"scientificName":"Trachycarpus fortunei","commonName":"Chinese windmill palm (m)","status":"*"},
     {"scientificName":"Bromus laevipes","commonName":"Chinook brome","status":""},
     {"scientificName":"Calochortus argillosus","commonName":"clay mariposa lily","status":""},
     {"scientificName":"Galium porrigens var. porrigens","commonName":"climbing bedstraw","status":""},
@@ -261,6 +265,8 @@
     {"scientificName":"Thysanocarpus curvipes ssp. curvipes","commonName":"hairy fringepod","status":""},
     {"scientificName":"Grindelia hirsutula","commonName":"hairy gumplant","status":""},
     {"scientificName":"Phoradendron leucarpum ssp. tomentosum","commonName":"hairy mistletoe","status":""},
+    {"scientificName":"Phoradendron leucarpum ssp. tomentosum","commonName":"hairy mistletoe (f)","status":""},
+    {"scientificName":"Phoradendron leucarpum ssp. tomentosum","commonName":"hairy mistletoe (m)","status":""},
     {"scientificName":"Cistus incanus","commonName":"hairy rock-rose","status":"*"},
     {"scientificName":"Vicia villosa","commonName":"hairy vetch","status":"*"},
     {"scientificName":"Agrostis hallii","commonName":"Hall's bent grass","status":""},
@@ -331,6 +337,8 @@
     {"scientificName":"Plectritis ciliosa","commonName":"long-spurred plectritis","status":""},
     {"scientificName":"Hesperolinon congestum","commonName":"Marin dwarf flax","status":"#"},
     {"scientificName":"Baccharis glutinosa","commonName":"marsh baccharis","status":""},
+    {"scientificName":"Baccharis glutinosa","commonName":"marsh baccharis (f)","status":""},
+    {"scientificName":"Baccharis glutinosa","commonName":"marsh baccharis (m)","status":""},
     {"scientificName":"Bromus commutatus","commonName":"meadow brome","status":"*"},
     {"scientificName":"Thalictrum fendleri var. polycarpum","commonName":"meadow-rue","status":""},
     {"scientificName":"Thalictrum fendleri var. polycarpum","commonName":"meadow-rue (f)","status":""},
@@ -392,6 +400,8 @@
     {"scientificName":"Mentha pulegium","commonName":"pennyroyal","status":"*"},
     {"scientificName":"Veronica persica","commonName":"Persian speedwell","status":"*"},
     {"scientificName":"Diospyros sp.","commonName":"persimmon","status":"*"},
+    {"scientificName":"Diospyros sp.","commonName":"persimmon (f)","status":"*"},
+    {"scientificName":"Diospyros sp.","commonName":"persimmon (m)","status":"*"},
     {"scientificName":"Euphorbia peplus","commonName":"petty spurge","status":"*"},
     {"scientificName":"Matricaria discoidea","commonName":"pineapple weed","status":""},
     {"scientificName":"Pseudognaphalium ramosissimum","commonName":"pink everlasting","status":""},
@@ -461,6 +471,8 @@
     {"scientificName":"Phacelia nemoralis var. nemoralis","commonName":"shade phacelia","status":""},
     {"scientificName":"Kickxia elatine","commonName":"sharp-leaved fluellin","status":"*"},
     {"scientificName":"Rumex acetosella","commonName":"sheep sorrel","status":"*"},
+    {"scientificName":"Rumex acetosella","commonName":"sheep sorrel (f)","status":"*"},
+    {"scientificName":"Rumex acetosella","commonName":"sheep sorrel (m)","status":"*"},
     {"scientificName":"Capsella bursa-pastoris","commonName":"shepherd's purse","status":"*"},
     {"scientificName":"Lepidium nitidum","commonName":"shining peppergrass","status":""},
     {"scientificName":"Erodium brachycarpum","commonName":"short-fruited storksbill","status":"*"},
