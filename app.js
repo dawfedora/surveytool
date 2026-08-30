@@ -49,7 +49,7 @@ let activeChoiceOverlay = null;
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
 const storeNotesLater = flushableDebounce(storeNotes, 1500, pendingStores);
-const storeCompletedLogsLater = flushableDebounce(storeCompletedLogs, 1500, pendingStores);
+//const storeCompletedLogsLater = flushableDebounce(storeCompletedLogs, 1500, pendingStores);
 
 document.addEventListener("DOMContentLoaded", init);
 
