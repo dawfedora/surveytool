@@ -538,7 +538,7 @@ function saveInfoComplete () {
 function populateLogTrailSelector() {
   if (
     survey.phase === SURVEY_PHASE.START &&
-    survey.route.currentLeg === ""
+    survey.route.currentLeg === null
   ) {
     populateStartingPointSelector(ui.log.trailSelect);
   } else {
