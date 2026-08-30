@@ -359,6 +359,7 @@ function initUI() {
       notes: viewSelect.querySelector(`option[value="notes"]`),
     },
     startBtn: document.getElementById("startBtn"),
+    nextBtn: document.getElementById("nextBtn"),
     endBtn: document.getElementById("endBtn"),
     saveBtn: document.getElementById('saveBtn'),
     newBtn: document.getElementById("newBtn"),
