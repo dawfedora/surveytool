@@ -2367,7 +2367,7 @@ function storageKey(key) {
 
 function storeCurrentLog() {
   localStorage.setItem(storageKey('logs.current'),
-    JSON.stringify(survey.logs.current));
+    JSON.stringify(survey.currentLog));
 }
 
 function storeCompletedLog(legId) {
