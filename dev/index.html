@@ -146,6 +146,14 @@
       font-size: 1rem;
     }
 
+    #newBtn {
+      margin-left: auto;
+    }
+
+    #newBtn[hidden] + #refreshBtn {
+      margin-left: auto;
+    }
+
 /* messages */
     #stateMessagePanel {
       padding: 8px 4px;
@@ -375,24 +383,6 @@
       margin-bottom: 0;
     }
 
-/* Route view */
-    #routeView {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-    }
-
-    #routeTrailSelect {
-      flex: 0 0 auto;
-    }
-
-    #routeLog {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-y: auto;
-    }
-
 /* Choice dialog */
     .choiceOverlay {
       position: fixed;
@@ -460,9 +450,9 @@
       <select id="viewSelect" aria-label="View" hidden>
         <option value="log" disabled>Log</option>
         <option value="notes" disabled>Notes</option>
-        <option value="route" disabled>Route</option>
       </select>
-      <button id="startBtn" hidden disabled>Start</button>
+      <button id="startBtn" hidden disabled>Start...</button>
+      <button id="nextBtn" hidden disabled>Next...</button>
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
       <button id="newBtn" hidden>New Survey</button>
@@ -535,11 +525,6 @@
       placeholder="Notes" aria-label="Survey notes"></textarea>
 
   </div> <!-- #notesView -->
-
-  <div id="routeView" hidden>
-    <select id="routeTrailSelect"></select>
-    <div id="routeLog"></div>
-  </div> <!-- #routeView -->
 
   <script src="shell-config.js"></script>
   <script src="app.js"></script>
