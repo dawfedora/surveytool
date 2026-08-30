@@ -2376,8 +2376,8 @@ function storeCompletedLog(legId) {
 }
 
 function storeCompletedLogLater(trailId) {
-  void trailId;
-  storeCompletedLogsLater();
+//  void trailId;
+//  storeCompletedLogsLater();
 }
 
 function debounce(fn, delay = 2500) {
