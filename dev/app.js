@@ -357,7 +357,6 @@ function initUI() {
     viewOptions: {
       log: viewSelect.querySelector(`option[value="log"]`),
       notes: viewSelect.querySelector(`option[value="notes"]`),
-      route: viewSelect.querySelector(`option[value="route"]`)
     },
     startBtn: document.getElementById("startBtn"),
     endBtn: document.getElementById("endBtn"),
