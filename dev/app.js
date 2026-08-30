@@ -297,8 +297,8 @@ function renderControls() {
   ui.header.startBtn.hidden = !starting || choosingStartingTrail;
   ui.header.startBtn.disabled = !startInfoComplete();
 
-  ui.header.NextBtn.hidden = !(choosingStartingTrail || field);
-  ui.header.NextBtn.disabled = !field;
+  ui.header.nextBtn.hidden = !(choosingStartingTrail || field);
+  ui.header.nextBtn.disabled = !field;
 
   ui.header.endBtn.hidden = !(choosingStartingTrail || field);
   ui.header.endBtn.disabled = !field;
