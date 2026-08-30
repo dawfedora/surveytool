@@ -1040,7 +1040,7 @@ function validateSegment( rawSegment, index, trails, posts, errors) {
   if (typeof endPost !== "string") {
     errors.push(`${path}.endPost: expected a string`);
     valid = false;
-  } else if (!posts.has(endPost)) {
+  } else if (!Object.hasOwn(posts, endPost)) {
     errors.push(`${path}.endPost: unknown post "${endPost}"`);
     valid = false;
   } else {
