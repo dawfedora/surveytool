@@ -1441,7 +1441,13 @@ function renderView() {
 let segmentChoices = [];
 
 function populateStartingPointSelector() {
-  segmentChoices = trailNetwork.startingSegments;
+
+  segmentChoices = trailNetwork.startingSegments.map(segment => ({
+    kind: "start",
+    atPost: segment.fromPost,
+    path: [],
+    nextSegment: segment
+  }));
 
   populateSegmentOptions(
     ui.log.trailSelect,
