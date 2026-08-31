@@ -420,7 +420,7 @@ function initHeader() {
     currentView = event.target.value;
     renderView();
   });
-  ui.header.startBtn.addEventListener('click', startSurvey);
+  ui.header.tartBtn.addEventListener('click', startSurvey);
   ui.header.nextBtn.addEventListener('click', populateTrailSelector);
   ui.header.endBtn.addEventListener('click', endSurvey);
   ui.header.saveBtn.addEventListener('click', saveSurvey);
@@ -2156,6 +2156,8 @@ function startSurvey() {
   flushPendingStores();
 
   currentView = VIEW.LOG;
+  populateStartingPointSelector();
+
   renderControls();
   renderView();
   
