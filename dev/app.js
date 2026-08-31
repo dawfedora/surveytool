@@ -420,7 +420,7 @@ function initHeader() {
     currentView = event.target.value;
     renderView();
   });
-  ui.header.tartBtn.addEventListener('click', startSurvey);
+  ui.header.StartBtn.addEventListener('click', startSurvey);
   ui.header.nextBtn.addEventListener('click', populateTrailSelector);
   ui.header.endBtn.addEventListener('click', endSurvey);
   ui.header.saveBtn.addEventListener('click', saveSurvey);
