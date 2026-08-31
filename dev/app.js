@@ -1600,10 +1600,8 @@ function findReverseSegment(segment, segmentsByPost) {
 
 function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
-  const trailName =
-    trailNetwork.trailById[segment.trailId].name;
-  const destination =
-    trailNetwork.postById[segment.toPost].name;
+  const trailName = trailNetwork.trails[segment.trailId];
+  const destination = trailNetwork.posts[segment.toPost];
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
