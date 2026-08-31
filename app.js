@@ -254,7 +254,7 @@ function renderActiveState() {
 
 function configureSurveyViews() {
   chooseInitialView();
-  populateLogTrailSelector();
+//  populateLogTrailSelector();
 }
 
 function chooseInitialView() {
