@@ -254,7 +254,6 @@ function renderActiveState() {
 
 function configureSurveyViews() {
   chooseInitialView();
-//  populateLogTrailSelector();
 }
 
 function chooseInitialView() {
@@ -532,18 +531,6 @@ function updateSaveReadiness() {
 
 function saveInfoComplete () {
    return startInfoComplete() && endInfoComplete();
-}
-
-
-function populateLogTrailSelector() {
-  if (
-    survey.phase === SURVEY_PHASE.START &&
-    survey.route.currentLeg === null
-  ) {
-    populateStartingPointSelector(ui.log.trailSelect);
-  } else {
-    populateTrailSelector(ui.log.trailSelect);
-  }
 }
 
 function makeInputHdlr(getTarget, key, persist) {
@@ -1493,6 +1480,14 @@ function populateSegmentOptions(select, promptText, choices) {
 
   select.hidden = false;
   select.focus();
+
+  if (typeof select.showPicker === "function") {
+    try {
+      select.showPicker();
+    } catch {
+      // The browser will leave it focused if it cannot open the picker.
+    }
+  }
 }
 
 function buildNextSegmentChoices(currentLeg, segmentsByPost) {
