@@ -2381,7 +2381,7 @@ function storeCompletedLog(legId) {
     JSON.stringify(survey.completedLogs[legId]));
 }
 
-function storeCompletedLogLater(trailId) {
+function storeCompletedLogLater() {
 //  void trailId;
 //  storeCompletedLogsLater();
 }
@@ -2533,7 +2533,7 @@ function positionResults() {
 
   const searchRect = ui.log.search.getBoundingClientRect();
 
-  const panelRect = ui.log.panel.getBoundingClientRect();
+  const panelRect = ui.log.view.getBoundingClientRect();
 
   // distance from top of logView
   const top = searchRect.bottom - panelRect.top;
