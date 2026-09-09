@@ -1662,13 +1662,6 @@ function createLogSection(leg, entries, current) {
   const header = document.createElement("div");
   header.className = "logSectionHeader";
   header.textContent = formatLegLabel(leg);
-  header.style.position = "sticky";
-  header.style.top = "0";
-  header.style.zIndex = "10";
-  header.style.padding = "6px 4px";
-  header.style.background = "#fff";
-  header.style.borderBottom = "1px solid #ccc";
-  header.style.fontWeight = "600";
 
   section.appendChild(header);
 
