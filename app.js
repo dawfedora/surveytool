@@ -1463,7 +1463,7 @@ function populateTrailSelector() {
 }
 
 function populateSegmentOptions(select, promptText, choices) {
-  select.replaceChildren();
+  select.innerHTML = "";
 
   const prompt = document.createElement("option");
   prompt.value = "";
@@ -1612,19 +1612,111 @@ function formatSegmentChoice(choice) {
 
 function renderLogView() {
   if (!survey) {
-    ui.log.log.innerHTML = '';
+    ui.log.log.innerHTML = "";
     return;
   }
 
-  // render sightings list
-  renderCompletedLog(ui.log.log, survey.route.currentLeg);
-
-  // clear search UI state (optional but clean)
-  ui.log.results.innerHTML = '';
-
-  // position results overlay
+  renderLogSections();
+  ui.log.results.innerHTML = "";
   requestAnimationFrame(positionResults);
   focusField(ui.log.search);
+}
+
+function renderLogSections() {
+  const container = ui.log.log;
+  container.innerHTML = "";
+
+  const currentSection = createLogSection(
+    survey.route.currentLeg,
+    survey.currentLog,
+    true
+  );
+
+  if (currentSection)
+    container.appendChild(currentSection);
+
+  survey.route.legs.slice().reverse().forEach(leg => {
+    const log = survey.completedLogs[leg.id];
+
+    if (log)
+      container.appendChild(createLogSection(leg, log.entries, false));
+  });
+}
+
+function createLogSection(leg, entries, current) {
+  if (!leg)
+    return null;
+
+  const section = document.createElement("section");
+  section.className = "logSection";
+
+  if (current)
+    section.dataset.currentLeg = "true";
+
+  const header = document.createElement("div");
+  header.className = "logSectionHeader";
+  header.textContent = formatLegLabel(leg);
+  header.style.position = "sticky";
+  header.style.top = "0";
+  header.style.zIndex = "10";
+  header.style.padding = "6px 4px";
+  header.style.background = "#fff";
+  header.style.borderBottom = "1px solid #ccc";
+  header.style.fontWeight = "600";
+
+  section.appendChild(header);
+
+  entries.slice().reverse().forEach(entry => {
+    section.appendChild(
+      createLogRow(entry, current ? null : leg.id)
+    );
+  });
+
+  return section;
+}
+
+function formatLegLabel(leg) {
+  const summary = summarizeLeg(leg);
+  const trailName =
+    trailNetwork.trails[summary.trailId] || summary.trailId;
+
+  return `${trailName}: ${summary.fromPost} → ${summary.toPost}` +
+    ` · ${summary.distance}`;
+}
+
+function summarizeLeg(leg) {
+  if (leg.trailId)
+    return leg;
+
+  const segments = leg.segments || [];
+  const first = segments[0];
+  const last = segments.at(-1);
+
+  if (!first || !last) {
+    return {
+      trailId: "",
+      fromPost: "",
+      toPost: "",
+      distance: 0
+    };
+  }
+
+  return {
+    trailId: first.trailId,
+    fromPost: first.fromPost,
+    toPost: last.toPost,
+    distance: segments.reduce(
+      (total, segment) => total + segment.length,
+      0
+    )
+  };
+}
+
+function scrollToCurrentLeg() {
+  const section =
+    ui.log.log.querySelector("[data-current-leg='true']");
+
+  section?.scrollIntoView({ block: "start" });
 }
 
 function renderNotesView() {
