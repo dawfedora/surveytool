@@ -438,6 +438,7 @@ function initHeader() {
 
 function initLogView() {
   ui.log.search.addEventListener("beforeinput", validateSearchInput);
+  ui.log.search.addEventListener("focus", scrollToCurrentLeg);
 
   let searchTimer;
 
@@ -1373,13 +1374,17 @@ function focusNextNotesField() {
   next?.focus();
 }
 
-function refocusAfterSelection(input, afterFocus = null, delay = 150) {
+//function refocusAfterSelection(input, afterFocus = null, delay = 150) {
 //  input.blur();
 //
 //  setTimeout(() => {
-    input.focus();
+//  input.focus();
 //    afterFocus?.();
 //  }, delay);
+//}
+
+function refocusAfterSelection(input) {
+  input.focus();
 }
 
 function finishFieldOnBlur(advance) {
