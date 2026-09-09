@@ -429,6 +429,25 @@
       background: #ffeaea;
     }
 
+    .logSectionHeader {
+      text-align: center;
+    }
+
+    #currentLegHeader,
+    .logSectionHeader {
+      padding: 6px 4px;
+      background: #fff;
+      border-bottom: 1px solid #ccc;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .logSectionHeader {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
   </style>
 </head>
 
@@ -495,7 +514,7 @@
     </div>
 
     <!-- normal content -->
-    <select id="logTrailSelect"></select>
+    <select id="logTrailSelect" hidden></select>
 
     <div id="log"></div>
 
