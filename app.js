@@ -966,6 +966,7 @@ function processSegments(rawSegments, trails, posts, errors) {
 
     directedSegments.push({
       id: makeLegId(segment.trailId, segment.startPost, segment.endPost),
+      sourceId: segment.sourceId,
       trailId: segment.trailId,
       fromPost: segment.startPost,
       toPost: segment.endPost,
@@ -975,6 +976,7 @@ function processSegments(rawSegments, trails, posts, errors) {
     if (segment.startPost !== segment.endPost) {
       directedSegments.push({
         id: makeLegId(segment.trailId, segment.endPost, segment.startPost),
+        sourceId: segment.sourceId,
         trailId: segment.trailId,
         fromPost: segment.endPost,
         toPost: segment.startPost,
@@ -1071,6 +1073,7 @@ function validateSegment( rawSegment, index, trails, posts, errors) {
      return null;
 
   return {
+    sourceId: index,
     startPost,
     trailId,
     endPost,
@@ -1498,30 +1501,20 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
     throw new Error("Current leg has no segment");
 
   const currentRay = legSegments[legSegments.length - 1];
-
-  /*
-   * Everything before the current ray has already been established
-   * as part of this leg.
-   */
   const establishedPath = legSegments.slice(0, -1);
 
   let incoming = currentRay;
   let path = [...establishedPath];
 
   const visitedSegments = new Set(
-    establishedPath.map(segment => segment.sourceIndex)
+    establishedPath.map(segment => segment.sourceId)
   );
 
-  let length = 0;
-
   while (incoming) {
-
-    length += incoming.length;
-
-    if (visitedSegments.has(incoming.sourceIndex))
+    if (visitedSegments.has(incoming.sourceId))
       break;
 
-    visitedSegments.add(incoming.sourceIndex);
+    visitedSegments.add(incoming.sourceId);
     path.push(incoming);
 
     const postId = incoming.toPost;
@@ -1530,26 +1523,16 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
     if (!outgoing)
       throw new Error(`No segments leave post "${postId}"`);
 
-    /*
-     * Exclude the physical segment just traversed. Its reverse is
-     * represented by the U-turn choice added at the end.
-     */
     const forward = outgoing.filter(segment =>
-      segment.sourceIndex !== incoming.sourceIndex
+      segment.sourceId !== incoming.sourceId
     );
 
-
-    /*
-     * Different-trail segments start possible new legs. Because we
-     * walk the current trail outward, nearby branches are added
-     * before more distant branches.
-     */
     for (const segment of forward) {
       if (segment.trailId !== currentRay.trailId) {
         choices.push({
           kind: "turn",
           atPost: postId,
-          path: [...path],
+          completedLeg: rollUpCompletedLeg(currentLeg, path),
           nextSegment: segment
         });
       }
@@ -1575,7 +1558,10 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
     choices.push({
       kind: "uturn",
       atPost: currentRay.toPost,
-      path: [...establishedPath, currentRay],
+      completedLeg: rollUpCompletedLeg(
+        currentLeg,
+        [...establishedPath, currentRay]
+      ),
       nextSegment: reverse
     });
   }
@@ -1583,11 +1569,24 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
   return choices;
 }
 
+function rollUpCompletedLeg(currentLeg, path) {
+  const first = path[0];
+  const last = path[path.length - 1];
+
+  return {
+    startedAt: currentLeg.startedAt,
+    trailId: first.trailId,
+    fromPost: first.fromPost,
+    toPost: last.toPost,
+    distance: path.reduce((total, segment) => total + segment.length, 0)
+  };
+}
+
 function findReverseSegment(segment, segmentsByPost) {
   const outgoing = segmentsByPost.get(segment.toPost);
 
   return outgoing.find(candidate =>
-    candidate.sourceIndex === segment.sourceIndex &&
+    candidate.sourceId === segment.sourceId &&
     candidate.fromPost === segment.toPost &&
     candidate.toPost === segment.fromPost
   ) || null;
@@ -1659,39 +1658,65 @@ function handleTrailChange(event) {
 
   select.hidden = true;
 
-  transitionLeg(selection, );
+  transitionLeg(selection);
 
-  storeSurveyProgress();
   renderLogView();
   renderControls();
 }
 
-function beginFirstLeg(choice) {
-  if (survey.currentLeg)
-    throw new Error("Survey already has a current leg");
+function transitionLeg(choice) {
+  const route = survey.route;
 
-  survey.currentLeg = {
-    segments: [choice.nextSegment],
-    entries: []
+  if (!route.currentLeg) {
+    route.currentLeg = {
+      startedAt: formatTimestamp(),
+      segments: [choice.nextSegment]
+    };
+
+    setSurveyPhase(SURVEY_PHASE.FIELD);
+    storeRoute();
+    storeCurrentLog();
+    return;
+  }
+
+  const completedLeg = choice.completedLeg;
+  completedLeg.id = makeCompletedLegId(completedLeg);
+
+  route.legs.push(completedLeg);
+
+  survey.completedLogs[completedLeg.id] = {
+    firstEntered: completedLeg.startedAt,
+    entries: survey.currentLog
   };
 
-  setSurveyPhase(SURVEY_PHASE.FIELD);
+  storeCompletedLog(completedLeg.id);
+
+  route.currentLeg = {
+    startedAt: formatTimestamp(),
+    segments: [choice.nextSegment]
+  };
+  survey.currentLog = [];
+
+  storeRoute();
+  storeCurrentLog();
 }
 
-function completeCurrentLeg(choice) {
-  const currentLeg = survey.currentLeg;
+function makeCompletedLegId(leg) {
+  const base = [
+    leg.trailId,
+    leg.fromPost,
+    leg.toPost
+  ].join(".");
 
-  if (!currentLeg)
-    throw new Error("Cannot complete a missing current leg");
+  let legId = base;
+  let occurrence = 2;
 
-  currentLeg.segments = choice.path;
+  while (Object.hasOwn(survey.completedLogs, legId)) {
+    legId = `${base}.${occurrence}`;
+    occurrence++;
+  }
 
-  survey.log.push(currentLeg);
-
-  survey.currentLeg = {
-    segments: [choice.nextSegment],
-    entries: []
-  };
+  return legId;
 }
 
 // --- MESSAGES and DIALOGS
@@ -2169,14 +2194,14 @@ function endSurvey() {
     throw new Error("endSurvey called with no active survey!");
 
   if (survey.phase !== SURVEY_PHASE.FIELD ||
-    survey.route.currentLeg === "") {
+    survey.route.currentLeg === null) {
     throw new Error("Cannot end a survey without a current leg");
   }
   // Confirm end button
 
   flushPendingStores();
 
-  completeCurrentLeg("");
+  transitionLeg("");
 
   // set endTime
   survey.notes.endTime = formatTime(new Date);
@@ -2343,15 +2368,15 @@ function loadCompletedLogs(route) {
 }
 
 function loadCompletedLog(legId) {
-  const data = loadSection(storageKey(`logs.${legId}`));
+  const log = loadSection(storageKey(`logs.${legId}`));
 
-  if (data === null)
-    throw new Error(`Missing log for leg "${legId}"`);
-
-  if (!Array.isArray(data))
+  if (!isPlainObject(log))
     throw new Error(`Invalid log for leg "${legId}"`);
 
-  return data;
+  if (!Array.isArray(log.entries))
+    throw new Error(`Invalid log entries for leg "${legId}"`);
+
+  return log;
 }
 
 function storeNotes() {
