@@ -374,14 +374,18 @@ function initUI() {
     statePanel: document.getElementById("stateMessagePanel")
   };
 
-  ui.log ={
+  ui.log = {
     view: document.getElementById('logView'),
     trailSelect: document.getElementById('logTrailSelect'),
     search: document.getElementById('search'),
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
-    log:  document.getElementById('log'),
+    log: document.getElementById("log")
   };
+
+  ui.log.currentHeader = document.createElement("div");
+  ui.log.currentHeader.id = "currentLegHeader";
+  ui.log.log.before(ui.log.currentHeader);
 
   ui.notes = {
     view: document.getElementById('notesView'),
@@ -1626,14 +1630,16 @@ function renderLogSections() {
   const container = ui.log.log;
   container.innerHTML = "";
 
-  const currentSection = createLogSection(
-    survey.route.currentLeg,
-    survey.currentLog,
-    true
-  );
+  const currentLeg = survey.route.currentLeg;
+  ui.log.currentHeader.hidden = !currentLeg;
+  ui.log.currentHeader.textContent =
+    currentLeg ? formatLegLabel(currentLeg) : "";
 
-  if (currentSection)
-    container.appendChild(currentSection);
+  if (currentLeg) {
+    survey.currentLog.slice().reverse().forEach(entry => {
+      container.appendChild(createLogRow(entry, null));
+    });
+  }
 
   survey.route.legs.slice().reverse().forEach(leg => {
     const log = survey.completedLogs[leg.id];
@@ -1713,10 +1719,7 @@ function summarizeLeg(leg) {
 }
 
 function scrollToCurrentLeg() {
-  const section =
-    ui.log.log.querySelector("[data-current-leg='true']");
-
-  section?.scrollIntoView({ block: "start" });
+  ui.log.log.scrollTop = 0;
 }
 
 function renderNotesView() {
