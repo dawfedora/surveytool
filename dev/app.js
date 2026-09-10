@@ -2290,14 +2290,129 @@ function endSurvey() {
     survey.route.currentLeg === null) {
     throw new Error("Cannot end a survey without a current leg");
   }
-  // Confirm end button
 
   flushPendingStores();
 
-  transitionLeg("");
+  const currentLeg = survey.route.currentLeg;
+  const startPost = getSurveyStartPost();
 
-  // set endTime
-  survey.notes.endTime = formatTime(new Date);
+  const directPath = findDirectPathHome(
+    currentLeg, startPost, trailNetwork.segmentsByPost
+  );
+
+  if (directPath) {
+    const completedLeg = rollUpCompletedLeg(currentLeg, directPath);
+    const trailName =
+      trailNetwork.trails[completedLeg.trailId] || completedLeg.trailId;
+
+    const confirmed = confirm(
+      `${trailName} — ${completedLeg.fromPost} → ${completedLeg.toPost}.\n` +
+      `End survey here?`
+    );
+
+    if (confirmed) {
+      finishSurveyWithLeg(completedLeg);
+      return;
+    }
+  }
+
+  offerEndFallback();
+}
+
+function getSurveyStartPost() {
+  const legs = survey.route.legs;
+
+  if (legs.length)
+    return legs[0].fromPost;
+
+  return survey.route.currentLeg.segments[0].fromPost;
+}
+
+function findDirectPathHome(currentLeg, startPost, segmentsByPost) {
+  const legSegments = currentLeg.segments;
+  const currentRay = legSegments[legSegments.length - 1];
+
+  const startTrails = new Set(
+    (segmentsByPost.get(startPost) || []).map(segment => segment.trailId)
+  );
+
+  if (!startTrails.has(currentRay.trailId))
+    return null;
+
+  const establishedPath = legSegments.slice(0, -1);
+
+  let incoming = currentRay;
+  let path = [...establishedPath];
+
+  const visited = new Set(
+    establishedPath.map(segment => segment.sourceId)
+  );
+
+  while (incoming) {
+    if (visited.has(incoming.sourceId))
+      return null;
+
+    visited.add(incoming.sourceId);
+    path.push(incoming);
+
+    if (incoming.toPost === startPost)
+      return path;
+
+    const outgoing = segmentsByPost.get(incoming.toPost) || [];
+
+    const continuation = outgoing.find(segment =>
+      segment.sourceId !== incoming.sourceId &&
+      segment.trailId === currentRay.trailId
+    );
+
+    if (!continuation)
+      return null;
+
+    incoming = continuation;
+  }
+
+  return null;
+}
+
+async function offerEndFallback() {
+  const choice = await chooseAction(
+    "Could not confirm a direct path back to the start.", [
+      { value: "next", label: "Use Next" },
+      { value: "endHere", label: "End here" },
+      { value: "cancel", label: "Cancel" }
+    ]
+  );
+
+  if (choice === "endHere") {
+    const currentLeg = survey.route.currentLeg;
+    const completedLeg = rollUpCompletedLeg(
+      currentLeg, currentLeg.segments
+    );
+    finishSurveyWithLeg(completedLeg);
+  }
+  // "next" and "cancel" both leave survey state unchanged.
+}
+
+function finishSurveyWithLeg(completedLeg) {
+  const route = survey.route;
+
+  completedLeg.id = makeCompletedLegId(completedLeg);
+  route.legs.push(completedLeg);
+
+  survey.completedLogs[completedLeg.id] = {
+    firstEntered: completedLeg.startedAt,
+    entries: survey.currentLog
+  };
+
+  storeCompletedLog(completedLeg.id);
+
+  route.currentLeg = null;
+  survey.currentLog = [];
+
+  storeRoute();
+  storeCurrentLog();
+
+  survey.notes.endTime = formatTime(new Date());
   storeNotes();
 
   setSurveyPhase(SURVEY_PHASE.END);
