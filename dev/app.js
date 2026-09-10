@@ -291,7 +291,7 @@ function renderControls() {
     
   ui.header.viewSelect.hidden = !active;
   options.notes.disabled = !active || choosingStartingTrail;
-  options.log.disabled = !(field || choosingStartingTrail);
+  options.log.disabled = !(field || choosingStartingTrail || ended);
 
   ui.header.startBtn.hidden = !starting || choosingStartingTrail;
   ui.header.startBtn.disabled = !startInfoComplete();
