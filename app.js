@@ -2513,51 +2513,21 @@ function storePhase() {
 }
 
 function loadNotes() {
-
   const notes = loadSection(storageKey("notes"));
 
-  if (notes === null)
-    throw new Error("Missing notes");
-
-  if (typeof notes !== "object" || Array.isArray(notes))
-    throw new Error("Bad format for notes");
-
-  assertString(notes.date, "notes.date");
-  assertString(notes.participants, "notes.participants");
-  assertString(notes.startTime, "notes.startTime");
-  assertString(notes.startWeather, "notes.startWeather");
-  assertString(notes.endTime, "notes.endTime");
-  assertString(notes.endWeather, "notes.endWeather");
-  assertString(notes.notes, "notes.notes");
-
-  return notes;
+  return normalizeNotes(notes);
 }
 
 function loadRoute() {
-
   const route = loadSection(storageKey("route"));
 
-  if (!isPlainObject(route))
-    throw new Error("Bad stored route");
-  
-  if (route.currentLeg !== null && !isPlainObject(route.currentLeg))
-    throw new Error("Bad route.currentLeg");
-
-  if (!Array.isArray(route.legs))
-     throw new Error("Invalid route.legs");
-
-// make sure the legs are all appropriate object
-
-  return route;
+  return normalizeRoute(route);
 }
 
 function loadCurrentLog() {
   const currentLog = loadSection(storageKey("logs.current"));
 
-  if (currentLog !== null && !Array.isArray(currentLog))
-    throw new Error("Invalid survey.currentLog");
-
-  return currentLog
+  return normalizeCurrentLog(currentLog);
 }
 
 function loadCompletedLogs(route) {
@@ -2578,13 +2548,7 @@ function loadCompletedLogs(route) {
 function loadCompletedLog(legId) {
   const log = loadSection(storageKey(`logs.${legId}`));
 
-  if (!isPlainObject(log))
-    throw new Error(`Invalid log for leg "${legId}"`);
-
-  if (!Array.isArray(log.entries))
-    throw new Error(`Invalid log entries for leg "${legId}"`);
-
-  return log;
+  return normalizeCompletedLog(log, legId);
 }
 
 function storeNotes() {
@@ -2907,7 +2871,6 @@ function addSighting(item) {
 
   // Add to END (most recent last)
   const entry = {
-    speciesId: item.speciesId,
     commonName: item.displayCommon,
     scientificName: item.scientificName,
     note: "",
@@ -3306,7 +3269,7 @@ async function importSurveyFile(event) {
       if (!ok)
         return;
     }
-    cancelPendingStores();
+    
 
     const text = await file.text();
     console.log("Import file:", {
@@ -3320,13 +3283,12 @@ async function importSurveyFile(event) {
 
     console.log("Imported survey:", imported);
 
+    cancelPendingStores();
+
     // clearStoredSurvey also clears surveyExists
     clearStoredSurvey();
 
     survey = imported;
-
-    const firstTrail = firstImportedTrail(imported) || null;
-    setCurrentTrail(firstTrail);
 
     storeSurvey();
     localStorage.setItem(storageKey("surveyExists"), "true");
@@ -3348,81 +3310,115 @@ function normalizeImportedSurvey(data) {
   const imported = requirePlainObject(data, "survey");
 
   return {
-    startNote: normalizeImportedStartNote(imported.startNote),
-    trailNotes: normalizeImportedTrailNotes(imported.trailNotes),
-    closeNote: normalizeImportedCloseNote(imported.closeNote),
-    completedLogs: normalizeImportedCompletedLogs(imported.completedLogs || imported.trails)
+    phase: normalizePhase(imported.phase),
+    notes: normalizeNotes(imported.notes),
+    route: normalizeRoute(imported.route),
+    currentLog: normalizeCurrentLog(imported.currentLog),
+    completedLogs: normalizeCompletedLogs(imported.completedLogs || imported.trails)
   };
 }
 
-function normalizeImportedStartNote(startNote) {
-  const start = requirePlainObject(startNote, "startNote");
+function normalizePhase(phase) {
+  if (typeof phase !== "string")
+    throw new Error(`Invalid survey.phase "${phase}"`);
+
+  return phase;
+}
+
+function normalizeNotes(data) {
+  const notes = requirePlainObject(data, "notes");
 
   return {
-    date: requireStringField(start, "date", "startNote"),
-    time: requireStringField(start, "time", "startNote"),
-    weather: requireStringField(start, "weather", "startNote"),
-    participants: requireStringField(start, "participants", "startNote"),
-    notes: requireStringField(start, "notes", "startNote")
+    date: requireStringField(notes, "date", "notes"),
+    participants: requireStringField(notes, "participants", "notes"),
+    startTime: requireStringField(notes, "startTime", "notes"),
+    startWeather: requireStringField(notes, "startWeather", "notes"),
+    endTime: requireStringField(notes, "endTime", "notes"),
+    endWeather: requireStringField(notes, "endWeather", "notes"),
+    notes: requireStringField(notes, "notes", "notes")
   };
 }
 
-function normalizeImportedCloseNote(closeNote) {
-  const close = requirePlainObject(closeNote, "closeNote");
-
+function normalizeRoute(route) {
+  const r = requirePlainObject(route, "route");
+  
   return {
-    time: requireStringField(close, "time", "closeNote"),
-    weather: requireStringField(close, "weather", "closeNote"),
-    notes: requireStringField(close, "notes", "closeNote")
+    currentLeg: normalizeLeg(r.currentLeg, "currentLeg"),
+    legs: normalizeLegs(r.legs)
   };
 }
 
-function normalizeImportedTrailNotes(trailNotes) {
-  const notes = requirePlainObject(trailNotes || {}, "trailNotes");
-  const normalized = {};
-
-  for (const trailId in notes) {
-    if (typeof notes[trailId] !== "string")
-      throw new Error(`Invalid trailNotes`);
-
-    normalized[trailId] = notes[trailId];
-  }
-
-  return normalized;
+function normalizeLeg(leg, path) {
+  const l = requirePlainObject(leg, path);
+// maybe check posts and trailnames and id?  Check the timestamp?
+  return {
+    startedAt: requireStringField(l, "startedAt", path),vi
+    trailId: requireStringField(l, "trailId", path),
+    fromPost: requireStringField(l, "fromPost", path),
+    toPost: requireStringField(l, "toPost", path),
+    distance: requireFiniteNumber(l.distance, `legs.${path}.distance`),
+    id: requireStringField(l, "id", path)
+  };
 }
 
-function normalizeImportedCompletedLogs(completedLogs) {
+function normalizeLegs(legs) {
+  if (!Array.isArray(legs))
+    throw new Error("Invalid legs");
+
+  return legs.map((leg, index) => normalizeLeg(leg, `legs.${index}`));
+}
+
+function normalizeCurrentLog(currentLog) {
+  return normalizeLogEntries(currentLog, `currentLog.entries`) || [];
+}
+
+function normalizeCompletedLogs(completedLogs) {
   const logs = requirePlainObject(completedLogs || {}, "completedLogs");
   const normalized = {};
 
   for (const trailId in logs) {
     const log = requirePlainObject(logs[trailId], `completedLogs.${trailId}`);
-    const entries = log.entries;
 
-    if (!Array.isArray(entries))
-      throw new Error(`Invalid completedLogs.${trailId}.entries`);
-
-    normalized[trailId] = {
-      firstEntered: requireStringField(log, "firstEntered", `completedLogs.${trailId}`),
-      entries: entries.map((entry, index) =>
-        normalizeImportedLogEntry(entry, `completedLogs.${trailId}.entries.${index}`)
-      )
-    };
+    const normalizedLog = normalizeCompletedLog(log, `completedLogs.${trailId}`);
+    normalized[trailId] = normalizedLog;
   }
 
   return normalized;
 }
 
-function normalizeImportedLogEntry(entry, path) {
+function normalizeCompletedLog(log, path) {
+  const l = requirePlainObject(log, path);
+  return {
+    firstEntered: requireStringField(l, "firstEntered", path),
+    entries: normalizeLogEntries(l.entries, `${path}.entries`)
+  };
+}
+
+function normalizeLogEntries(entries, path) {
+  if (!Array.isArray(entries))
+    throw new Error(`Invalid ${path}`);
+
+  return entries.map((entry, index) =>
+    normalizeLogEntry(entry, `${path}.${index}`)
+  );
+}
+
+function normalizeLogEntry(entry, path) {
   const item = requirePlainObject(entry, path);
 
   return {
-    speciesId: item.speciesId,
     commonName: requireStringField(item, "commonName", path),
     scientificName: requireStringField(item, "scientificName", path),
     note: typeof item.note === "string" ? item.note : "",
     time: requireStringField(item, "time", path)
   };
+}
+
+function requireFiniteNumber(value, name) {
+  if (!Number.isFinite(value))
+    throw new Error(`Invalid ${name}`);
+
+  return value;
 }
 
 function isPlainObject(value) {
@@ -3441,20 +3437,6 @@ function requireStringField(obj, key, path) {
     throw new Error(`Invalid ${path}.${key}`);
 
   return obj[key];
-}
-
-function firstImportedTrail(imported) {
-  for (const trailId of Object.keys(imported.completedLogs || {})) {
-    if (imported.completedLogs[trailId]?.entries?.length)
-      return trailId;
-  }
-
-  for (const trailId of Object.keys(imported.completedLogs || {})) {
-    if (imported.completedLogs[trailId])
-      return trailId;
-  }
-
-  return null;
 }
 
 // --- Time and Date ---
