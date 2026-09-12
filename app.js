@@ -14,14 +14,12 @@ let appState = APP_STATE.BOOT;
 const SURVEY_PHASE = {
   START: "start",
   FIELD: "field",
-  END: "end",
-  DONE: "done"
+  END: "end"
 };
 
 const VIEW = {
   LOG: "log",
-  NOTES: "notes",
-  ROUTE: "route"
+  NOTES: "notes"
 };
 let currentView = VIEW.LOG;
 
@@ -29,8 +27,7 @@ const ui = {
   header: {},
   message: {},
   log: {},
-  notes: {},
-  route: {}
+  notes: {}
 };
 
 let  STORAGE_TAG = null;
@@ -38,7 +35,6 @@ let  STORAGE_TAG = null;
 
 let version = null;
 let species = [];
-let trails = [];
 let trailNetwork = {};
 let participants = [];
 let survey = null;
@@ -49,7 +45,8 @@ let activeChoiceOverlay = null;
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
 const storeNotesLater = flushableDebounce(storeNotes, 1500, pendingStores);
-//const storeCompletedLogsLater = flushableDebounce(storeCompletedLogs, 1500, pendingStores);
+const storeCurrentLogLater = flushableDebounce(storeCurrentLog, 1500, pendingStores);
+const storeCompletedLogLater = flushableDebounce(storeCompletedLog, 1500, pendingStores);
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -588,14 +585,17 @@ async function loadLocalData() {
     );
 
     trailNetwork = processTrailNetwork(loaded.trails);
-    trails = trailNetwork.trails;
 
     participants = processParticipants(
       requireArray(loaded.participants, 'participants', 'data/participants.json')
     );
 
     console.log(
-      `Loaded ${trails.length} trails, ${species.length} species, ${participants.length} participants`
+      `Loaded ${Object.keys(trailNetwork.trails).length} trails, ` +
+      `${Object.keys(trailNetwork.posts).length} posts, ` +
+      `${trailNetwork.directedSegments.length} directed segments, ` +
+      `${species.length} species, ` +
+      `${participants.length} participants`
     );
 
     return true;
@@ -786,6 +786,8 @@ function processTrailNetwork(data) {
 
   validateTrailCoverage(trails, directedSegments, errors);
 
+  validateTrailTopology(trails, directedSegments, errors);
+
   const startingSegments = validateStartingPoints(
     data.startingPoints,
     trails,
@@ -971,7 +973,6 @@ function processSegments(rawSegments, trails, posts, errors) {
 
     directedSegments.push({
       id: makeLegId(segment.trailId, segment.startPost, segment.endPost),
-      sourceId: segment.sourceId,
       trailId: segment.trailId,
       fromPost: segment.startPost,
       toPost: segment.endPost,
@@ -981,7 +982,6 @@ function processSegments(rawSegments, trails, posts, errors) {
     if (segment.startPost !== segment.endPost) {
       directedSegments.push({
         id: makeLegId(segment.trailId, segment.endPost, segment.startPost),
-        sourceId: segment.sourceId,
         trailId: segment.trailId,
         fromPost: segment.endPost,
         toPost: segment.startPost,
@@ -1078,7 +1078,6 @@ function validateSegment( rawSegment, index, trails, posts, errors) {
      return null;
 
   return {
-    sourceId: index,
     startPost,
     trailId,
     endPost,
@@ -1134,6 +1133,100 @@ function validateTrailCoverage(trails, directedSegments, errors) {
   for (const trailId of Object.keys(trails)) {
     if (!usedTrailIds.has(trailId)) {
       errors.push(`trails: trail "${trailId}" is not used by any segment`);
+    }
+  }
+}
+
+function validateTrailTopology(trails, directedSegments, errors) {
+  const segmentsByTrail = new Map();
+
+  for (const segment of directedSegments) {
+    // Keep only one direction of each physical segment.
+    if (segment.fromPost > segment.toPost)
+      continue;
+
+    let segments = segmentsByTrail.get(segment.trailId);
+    if (!segments) {
+      segments = [];
+      segmentsByTrail.set(segment.trailId, segments);
+    }
+
+    segments.push(segment);
+  }
+
+  for (const trailId of Object.keys(trails)) {
+    const segments = segmentsByTrail.get(trailId) || [];
+
+    // Trail coverage reports an unused trail separately.
+    if (segments.length === 0)
+      continue;
+
+    // A single zero-length self-loop is a valid area-style trail.
+    if (
+      segments.length === 1 &&
+      segments[0].fromPost === segments[0].toPost &&
+      segments[0].length === 0
+    ) {
+      continue;
+    }
+
+    if (segments.some(segment => segment.fromPost === segment.toPost)) {
+      errors.push(
+        `segments: trail "${trailId}" contains a self-loop and other segments`
+      );
+      continue;
+    }
+
+    const neighborsByPost = new Map();
+
+    for (const segment of segments) {
+      if (!neighborsByPost.has(segment.fromPost))
+        neighborsByPost.set(segment.fromPost, []);
+      if (!neighborsByPost.has(segment.toPost))
+        neighborsByPost.set(segment.toPost, []);
+
+      neighborsByPost.get(segment.fromPost).push(segment.toPost);
+      neighborsByPost.get(segment.toPost).push(segment.fromPost);
+    }
+
+    let endpointCount = 0;
+
+    for (const [postId, neighbors] of neighborsByPost) {
+      if (neighbors.length === 1) {
+        endpointCount++;
+      } else if (neighbors.length !== 2) {
+        errors.push(
+          `segments: trail "${trailId}" has ${neighbors.length} segments ` +
+          `at post "${postId}"`
+        );
+      }
+    }
+
+    if (endpointCount !== 2) {
+      errors.push(
+        `segments: trail "${trailId}" has ${endpointCount} endpoints; expected 2`
+      );
+    }
+
+    const firstPost = neighborsByPost.keys().next().value;
+    const visitedPosts = new Set([firstPost]);
+    const pendingPosts = [firstPost];
+
+    while (pendingPosts.length) {
+      const postId = pendingPosts.pop();
+
+      for (const neighbor of neighborsByPost.get(postId)) {
+        if (!visitedPosts.has(neighbor)) {
+          visitedPosts.add(neighbor);
+          pendingPosts.push(neighbor);
+        }
+      }
+    }
+
+    if (visitedPosts.size !== neighborsByPost.size) {
+      errors.push(
+        `segments: trail "${trailId}" cannot be traversed continuously`
+      );
     }
   }
 }
@@ -1242,11 +1335,6 @@ function validateTextInput(event, allowed) {
     event.preventDefault();
     flashInvalidTextInput(input);
   }
-}
-
-function assertString(value, name) {
-  if (typeof value !== "string")
-    throw new Error(`Invalid ${name}`);
 }
 
 function requireArray(obj, key, filename) {
@@ -1504,26 +1592,11 @@ function populateSegmentOptions(select, promptText, choices) {
 
 function buildNextSegmentChoices(currentLeg, segmentsByPost) {
   const choices = [];
-  const legSegments = currentLeg.segments;
+  const path = [];
 
-  if (legSegments.length === 0)
-    throw new Error("Current leg has no segment");
-
-  const currentRay = legSegments[legSegments.length - 1];
-  const establishedPath = legSegments.slice(0, -1);
-
-  let incoming = currentRay;
-  let path = [...establishedPath];
-
-  const visitedSegments = new Set(
-    establishedPath.map(segment => segment.sourceId)
-  );
+  let incoming = currentLeg;
 
   while (incoming) {
-    if (visitedSegments.has(incoming.sourceId))
-      break;
-
-    visitedSegments.add(incoming.sourceId);
     path.push(incoming);
 
     const postId = incoming.toPost;
@@ -1532,12 +1605,12 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
     if (!outgoing)
       throw new Error(`No segments leave post "${postId}"`);
 
-    const forward = outgoing.filter(segment =>
-      segment.sourceId !== incoming.sourceId
-    );
+    const forward =
+      outgoing.filter(segment => !isReverseSegment(segment, incoming));
 
+    // Offer every other trail leaving this post.
     for (const segment of forward) {
-      if (segment.trailId !== currentRay.trailId) {
+      if (segment.trailId !== currentLeg.trailId) {
         choices.push({
           kind: "turn",
           atPost: postId,
@@ -1547,29 +1620,20 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
       }
     }
 
-    const continuations =
-      forward.filter(segment => segment.trailId === currentRay.trailId);
-
-    if (continuations.length === 0)
-      break;
-
-    if (continuations.length > 1)
-      throw new Error( `Trail "${currentRay.trailId}" has multiple forward ` +
-        `continuations at post "${postId}"`
-      );
-
-    incoming = continuations[0];
+    // Topology validation guarantees zero or one continuation.
+    incoming =
+      forward.find(segment => segment.trailId === currentLeg.trailId) || null;
   }
 
-  const reverse = findReverseSegment(currentRay, segmentsByPost);
+  const reverse = findReverseSegment(currentLeg, segmentsByPost);
 
-  if (reverse && currentRay.fromPost !== currentRay.toPost) {
+  if (reverse && currentLeg.fromPost !== currentLeg.toPost) {
     choices.push({
       kind: "uturn",
-      atPost: currentRay.toPost,
+      atPost: currentLeg.toPost,
       completedLeg: rollUpCompletedLeg(
         currentLeg,
-        [...establishedPath, currentRay]
+        [currentLeg]
       ),
       nextSegment: reverse
     });
@@ -1582,23 +1646,32 @@ function rollUpCompletedLeg(currentLeg, path) {
   const first = path[0];
   const last = path[path.length - 1];
 
-  return {
+  const leg = {
     startedAt: currentLeg.startedAt,
+    id: makeLegId(first.trailId, first.fromPost, last.toPost),
     trailId: first.trailId,
     fromPost: first.fromPost,
     toPost: last.toPost,
-    distance: path.reduce((total, segment) => total + segment.length, 0)
+    length: path.reduce((total, segment) => total + segment.length, 0)
   };
+  return leg;
+}
+
+function isReverseSegment(candidate, segment) {
+  return (
+    candidate.trailId === segment.trailId &&
+    candidate.fromPost === segment.toPost &&
+    candidate.toPost === segment.fromPost
+  );
 }
 
 function findReverseSegment(segment, segmentsByPost) {
-  const outgoing = segmentsByPost.get(segment.toPost);
+  const outgoing = segmentsByPost.get(segment.toPost) || [];
 
   return outgoing.find(candidate =>
-    candidate.sourceId === segment.sourceId &&
-    candidate.fromPost === segment.toPost &&
-    candidate.toPost === segment.fromPost
+    isReverseSegment(candidate, segment)
   ) || null;
+
 }
 
 function formatSegmentChoice(choice) {
@@ -1650,19 +1723,16 @@ function renderLogSections() {
     const log = survey.completedLogs[leg.id];
 
     if (log)
-      container.appendChild(createLogSection(leg, log.entries, false));
+      container.appendChild(createLogSection(leg, log.entries));
   });
 }
 
-function createLogSection(leg, entries, current) {
+function createLogSection(leg, entries) {
   if (!leg)
     return null;
 
   const section = document.createElement("section");
   section.className = "logSection";
-
-  if (current)
-    section.dataset.currentLeg = "true";
 
   const header = document.createElement("div");
   header.className = "logSectionHeader";
@@ -1672,7 +1742,7 @@ function createLogSection(leg, entries, current) {
 
   entries.slice().reverse().forEach(entry => {
     section.appendChild(
-      createLogRow(entry, current ? null : leg.id)
+      createLogRow(entry, leg.id)
     );
   });
 
@@ -1680,40 +1750,9 @@ function createLogSection(leg, entries, current) {
 }
 
 function formatLegLabel(leg) {
-  const summary = summarizeLeg(leg);
-  const trailName =
-    trailNetwork.trails[summary.trailId] || summary.trailId;
+  const trailName = trailNetwork.trails[leg.trailId];
 
-  return `${trailName}: ${summary.fromPost} → ${summary.toPost}` +
-    ` · ${summary.distance}`;
-}
-
-function summarizeLeg(leg) {
-  if (leg.trailId)
-    return leg;
-
-  const segments = leg.segments || [];
-  const first = segments[0];
-  const last = segments.at(-1);
-
-  if (!first || !last) {
-    return {
-      trailId: "",
-      fromPost: "",
-      toPost: "",
-      distance: 0
-    };
-  }
-
-  return {
-    trailId: first.trailId,
-    fromPost: first.fromPost,
-    toPost: last.toPost,
-    distance: segments.reduce(
-      (total, segment) => total + segment.length,
-      0
-    )
-  };
+  return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
 }
 
 function scrollToCurrentLeg() {
@@ -1763,7 +1802,7 @@ function transitionLeg(choice) {
   if (!route.currentLeg) {
     route.currentLeg = {
       startedAt: formatTimestamp(),
-      segments: [choice.nextSegment]
+      ...choice.nextSegment
     };
 
     setSurveyPhase(SURVEY_PHASE.FIELD);
@@ -1773,7 +1812,7 @@ function transitionLeg(choice) {
   }
 
   const completedLeg = choice.completedLeg;
-  completedLeg.id = makeCompletedLegId(completedLeg);
+  completedLeg.id = makeUniqueLegId(completedLeg.id);
 
   route.legs.push(completedLeg);
 
@@ -1786,7 +1825,7 @@ function transitionLeg(choice) {
 
   route.currentLeg = {
     startedAt: formatTimestamp(),
-    segments: [choice.nextSegment]
+    ...choice.nextSegment
   };
   survey.currentLog = [];
 
@@ -1794,19 +1833,16 @@ function transitionLeg(choice) {
   storeCurrentLog();
 }
 
-function makeCompletedLegId(leg) {
-  const base = [
-    leg.trailId,
-    leg.fromPost,
-    leg.toPost
-  ].join(".");
+function makeUniqueLegId(baseId) {
+  if (!Object.hasOwn(survey.completedLogs, baseId))
+    return baseId;
 
-  let legId = base;
   let occurrence = 2;
+  let legId = `${baseId}.${occurrence}`;
 
   while (Object.hasOwn(survey.completedLogs, legId)) {
-    legId = `${base}.${occurrence}`;
     occurrence++;
+    legId = `${baseId}.${occurrence}`;
   }
 
   return legId;
@@ -2305,9 +2341,9 @@ function endSurvey() {
     const trailName =
       trailNetwork.trails[completedLeg.trailId] || completedLeg.trailId;
 
-    const confirmed = confirm(
-      `${trailName} — ${completedLeg.fromPost} → ${completedLeg.toPost}.\n` +
-      `End survey here?`
+    const confirmed =
+      confirm(` Did you finish on ${trailName} ` +
+      `${completedLeg.fromPost} - ${completedLeg.toPost}?`
     );
 
     if (confirmed) {
@@ -2325,34 +2361,14 @@ function getSurveyStartPost() {
   if (legs.length)
     return legs[0].fromPost;
 
-  return survey.route.currentLeg.segments[0].fromPost;
+  return survey.route.currentLeg.fromPost;
 }
 
 function findDirectPathHome(currentLeg, startPost, segmentsByPost) {
-  const legSegments = currentLeg.segments;
-  const currentRay = legSegments[legSegments.length - 1];
-
-  const startTrails = new Set(
-    (segmentsByPost.get(startPost) || []).map(segment => segment.trailId)
-  );
-
-  if (!startTrails.has(currentRay.trailId))
-    return null;
-
-  const establishedPath = legSegments.slice(0, -1);
-
-  let incoming = currentRay;
-  let path = [...establishedPath];
-
-  const visited = new Set(
-    establishedPath.map(segment => segment.sourceId)
-  );
+  let incoming = currentLeg;
+  const path = [];
 
   while (incoming) {
-    if (visited.has(incoming.sourceId))
-      return null;
-
-    visited.add(incoming.sourceId);
     path.push(incoming);
 
     if (incoming.toPost === startPost)
@@ -2360,43 +2376,39 @@ function findDirectPathHome(currentLeg, startPost, segmentsByPost) {
 
     const outgoing = segmentsByPost.get(incoming.toPost) || [];
 
-    const continuation = outgoing.find(segment =>
-      segment.sourceId !== incoming.sourceId &&
-      segment.trailId === currentRay.trailId
-    );
-
-    if (!continuation)
-      return null;
-
-    incoming = continuation;
+    incoming = outgoing.find(segment =>
+      !isReverseSegment(segment, incoming) &&
+      segment.trailId === currentLeg.trailId) || null;
   }
 
   return null;
 }
 
 async function offerEndFallback() {
+  const currentLeg = survey.route.currentLeg;
+
   const choice = await chooseAction(
-    "Could not confirm a direct path back to the start.", [
-      { value: "next", label: "Use Next" },
-      { value: "endHere", label: "End here" },
-      { value: "cancel", label: "Cancel" }
+    `I couldn't trace a path back from ${currentLeg.fromPost} to the start. ` +
+    "You can use 'Next' to record more of the route", [
+      { value: "continue", label: "Keep going" },
+      { value: "endHere", label: `End at ${currentLeg.toPost}` }
     ]
   );
 
   if (choice === "endHere") {
     const currentLeg = survey.route.currentLeg;
-    const completedLeg = rollUpCompletedLeg(
-      currentLeg, currentLeg.segments
-    );
+
+    const completedLeg = rollUpCompletedLeg(currentLeg, [currentLeg]);
+
     finishSurveyWithLeg(completedLeg);
   }
-  // "next" and "cancel" both leave survey state unchanged.
 }
 
 function finishSurveyWithLeg(completedLeg) {
   const route = survey.route;
 
-  completedLeg.id = makeCompletedLegId(completedLeg);
+  completedLeg.id = makeUniqueLegId(completedLeg.id);
+
   route.legs.push(completedLeg);
 
   survey.completedLogs[completedLeg.id] = {
@@ -2430,7 +2442,9 @@ function storeSurvey() {
   storeNotes();
   storeRoute();
   storeCurrentLog();
-  // completedLogs get stored as they are completed
+
+  for (const leg of survey.route.legs)
+    storeCompletedLog(leg.id);
 }
 
 function loadSurvey() {
@@ -2445,7 +2459,7 @@ function loadSurvey() {
   try {
     survey.phase = loadPhase();
     survey.notes = loadNotes();
-    survey.route = loadRoute();
+    survey.route = loadRoute(survey.phase);
     survey.currentLog = loadCurrentLog();
     survey.completedLogs = loadCompletedLogs(survey.route);
 
@@ -2518,10 +2532,10 @@ function loadNotes() {
   return normalizeNotes(notes);
 }
 
-function loadRoute() {
+function loadRoute(phase) {
   const route = loadSection(storageKey("route"));
 
-  return normalizeRoute(route);
+  return normalizeRoute(route, phase);
 }
 
 function loadCurrentLog() {
@@ -2571,11 +2585,6 @@ function storeCurrentLog() {
 function storeCompletedLog(legId) {
   localStorage.setItem(storageKey(`logs.${legId}`),
     JSON.stringify(survey.completedLogs[legId]));
-}
-
-function storeCompletedLogLater() {
-//  void trailId;
-//  storeCompletedLogsLater();
 }
 
 function debounce(fn, delay = 2500) {
@@ -2842,19 +2851,6 @@ function hideParticipantResults(e) {
 }
 
 // --- LOG ENTRIES ---
-function getCompletedLog(trailId) {
-  return survey?.completedLogs?.[trailId] || null;
-}
-
-function ensureCompletedLog(trailId) {
-  survey.completedLogs[trailId] ??= {
-    firstEntered: formatTimestamp(),
-    entries: []
-  };
-
-  return survey.completedLogs[trailId];
-}
-
 function addSighting(item) {
 
   if (!survey) {
@@ -2890,23 +2886,7 @@ function highlightLogRow(row) {
   setTimeout(() => row.style.background = '', 400);
 }
 
-function renderCompletedLog(container, trailId) {
-  container.innerHTML = '';
-
-  if (!survey || !trailId)
-    return;
-
-  const completedLog = getCompletedLog(trailId);
-  if (!completedLog)
-    return;
-
-  completedLog.entries.slice().reverse().forEach((entry) => {
-    const row = createLogRow(entry, trailId);
-    container.appendChild(row);
-  });
-}
-
-function createLogRow(entry, trailId) {
+function createLogRow(entry, legId) {
   const div = document.createElement('div');
   div.className = 'item';
 
@@ -2934,7 +2914,10 @@ function createLogRow(entry, trailId) {
   note.addEventListener('input', () => {
     resizeNote(note, true);
     entry.note = note.value;
-    storeCompletedLogLater(trailId);
+    if (legId === null)
+      storeCurrentLogLater();
+    else
+      storeCompletedLogLater(legId);
   });
 
   note.addEventListener('focus', () => {
@@ -2943,6 +2926,10 @@ function createLogRow(entry, trailId) {
 
   note.addEventListener('blur', () => {
     resizeNote(note, false);
+    if (legId === null)
+      storeCurrentLog();
+    else
+      storeCompletedLog(legId);
   });
 
   row.appendChild(label);
@@ -2955,7 +2942,7 @@ function createLogRow(entry, trailId) {
   del.onclick = () => {
     if (!confirm( `Delete "${entry.commonName}"?`))
       return;
-    deleteLogEntry(entry, trailId);
+    deleteLogEntry(entry, legId);
     div.remove();
   };
 
@@ -2977,18 +2964,31 @@ function appendPlantLabel(parent, commonName, scientificName) {
   parent.appendChild(scientific);
 }
 
-function deleteLogEntry(entry, trailId) {
-  const completedLog = getCompletedLog(trailId);
-  if (!completedLog) return;
+function deleteLogEntry(entry, legId) {
+  let entries;
 
-  const entries = completedLog.entries;
+  if (legId === null) {
+    entries = survey.currentLog;
+  } else {
+    const completedLog = survey.completedLogs[legId];
 
-  const i = entries.indexOf(entry);
-  if (i >= 0) {
-    entries.splice(i, 1);
+    if (!completedLog)
+      throw new Error(`Missing completed log "${legId}"`);
+
+    entries = completedLog.entries;
   }
 
-  storeCompletedLog(trailId);
+  const index = entries.indexOf(entry);
+
+  if (index < 0)
+    throw new Error("Could not find log entry to delete");
+
+  entries.splice(index, 1);
+
+  if (legId === null)
+    storeCurrentLog();
+  else
+    storeCompletedLog(legId);
 }
 
 function resizeNote(note, expanded = false) {
@@ -3183,68 +3183,33 @@ function formatSurveyWeather(notes) {
 }
 
 function buildSurveyLogRows(data) {
-  const completedLogs = data.completedLogs || {};
-  const columns = getOrderedSurveyTrails(data).map(trail => {
-    const entries = completedLogs[trail.id]?.entries || [];
+  const columns = data.route.legs
+    .map(leg => {
+      const log = data.completedLogs[leg.id];
 
-    return {
-      name: trail.name,
-      items: entries.map(entry => entry.commonName || '')
-    };
-  }).filter(column => column.items.length);
+      if (!log)
+        throw new Error(`Missing completed log "${leg.id}"`);
+
+      return {
+        heading: formatLegLabel(leg),
+        entries: log.entries
+      };
+    })
+    .filter(column => column.entries.length > 0);
+
+  if (columns.length === 0)
+    return [];
 
   const maxRows = columns.reduce(
-    (max, column) => Math.max(max, column.items.length),
-    0
-  );
+    (maximum, column) => Math.max(maximum, column.entries.length), 0);
 
-  const rows = [
-    columns.map(column => column.name)
-  ];
+  const rows = [ columns.map(column => column.heading) ];
 
-  for (let i = 0; i < maxRows; i++) {
-    rows.push(columns.map(column => column.items[i] || ''));
+  for (let index = 0; index < maxRows; index++) {
+    rows.push( columns.map(column => column.entries[index]?.commonName || ""));
   }
 
   return rows;
-}
-
-function getOrderedSurveyTrails(data) {
-  return getSurveyTrailIds(data)
-    .map(trailId => getTrailById(trailId))
-    .filter(Boolean);
-}
-
-function getSurveyTrailIds(data) {
-  const completedLogs = data.completedLogs || {};
-  const trailNotes = data.trailNotes || {};
-  const trailIds = [];
-  const seen = new Set();
-
-  for (const trailId of Object.keys(completedLogs)) {
-    if (seen.has(trailId))
-      continue;
-
-    trailIds.push(trailId);
-    seen.add(trailId);
-  }
-
-  for (const trailId of Object.keys(trailNotes)) {
-    if (seen.has(trailId))
-      continue;
-
-    trailIds.push(trailId);
-    seen.add(trailId);
-  }
-
-  return trailIds;
-}
-
-function getTrailById(trailId) {
-  return trails.find(trail => trail.id === trailId) || {
-    id: trailId,
-    name: trailId
-  };
 }
 
 function formatTsvCell(value) {
@@ -3308,19 +3273,22 @@ async function importSurveyFile(event) {
 
 function normalizeImportedSurvey(data) {
   const imported = requirePlainObject(data, "survey");
+  const phase = normalizePhase(imported.phase);
+  const route = normalizeRoute(imported.route, phase);
+
 
   return {
-    phase: normalizePhase(imported.phase),
+    phase,
     notes: normalizeNotes(imported.notes),
-    route: normalizeRoute(imported.route),
+    route,
     currentLog: normalizeCurrentLog(imported.currentLog),
-    completedLogs: normalizeCompletedLogs(imported.completedLogs || imported.trails)
+    completedLogs: normalizeCompletedLogs(imported.completedLogs, route)
   };
 }
 
 function normalizePhase(phase) {
-  if (typeof phase !== "string")
-    throw new Error(`Invalid survey.phase "${phase}"`);
+  if (!isValidSurveyPhase(phase))
+    throw new Error(`Invalid survey.phase: ${JSON.stringify(phase)}`);
 
   return phase;
 }
@@ -3339,11 +3307,22 @@ function normalizeNotes(data) {
   };
 }
 
-function normalizeRoute(route) {
+function normalizeRoute(route, phase) {
   const r = requirePlainObject(route, "route");
-  
+
+  let currentLeg = null;
+
+  if (r.currentLeg !== null)
+    currentLeg = normalizeLeg(r.currentLeg, "route.currentLeg");
+
+  if (phase === SURVEY_PHASE.FIELD && currentLeg === null)
+    throw new Error("FIELD survey has no current leg");
+
+  if (phase !== SURVEY_PHASE.FIELD && currentLeg !== null)
+    throw new Error(`${phase.toUpperCase()} survey has a current leg`);
+
   return {
-    currentLeg: normalizeLeg(r.currentLeg, "currentLeg"),
+    currentLeg,
     legs: normalizeLegs(r.legs)
   };
 }
@@ -3351,13 +3330,15 @@ function normalizeRoute(route) {
 function normalizeLeg(leg, path) {
   const l = requirePlainObject(leg, path);
 // maybe check posts and trailnames and id?  Check the timestamp?
+// maybe check for positive?
+
   return {
-    startedAt: requireStringField(l, "startedAt", path),vi
+    startedAt: requireStringField(l, "startedAt", path),
+    id: requireStringField(l, "id", path),
     trailId: requireStringField(l, "trailId", path),
     fromPost: requireStringField(l, "fromPost", path),
     toPost: requireStringField(l, "toPost", path),
-    distance: requireFiniteNumber(l.distance, `legs.${path}.distance`),
-    id: requireStringField(l, "id", path)
+    length: requireFiniteNumber(l.length, `${path}.length`),
   };
 }
 
@@ -3372,15 +3353,32 @@ function normalizeCurrentLog(currentLog) {
   return normalizeLogEntries(currentLog, `currentLog.entries`) || [];
 }
 
-function normalizeCompletedLogs(completedLogs) {
-  const logs = requirePlainObject(completedLogs || {}, "completedLogs");
+function normalizeCompletedLogs(completedLogs, route) {
+  const logs = requirePlainObject(completedLogs, "completedLogs");
+  const routeIds = new Set();
   const normalized = {};
 
-  for (const trailId in logs) {
-    const log = requirePlainObject(logs[trailId], `completedLogs.${trailId}`);
+  for (const leg of route.legs) {
+// have to fix this later when we decide how to handle repeats
+    if (routeIds.has(leg.id))
+      throw new Error(`Duplicate route leg ID "${leg.id}"`);
 
-    const normalizedLog = normalizeCompletedLog(log, `completedLogs.${trailId}`);
-    normalized[trailId] = normalizedLog;
+    routeIds.add(leg.id);
+  }
+
+  for (const legId of Object.keys(logs)) {
+    if (!routeIds.has(legId))
+      throw new Error(`completedLogs contains unknown leg "${legId}"`);
+
+    normalized[legId] = normalizeCompletedLog(
+      logs[legId],
+      `completedLogs.${legId}`
+    );
+  }
+
+  for (const legId of routeIds) {
+    if (!Object.hasOwn(normalized, legId))
+      throw new Error(`Missing completed log for leg "${legId}"`);
   }
 
   return normalized;
@@ -3388,6 +3386,7 @@ function normalizeCompletedLogs(completedLogs) {
 
 function normalizeCompletedLog(log, path) {
   const l = requirePlainObject(log, path);
+
   return {
     firstEntered: requireStringField(l, "firstEntered", path),
     entries: normalizeLogEntries(l.entries, `${path}.entries`)
