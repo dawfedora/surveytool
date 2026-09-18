@@ -1,7 +1,5 @@
 "use strict";
 
-// push
-
 // --- GLOBAL STATE ---
 const APP_STATE = {
   BOOT: "BOOT",
@@ -41,6 +39,8 @@ let survey = null;
 let messageTimeoutId = null;
 let pendingStores = [];
 let activeChoiceOverlay = null;
+let undoCache = null;
+let undoTimer = null;
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
@@ -287,11 +287,16 @@ function renderControls() {
   // view selector
     
   ui.header.viewSelect.hidden = !active;
-  options.notes.disabled = !active || choosingStartingTrail;
+  options.notes.disabled = !active;
   options.log.disabled = !(field || choosingStartingTrail || ended);
 
   ui.header.startBtn.hidden = !starting || choosingStartingTrail;
-  ui.header.startBtn.disabled = !startInfoComplete();
+  if (!starting || choosingStartingTrail) {
+    updateStartReadiness();
+  } else {
+    ui.header.startBtn.disabled = true;
+    ui.header.startBtn.title = "";
+  }
 
   ui.header.nextBtn.hidden = !(choosingStartingTrail || field);
   ui.header.nextBtn.disabled = !field;
@@ -300,7 +305,12 @@ function renderControls() {
   ui.header.endBtn.disabled = !field;
 
   ui.header.saveBtn.hidden = !ended;
-  ui.header.saveBtn.disabled = !saveInfoComplete();
+  if (ended) {
+    updateSaveReadiness();
+  } else {
+    ui.header.saveBtn.disabled = true;
+    ui.header.saveBtn.title = "";
+  }
 
   // new survey button
   ui.header.newBtn.hidden = !(appState === APP_STATE.EMPTY || active);
@@ -367,6 +377,7 @@ function initUI() {
   ui.message = {
     panel: document.getElementById("messagePanel"),
     text: document.getElementById("messageText"),
+    undoBtn: document.getElementById("undoBtn"),
     dismissBtn: document.getElementById("dismissMessageBtn"),
     statePanel: document.getElementById("stateMessagePanel")
   };
@@ -382,6 +393,14 @@ function initUI() {
 
   ui.log.currentHeader = document.createElement("div");
   ui.log.currentHeader.id = "currentLegHeader";
+
+  ui.log.currentLabel = document.createElement("span");
+  ui.log.undoBtn = document.createElement("button");
+  ui.log.undoBtn.textContent = "Undo";
+  ui.log.undoBtn.hidden = true;
+
+  ui.log.currentHeader.append(ui.log.currentLabel, ui.log.undoBtn);
+
   ui.log.log.before(ui.log.currentHeader);
 
   ui.notes = {
@@ -418,8 +437,10 @@ function initHeader() {
   // Hook up buttons
   ui.header.viewSelect.addEventListener('change', event => {
     currentView = event.target.value;
+    renderControls();
     renderView();
   });
+
   ui.header.startBtn.addEventListener('click', startSurvey);
   ui.header.nextBtn.addEventListener('click', populateTrailSelector);
   ui.header.endBtn.addEventListener('click', endSurvey);
@@ -430,7 +451,13 @@ function initHeader() {
     ui.header.importInput.click();
   });
   ui.header.importInput.addEventListener('change', importSurveyFile);
-  ui.message.dismissBtn.addEventListener("click", clearMessage);
+  ui.message.undoBtn.addEventListener("click", undoRouteTransition);
+  ui.message.dismissBtn.addEventListener("click", () => {
+    if (!ui.message.undoBtn.hidden)
+      clearUndo();
+    else
+      clearMessage();
+  });
 }
 
 function initLogView() {
@@ -460,6 +487,8 @@ function initLogView() {
   );
 
   ui.log.trailSelect.addEventListener("change", handleTrailChange);
+
+  ui.log.undoBtn.addEventListener("click", undoRouteTransition);
 }
 
 function initNotesView() {
@@ -517,18 +546,23 @@ function updateStartReadiness() {
 
   const disabled = !startInfoComplete();
 
-  if (ui.header.startBtn.disabled !== disabled)
-    ui.header.startBtn.disabled = disabled;
+  ui.header.startBtn.disabled = disabled;
+  ui.header.startBtn.title = disabled
+    ? "Fill in the participants and starting weather to enable Start"
+    : "";
 }
-     
+
 function updateSaveReadiness() {
   if (survey?.phase !== SURVEY_PHASE.END)
     return;
 
   const disabled = !saveInfoComplete();
 
-  if (ui.header.saveBtn.disabled !== disabled)
-    ui.header.saveBtn.disabled = disabled;
+  ui.header.saveBtn.disabled = disabled;
+  ui.header.saveBtn.title = disabled
+    ? "Fill in the end weather to enable Save"
+    : "";
+  
 }
 
 function saveInfoComplete () {
@@ -1462,15 +1496,6 @@ function focusNextNotesField() {
   next?.focus();
 }
 
-//function refocusAfterSelection(input, afterFocus = null, delay = 150) {
-//  input.blur();
-//
-//  setTimeout(() => {
-//  input.focus();
-//    afterFocus?.();
-//  }, delay);
-//}
-
 function refocusAfterSelection(input) {
   input.focus();
 }
@@ -1527,34 +1552,31 @@ function renderView() {
 
 let segmentChoices = [];
 
-function populateStartingPointSelector() {
-
-  segmentChoices = trailNetwork.startingSegments.map(segment => ({
-    kind: "start",
-    atPost: segment.fromPost,
-    path: [],
-    nextSegment: segment
-  }));
-
-  populateSegmentOptions(
-    ui.log.trailSelect,
-    "Choose starting point",
-    segmentChoices
-  );
-}
-
 function populateTrailSelector() {
-  if (!survey.route.currentLeg)
-    throw new Error("Cannot choose the next segment without a current leg");
+  const currentLeg = survey.route.currentLeg;
+  let prompt;
 
-  segmentChoices = buildNextSegmentChoices(
-    survey.route.currentLeg,
-    trailNetwork.segmentsByPost
-  );
+  if (currentLeg === null) {
+    prompt = "Choose starting point";
+
+    segmentChoices = trailNetwork.startingSegments.map(segment => ({
+      kind: "start",
+      atPost: segment.fromPost,
+      path: [],
+      nextSegment: segment
+    }));
+  } else {
+    prompt = "Choose next leg";
+
+    segmentChoices = buildNextSegmentChoices(
+      survey.route.currentLeg,
+      trailNetwork.segmentsByPost
+    );
+  }
 
   populateSegmentOptions(
     ui.log.trailSelect,
-    "Choose next leg",
+    prompt,
     segmentChoices
   );
 }
@@ -1710,7 +1732,7 @@ function renderLogSections() {
 
   const currentLeg = survey.route.currentLeg;
   ui.log.currentHeader.hidden = !currentLeg;
-  ui.log.currentHeader.textContent =
+  ui.log.currentLabel.textContent =
     currentLeg ? formatLegLabel(currentLeg) : "";
 
   if (currentLeg) {
@@ -1792,6 +1814,8 @@ function handleTrailChange(event) {
 
   transitionLeg(selection);
 
+  setupUndo();
+
   renderLogView();
   renderControls();
 }
@@ -1799,7 +1823,12 @@ function handleTrailChange(event) {
 function transitionLeg(choice) {
   const route = survey.route;
 
-  if (!route.currentLeg) {
+  undoCache = {
+    phase: survey.phase,
+    currentLeg: route.currentLeg,
+  };
+
+  if (survey.phase === SURVEY_PHASE.START) {
     route.currentLeg = {
       startedAt: formatTimestamp(),
       ...choice.nextSegment
@@ -1812,25 +1841,96 @@ function transitionLeg(choice) {
   }
 
   const completedLeg = choice.completedLeg;
-  completedLeg.id = makeUniqueLegId(completedLeg.id);
+  const legId = makeUniqueLegId(completedLeg.id);
+  completedLeg.id = legId;
+  undoCache.completedLegId = legId;
 
   route.legs.push(completedLeg);
 
-  survey.completedLogs[completedLeg.id] = {
-    firstEntered: completedLeg.startedAt,
-    entries: survey.currentLog
-  };
+  survey.completedLogs[legId] = survey.currentLog;
 
-  storeCompletedLog(completedLeg.id);
+  storeCompletedLog(legId);
 
   route.currentLeg = {
     startedAt: formatTimestamp(),
     ...choice.nextSegment
   };
+
   survey.currentLog = [];
 
   storeRoute();
   storeCurrentLog();
+}
+
+function undoRouteTransition() {
+  const u = undoCache;
+  const r = survey.route;
+  const legId = u.completedLegId;
+  const phase = u.phase;
+  const phaseBeforeUndo = survey.phase;
+
+// should I do something with event?
+
+  flushPendingStores();
+
+  clearUndo();
+
+  setSurveyPhase(phase);
+
+
+  r.currentLeg = u.currentLeg;
+
+  if (legId) {
+    const completedLeg = r.legs.pop();
+    if (!completedLeg || completedLeg !== legId)
+      throw new Error("Route does not match the undo record");
+
+    survey.currentLog = survey.completedLogs[legId];
+    clearCompletedLog(legId);
+  }
+
+  if (phaseBeforeUndo === SURVEY_PHASE.END) {
+    survey.notes.endTime = "";
+    storeNotes();
+  }
+
+  storeRoute();
+  storeCurrentLog();
+
+  currentView = VIEW.LOG;
+  populateTrailSelector();
+  renderControls();
+  renderView();
+}
+
+function clearUndo() {
+  const endUndoVisible = !ui.message.undoBtn.hidden;
+
+  clearTimeout(undoTimer);
+  undoTimer = null;
+  undoCache = null;
+
+  ui.log.undoBtn.hidden = true;
+  ui.message.undoBtn.hidden = true;
+
+  if (endUndoVisible) {
+    clearMessage();
+  }
+}
+
+function setupUndo(showInMessage = false) {
+  clearTimeout(undoTimer);
+  ui.log.undoBtn.hidden = false;
+
+  if (showInMessage) {
+    ui.message.text.textContent = "Survey ended";
+    ui.message.undoBtn.hidden = false;
+    ui.message.panel.hiddeb = false;
+  } else {
+    ui.message.undoBtn.hidden = true;
+  }
+
+  undoTimer = setTimeout(() => clearUndo(), 15000);
 }
 
 function makeUniqueLegId(baseId) {
@@ -2309,7 +2409,7 @@ function startSurvey() {
   flushPendingStores();
 
   currentView = VIEW.LOG;
-  populateStartingPointSelector();
+  populateTrailSelector();
 
   renderControls();
   renderView();
@@ -2409,12 +2509,16 @@ function finishSurveyWithLeg(completedLeg) {
 
   completedLeg.id = makeUniqueLegId(completedLeg.id);
 
+  undoCache = {
+    phase: survey.phase,
+    currentLeg: route.currentLeg,
+    completedLegId: completedLeg.id
+  }
+  setupUndo(true);
+
   route.legs.push(completedLeg);
 
-  survey.completedLogs[completedLeg.id] = {
-    firstEntered: completedLeg.startedAt,
-    entries: survey.currentLog
-  };
+  survey.completedLogs[completedLeg.id] = survey.currentLog;
 
   storeCompletedLog(completedLeg.id);
 
@@ -2585,6 +2689,11 @@ function storeCurrentLog() {
 function storeCompletedLog(legId) {
   localStorage.setItem(storageKey(`logs.${legId}`),
     JSON.stringify(survey.completedLogs[legId]));
+}
+
+function clearCompletedLog(legId) {
+  delete survey.completedLogs[legId];
+  localStorage.removeItem(storageKey(`logs.${legId}`));
 }
 
 function debounce(fn, delay = 2500) {
@@ -2873,6 +2982,8 @@ function addSighting(item) {
     time: formatTimestamp()
   };
   entries.push(entry);
+
+  clearUndo();
 
   storeCurrentLog();
 
@@ -3388,7 +3499,6 @@ function normalizeCompletedLog(log, path) {
   const l = requirePlainObject(log, path);
 
   return {
-    firstEntered: requireStringField(l, "firstEntered", path),
     entries: normalizeLogEntries(l.entries, `${path}.entries`)
   };
 }

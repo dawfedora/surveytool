@@ -4,7 +4,6 @@
 <head>
 
   <meta charset="UTF-8">
-  <meta charset="UTF-8">
 
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0,
@@ -137,7 +136,7 @@
     }
 
     #viewSelect option:disabled {
-      color:888;
+      color: #888;
     }
 
     .headerActions button,
@@ -429,8 +428,11 @@
       background: #ffeaea;
     }
 
-    .logSectionHeader {
-      text-align: center;
+    #currentLegHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
     }
 
     #currentLegHeader,
@@ -492,6 +494,7 @@
 
   <div id="messagePanel" hidden>
     <span id="messageText"></span>
+    <button id="undoBtn" hidden>Undo</button>
     <button id="dismissMessageBtn"
       aria-label="Dismiss message">
       x 
