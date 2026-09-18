@@ -1745,11 +1745,11 @@ function renderLogSections() {
     const log = survey.completedLogs[leg.id];
 
     if (log)
-      container.appendChild(createLogSection(leg, log.entries));
+      container.appendChild(createLogSection(leg, log));
   });
 }
 
-function createLogSection(leg, entries) {
+function createLogSection(leg, log) {
   if (!leg)
     return null;
 
@@ -1762,7 +1762,7 @@ function createLogSection(leg, entries) {
 
   section.appendChild(header);
 
-  entries.slice().reverse().forEach(entry => {
+  log.slice().reverse().forEach(entry => {
     section.appendChild(
       createLogRow(entry, leg.id)
     );
@@ -1882,7 +1882,7 @@ function undoRouteTransition() {
 
   if (legId) {
     const completedLeg = r.legs.pop();
-    if (!completedLeg || completedLeg !== legId)
+    if (!completedLeg || completedLeg.id !== legId)
       throw new Error("Route does not match the undo record");
 
     survey.currentLog = survey.completedLogs[legId];
@@ -2666,7 +2666,7 @@ function loadCompletedLogs(route) {
 function loadCompletedLog(legId) {
   const log = loadSection(storageKey(`logs.${legId}`));
 
-  return normalizeCompletedLog(log, legId);
+  return normalizeLogEntries(log, `logs.${legId}`);
 }
 
 function storeNotes() {
@@ -3081,12 +3081,10 @@ function deleteLogEntry(entry, legId) {
   if (legId === null) {
     entries = survey.currentLog;
   } else {
-    const completedLog = survey.completedLogs[legId];
-
-    if (!completedLog)
+    entries = survey.completedLogs[legId];
+    if (!entries)
       throw new Error(`Missing completed log "${legId}"`);
 
-    entries = completedLog.entries;
   }
 
   const index = entries.indexOf(entry);
@@ -3303,7 +3301,7 @@ function buildSurveyLogRows(data) {
 
       return {
         heading: formatLegLabel(leg),
-        entries: log.entries
+        entries: log
       };
     })
     .filter(column => column.entries.length > 0);
@@ -3461,7 +3459,7 @@ function normalizeLegs(legs) {
 }
 
 function normalizeCurrentLog(currentLog) {
-  return normalizeLogEntries(currentLog, `currentLog.entries`) || [];
+  return normalizeLogEntries(currentLog, "currentLog") || [];
 }
 
 function normalizeCompletedLogs(completedLogs, route) {
@@ -3481,7 +3479,7 @@ function normalizeCompletedLogs(completedLogs, route) {
     if (!routeIds.has(legId))
       throw new Error(`completedLogs contains unknown leg "${legId}"`);
 
-    normalized[legId] = normalizeCompletedLog(
+    normalized[legId] = normalizeLogEntries(
       logs[legId],
       `completedLogs.${legId}`
     );
@@ -3493,14 +3491,6 @@ function normalizeCompletedLogs(completedLogs, route) {
   }
 
   return normalized;
-}
-
-function normalizeCompletedLog(log, path) {
-  const l = requirePlainObject(log, path);
-
-  return {
-    entries: normalizeLogEntries(l.entries, `${path}.entries`)
-  };
 }
 
 function normalizeLogEntries(entries, path) {
