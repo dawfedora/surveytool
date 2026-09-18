@@ -291,7 +291,7 @@ function renderControls() {
   options.log.disabled = !(field || choosingStartingTrail || ended);
 
   ui.header.startBtn.hidden = !starting || choosingStartingTrail;
-  if (!starting || choosingStartingTrail) {
+  if (!starting || !choosingStartingTrail) {
     updateStartReadiness();
   } else {
     ui.header.startBtn.disabled = true;
