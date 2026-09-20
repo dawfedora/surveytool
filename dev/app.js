@@ -189,12 +189,6 @@ function setAppState(state) {
   }
 }
 
-// Future state/debug hook.
-// eslint-disable-next-line no-unused-vars
-function getAppState() {
-  return appState;
-}
-
 function renderEmptyState() {
   ui.log.view.hidden = true;
   ui.notes.view.hidden = true;
@@ -209,6 +203,8 @@ function renderEmptyState() {
 
 function clearSurveyUI() {
   cancelPendingStores();
+
+  clearUndo();
 
   ui.log.search.value = "";
   ui.log.results.innerHTML = "";
@@ -240,17 +236,13 @@ function renderLimitedState() {
 }
 
 function renderActiveState() {
-  configureSurveyViews();
+  chooseInitialView();
 
   renderControls();
   renderView();
 
   clearStateMessage();
   setStatus("Active Survey");
-}
-
-function configureSurveyViews() {
-  chooseInitialView();
 }
 
 function chooseInitialView() {
@@ -291,7 +283,8 @@ function renderControls() {
   options.log.disabled = !(field || choosingStartingTrail || ended);
 
   ui.header.startBtn.hidden = !starting || choosingStartingTrail;
-  if (!starting || !choosingStartingTrail) {
+
+  if (starting && !choosingStartingTrail) {
     updateStartReadiness();
   } else {
     ui.header.startBtn.disabled = true;
@@ -1319,8 +1312,8 @@ function validateStartingPoints(rawStartingPoints, trails, posts,
 
     startingPointKeys.add(key);
 
-    const matchingSegments =
-      segmentsByPost.get(postId).filter(segment => segment.trailId === trailId);
+    const matchingSegments = (segmentsByPost.get(postId) || [])
+      .filter(segment => segment.trailId === trailId);
 
     if (matchingSegments.length === 0) {
       errors.push(`${path}: "${trailId}" does not leave post "${postId}"`);
@@ -1863,6 +1856,9 @@ function transitionLeg(choice) {
 }
 
 function undoRouteTransition() {
+  if (!undoCache)
+    throw new Error("There is no route transition to undo");
+
   const u = undoCache;
   const r = survey.route;
   const legId = u.completedLegId;
@@ -1881,10 +1877,14 @@ function undoRouteTransition() {
   r.currentLeg = u.currentLeg;
 
   if (legId) {
-    const completedLeg = r.legs.pop();
+    const completedLeg = r.legs.at(-1);
     if (!completedLeg || completedLeg.id !== legId)
       throw new Error("Route does not match the undo record");
 
+    r.legs.pop();
+
+    if (!Object.hasOwn(survey.completedLogs, legId))
+      throw new Error(`missing completed log "${legId}"`);
     survey.currentLog = survey.completedLogs[legId];
     clearCompletedLog(legId);
   }
@@ -1898,9 +1898,9 @@ function undoRouteTransition() {
   storeCurrentLog();
 
   currentView = VIEW.LOG;
-  populateTrailSelector();
   renderControls();
   renderView();
+  populateTrailSelector();
 }
 
 function clearUndo() {
@@ -1923,9 +1923,8 @@ function setupUndo(showInMessage = false) {
   ui.log.undoBtn.hidden = false;
 
   if (showInMessage) {
-    ui.message.text.textContent = "Survey ended";
+    showMessage("Survey ended", 0);
     ui.message.undoBtn.hidden = false;
-    ui.message.panel.hiddeb = false;
   } else {
     ui.message.undoBtn.hidden = true;
   }
@@ -1952,7 +1951,9 @@ function makeUniqueLegId(baseId) {
 function showMessage(text, duration = 30000) {
   if (messageTimeoutId)
     clearTimeout(messageTimeoutId);
+    messageTimeoutId = null;
 
+  ui.message.undoBtn.hidden = true;
   ui.message.text.textContent = text;
   ui.message.panel.hidden = false;
 
@@ -1967,6 +1968,7 @@ function clearMessage() {
   }
   ui.message.panel.hidden = true;
   ui.message.text.textContent = "";
+  ui.message.undoBtn.hidden = true;
 }
 
 function setStateMessage(text) {
@@ -2409,16 +2411,17 @@ function startSurvey() {
   flushPendingStores();
 
   currentView = VIEW.LOG;
-  populateTrailSelector();
 
   renderControls();
   renderView();
   
+  populateTrailSelector();
+
   // focus selector
   ui.log.trailSelect.focus();
 }
 
-function endSurvey() {
+async function endSurvey() {
   if (!survey)
     throw new Error("endSurvey called with no active survey!");
 
@@ -2452,7 +2455,7 @@ function endSurvey() {
     }
   }
 
-  offerEndFallback();
+  await offerEndFallback();
 }
 
 function getSurveyStartPost() {
@@ -3368,7 +3371,6 @@ async function importSurveyFile(event) {
     localStorage.setItem(storageKey("surveyExists"), "true");
 
     setAppState(APP_STATE.ACTIVE);
-    renderView();
     showMessage(`Imported ${file.name}`, 5000);
 
   } catch(e) {
@@ -3459,7 +3461,7 @@ function normalizeLegs(legs) {
 }
 
 function normalizeCurrentLog(currentLog) {
-  return normalizeLogEntries(currentLog, "currentLog") || [];
+  return normalizeLogEntries(currentLog, "currentLog");
 }
 
 function normalizeCompletedLogs(completedLogs, route) {
