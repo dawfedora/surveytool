@@ -3208,7 +3208,7 @@ function buildSurveyHeaderRows(survey) {
   ]);
 
   rows.push([
-    'Hike:',
+    `Hike: ${rollUpLengths(survey.route)}`,
     participantLines[1]
   ]);
 
@@ -3276,6 +3276,15 @@ function splitParticipants(participantsText) {
     participants.slice(0, bestSplit).join(', ') + ',',
     participants.slice(bestSplit).join(', ')
   ];
+}
+
+function rollUpLengths(route) {
+   let length = 0;
+
+   for (const leg of route.legs) {
+     length += leg.length;
+   }
+   return length;
 }
 
 function formatSurveyWeather(notes) {
