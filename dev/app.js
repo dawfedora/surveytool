@@ -3232,7 +3232,7 @@ function buildSurveyHeaderRows(survey) {
 }
 
 function blankRows(count) {
-  return Array.from({ length: count }, () => []);
+  return Array.from({ length: count }, () => ["", ""]);
 }
 
 function splitParticipants(participantsText) {
