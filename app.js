@@ -3208,7 +3208,7 @@ function buildSurveyHeaderRows(survey) {
   ]);
 
   rows.push([
-    `Hike: ${rollUpLengths(survey.route)}`,
+    `Hike: ${rollUpLengths(survey.route)} mi`,
     participantLines[1]
   ]);
 
