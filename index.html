@@ -136,13 +136,21 @@
     }
 
     #viewSelect option:disabled {
-      color:888;
+      color: #888;
     }
 
     .headerActions button,
     .headerActions select {
       padding: 4px 4px;
       font-size: 1rem;
+    }
+
+    #newBtn {
+      margin-left: auto;
+    }
+
+    #newBtn[hidden] + #refreshBtn {
+      margin-left: auto;
     }
 
 /* messages */
@@ -202,7 +210,14 @@
     }
 
     #logTrailSelect {
+      color-scheme: light;
+      color: #000;
       flex: 0 0 auto;
+    }
+
+    #logTrailSelect option {
+      color: #000;
+      background-color: #fff;
     }
 
     #log {
@@ -374,24 +389,6 @@
       margin-bottom: 0;
     }
 
-/* Route view */
-    #routeView {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-    }
-
-    #routeTrailSelect {
-      flex: 0 0 auto;
-    }
-
-    #routeLog {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-y: auto;
-    }
-
 /* Choice dialog */
     .choiceOverlay {
       position: fixed;
@@ -431,6 +428,28 @@
       background: #ffeaea;
     }
 
+    #currentLegHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    #currentLegHeader,
+    .logSectionHeader {
+      padding: 6px 4px;
+      background: #fff;
+      border-bottom: 1px solid #ccc;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .logSectionHeader {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
   </style>
 </head>
 
@@ -459,9 +478,9 @@
       <select id="viewSelect" aria-label="View" hidden>
         <option value="log" disabled>Log</option>
         <option value="notes" disabled>Notes</option>
-        <option value="route" disabled>Route</option>
       </select>
-      <button id="startBtn" hidden disabled>Start</button>
+      <button id="startBtn" hidden disabled>Start...</button>
+      <button id="nextBtn" hidden disabled>Next...</button>
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
       <button id="newBtn" hidden>New Survey</button>
@@ -475,6 +494,7 @@
 
   <div id="messagePanel" hidden>
     <span id="messageText"></span>
+    <button id="undoBtn" hidden>Undo</button>
     <button id="dismissMessageBtn"
       aria-label="Dismiss message">
       x 
@@ -497,7 +517,7 @@
     </div>
 
     <!-- normal content -->
-    <select id="logTrailSelect"></select>
+    <select id="logTrailSelect" hidden></select>
 
     <div id="log"></div>
 
@@ -534,11 +554,6 @@
       placeholder="Notes" aria-label="Survey notes"></textarea>
 
   </div> <!-- #notesView -->
-
-  <div id="routeView" hidden>
-    <select id="routeTrailSelect"></select>
-    <div id="routeLog"></div>
-  </div> <!-- #routeView -->
 
   <script src="shell-config.js"></script>
   <script src="app.js"></script>
