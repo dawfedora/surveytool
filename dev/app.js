@@ -3187,13 +3187,14 @@ function saveTextFile(filename, data, type) {
 
 function buildSurveyTsv(survey) {
   const rows = [
+    ...blankRows(2),
     ...buildSurveyHeaderRows(survey),
-    ...blankRows(4),
+    ...blankRows(2),
     ...buildSurveyLogRows(survey)
   ];
 
   return rows
-    .map(row => row.map(formatTsvCell).join('\t'))
+    .map(row => ["",...row].map(formatTsvCell).join('\t'))
     .join('\n') + '\n';
 }
 
