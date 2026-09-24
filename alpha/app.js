@@ -1620,6 +1620,9 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
     if (!outgoing)
       throw new Error(`No segments leave post "${postId}"`);
 
+    const reverse = outgoing.find(segment =>
+      isReverseSegment(segment, incoming)) || null;
+
     const forward =
       outgoing.filter(segment => !isReverseSegment(segment, incoming));
 
@@ -1635,23 +1638,19 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
       }
     }
 
+    // Then offer returning over the segment that reached this post.
+    if (reverse && incoming.fromPost !== incoming.toPost) {
+      choices.push({
+        kind: "uturn",
+        atPost: postId,
+        completedLeg: rollUpCompletedLeg(currentLeg, path),
+        nextSegment: reverse
+      });
+    }    
+
     // Topology validation guarantees zero or one continuation.
     incoming =
       forward.find(segment => segment.trailId === currentLeg.trailId) || null;
-  }
-
-  const reverse = findReverseSegment(currentLeg, segmentsByPost);
-
-  if (reverse && currentLeg.fromPost !== currentLeg.toPost) {
-    choices.push({
-      kind: "uturn",
-      atPost: currentLeg.toPost,
-      completedLeg: rollUpCompletedLeg(
-        currentLeg,
-        [currentLeg]
-      ),
-      nextSegment: reverse
-    });
   }
 
   return choices;
@@ -1678,15 +1677,6 @@ function isReverseSegment(candidate, segment) {
     candidate.fromPost === segment.toPost &&
     candidate.toPost === segment.fromPost
   );
-}
-
-function findReverseSegment(segment, segmentsByPost) {
-  const outgoing = segmentsByPost.get(segment.toPost) || [];
-
-  return outgoing.find(candidate =>
-    isReverseSegment(candidate, segment)
-  ) || null;
-
 }
 
 function formatSegmentChoice(choice) {
@@ -3331,7 +3321,7 @@ function buildSurveyLogRows(data) {
     rows.push( columns.map(column => {
       if (column.entries.length === 0)
         return index === 0 ? "-0-" : "";
-      
+
       return column.entries[index]?.commonName || "";
     }));
   }
