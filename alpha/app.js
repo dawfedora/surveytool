@@ -3316,19 +3316,24 @@ function buildSurveyLogRows(data) {
         heading: formatLegLabel(leg),
         entries: log
       };
-    })
-    .filter(column => column.entries.length > 0);
-
+    });
+    
   if (columns.length === 0)
     return [];
 
-  const maxRows = columns.reduce(
-    (maximum, column) => Math.max(maximum, column.entries.length), 0);
+  const maxRows = 
+    Math.max(1, columns.reduce(
+    (maximum, column) => Math.max(maximum, column.entries.length), 0));
 
   const rows = [ columns.map(column => column.heading) ];
 
   for (let index = 0; index < maxRows; index++) {
-    rows.push( columns.map(column => column.entries[index]?.commonName || ""));
+    rows.push( columns.map(column => {
+      if (column.entries.length === 0)
+        return index === 0 ? "-0-" : "";
+      
+      return column.entries[index]?.commonName || "";
+    }));
   }
 
   return rows;
