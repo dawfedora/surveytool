@@ -6,7 +6,8 @@
   <meta charset="UTF-8">
 
   <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0,viewport-fit=cover"
+    content="width=device-width, initial-scale=1.0,
+    maximum-scale=1.0,viewport-fit=cover"
   >
 
   <title>Edgewood Survey Tool</title>
@@ -29,27 +30,45 @@
   <style>
 
 /* Base */
-    html, body {
-      touch-action: manipulation;
+    html {
       height: 100%;
       overflow: hidden;
-    }
-
-    [hidden] {
-      display: none !important;
+      font-size: 100%;
+      touch-action: manipulation;
     }
 
     body {
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      font-size: 16px;
+      height: 100%;
+      overflow: hidden;
       margin: 0;
-      padding-top: calc(env(safe-area-inset-top) + 8px);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: 8px;
-      padding-right: 8px;
-      min-height: 100%;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+      padding-left: calc(env(safe-area-inset-left, 0px) + 4px);
+      padding-right: calc(env(safe-area-inset-right, 0px) + 4px);
+      font-size: 1rem;
+      line-height: 1.25;
+      touch-action: manipulation;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     #globalHeader {
@@ -62,18 +81,36 @@
     .headerTop {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: clamp(8px, calc(3.33vw - 2.67px), 12px);
     }
 
 /* logo + title group */
     .headerIdentity {
       display: flex;
+      flex: 1 1 auto;
       align-items: center;
-      gap: 0.5rem;
+      gap: clamp(8px, calc(3.33vw - 2.67px), 12px);
+    }
+
+    #foeLogo {
+      height: clamp(38px, calc(10vw + 6px), 50px);
+      width: auto;
+      display: block;
+    }
+
+    .title {
+      flex: 1 1 auto;
+      min-width: max-content;
+      text-align: center;
+      white-space: nowrap;
+      font-size: clamp(16px, calc(3.33vw + 5.33px), 20px);
+      line-height: 1;
+      font-weight: 600;
     }
 
     .headerMeta {
       display: flex;
+      flex: 0 0 auto;
       flex-direction: column;
       align-items: flex-end;
       line-height: 1.1;
@@ -81,25 +118,15 @@
     }
 
     #version {
-      font-size: 0.8rem;
+      font-size: clamp(0.8rem, calc(1.33vw + 8.53px), 0.9rem);
       white-space: nowrap;
     }
 
     #status {
-      font-size: 0.9rem;
+      font-size: clamp(0.9rem, calc(1.33vw + 10.13px), 1rem);
+      white-space: nowrap;
     }
 
-    #foeLogo {
-      height: 38px;
-      width: auto;
-      display: block;
-    }
-
-    .title {
-      font-size: 16px;
-      line-height: 1;
-      font-weight: 600;
-    }
 
     /* bottom row */
     .headerActions {
@@ -108,18 +135,30 @@
       gap: 4px;
     }
 
-    .headerActions button {
-      padding: 4px 8px;
-      font-size: 0.8em;
+    #viewSelect option:disabled {
+      color: #888;
+    }
+
+    .headerActions button,
+    .headerActions select {
+      padding: 4px 4px;
+      font-size: 1rem;
+    }
+
+    #newBtn {
+      margin-left: auto;
+    }
+
+    #newBtn[hidden] + #refreshBtn {
+      margin-left: auto;
     }
 
 /* messages */
     #stateMessagePanel {
-      padding: 8px 10px;
+      padding: 8px 4px;
       border: 1px solid #d8b45a;
       background: #fff7d6;
-      font-size: 0.9rem;
-      line-height: 1.25;
+      font-size: 1rem;
     }
 
     /* if we decide we need #messagePanel, it goes here */
@@ -148,52 +187,43 @@
     #searchArea {
       position: relative;
       flex: 0 0 auto;
-      background: #f5f5f5;
       padding-top: 6px;
+      background: #f5f5f5;
       z-index: 100;
     }
 
     #search {
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 16px;
-      padding: 6px 38px 6px 10px;
+      padding: 6px 38px 6px 4px;
       margin-bottom: 6px;
     }
 
     #clearSearch {
       position: absolute;
-      right: 8px;
+      right: 4px;
       top: 50%;
       transform: translateY(-50%);
       border: none;
       background: none;
-      font-size: 22px;
+      font-size: 1.375rem;
       padding: 6px;
       cursor: pointer;
     }
 
     #logTrailSelect {
+      color-scheme: light;
+      color: #000;
       flex: 0 0 auto;
+    }
+
+    #logTrailSelect option {
+      color: #000;
+      background-color: #fff;
     }
 
     #log {
       flex: 1 1 auto;
-      overflow-y: auto;
       min-height: 0;
-    }
-
-    .item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-      line-height: 1.3;
-    }
-
-    .resultItem {
-      padding: 12px 10px;
-      line-height: 1.25;
-      border-bottom: 1px solid #ddd;
-      background: #f8fbff;
+      overflow-y: auto;
     }
 
     #results {
@@ -210,9 +240,24 @@
       display: block;
     }
 
+    .resultItem {
+      padding: 8px 4px;
+      border-bottom: 1px solid #ddd;
+      background: #f8fbff;
+    }
+
+    .item {
+      padding: 8px 4px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
     .common {
       font-weight: bold;
-      margin-right: 6px;
+      margin-right: 4px;
     }
 
     .scientific {
@@ -222,34 +267,27 @@
     .logRow {
       display: flex;
       align-items: flex-start;
-      gap: 8px;
+      gap: 4px;
     }
     
     .logNote {
       flex: 0 1 auto;
-
+      width: auto;
       min-width: 5ch;
       max-width: 50%;
 
       resize: none;
       overflow: hidden;
-      font: inherit;
-      line-height: inherit;
       white-space: pre;
       overflow-wrap: anywhere;
-      padding-top: 0;
-      padding-bottom: 0;
-      padding-left: 4px;
-      padding-right: 4px;
-
-      box-sizing: border-box;
+      padding: 0 4px;
       vertical-align: top;
     }
 
     /* "x" delete button for log entries */
     .deleteBtn {
       flex: 0 0 auto;
-      font-size: 18px;
+      font-size: 1.125rem;
       padding: 2px 8px;
       margin-left: 4px;
       border: none;
@@ -259,22 +297,18 @@
       cursor: pointer;
     }
 
-    textarea,
-    select,
-    input {
-      font-size: 16px;
-      width: 100%;
+    select, input {
+      padding: 8px 4px;
+      margin-bottom: 4px;
     }
 
-    select, input {
-      padding: 12px;
-      margin-bottom: 10px;
-      box-sizing: border-box;
+    .headerActions select {
+      width: auto;
+      margin-bottom: 0;
     }
 
     textarea {
-      box-sizing: border-box;
-      padding: 10px;
+      padding: 8px 4px;
       border: 1px solid #ccc;
       border-radius: 8px;
       background: white;
@@ -293,50 +327,66 @@
       background: #dcecff;
     }
 
-    .item:last-child {
-      border-bottom: none;
-    }
-
 /* Notes View */
 
     #notesView {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
-    }
-
-    .noteActions {
       display: flex;
+      flex-direction: column;
       gap: 4px;
-      flex-wrap: wrap;
-    }
-
-    .noteActions button {
-      padding: 4px 8px;
-      font-size: 0.8em;
     }
 
     .longNote {
       min-height: 8em;
+      resize: vertical;
     }
 
-    .participantResults {
-      position: absolute;
-      left: 0;
-      right: 0;
-      background: #eef5ff;
-      border: 1px solid #ccc;
-      max-height: 200px;
-      overflow-y: auto;
-      z-index: 2000;
-    }
     .participantWrapper {
       position: relative;
     }
+
     #participants {
-      width: 100%;
-      resize: vertical;
       min-height: 2.5em;
+      resize: vertical;
+    }
+
+    .participantResults {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 2000;
+
+      max-height: 200px;
+      overflow-y: auto;
+
+      background: #eef5ff;
+      border: 1px solid #ccc;
+    }
+
+    .surveyTimeRow {
+      display: grid;
+      grid-template-columns: 2.5rem 4.5rem minmax(0, 1fr);
+      column-gap: 0.35rem;
+      align-items: baseline;
+      width: 100%;
+    }
+
+    .surveyTimeRow label {
+      text-align: right;
+    }
+
+    .surveyTimeRow input:first-of-type {
+      text-align: right;
+    }
+
+    .surveyTimeRow input {
+      min-width: 0;
+      padding: 8px 4px;
+      margin-bottom: 0;
     }
 
 /* Choice dialog */
@@ -378,6 +428,28 @@
       background: #ffeaea;
     }
 
+    #currentLegHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    #currentLegHeader,
+    .logSectionHeader {
+      padding: 6px 4px;
+      background: #fff;
+      border-bottom: 1px solid #ccc;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .logSectionHeader {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
   </style>
 </head>
 
@@ -403,20 +475,26 @@
     </div>
 
     <div class="headerActions">
-      <button id="modeBtn" hidden>Notes</button>
-      <button id="newBtn" hidden>New Survey</button>
-      <button id="refreshBtn" hidden>Refresh</button>
+      <select id="viewSelect" aria-label="View" hidden>
+        <option value="log" disabled>Log</option>
+        <option value="notes" disabled>Notes</option>
+      </select>
+      <button id="startBtn" hidden disabled>Start...</button>
+      <button id="nextBtn" hidden disabled>Next...</button>
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
+      <button id="newBtn" hidden>New Survey</button>
+      <button id="refreshBtn" hidden>Refresh</button>
       <button id="importBtn" hidden>Import</button>
-      <input id="importInput" type="file" accept="application/json,.json"
-        autocapitalize="none" hidden>
+      <input id="importInput" type="file" autocapitalize="none"
+        accept="application/json,.json" hidden >
     </div>
 
   </div> <!-- #globalHeader -->
 
   <div id="messagePanel" hidden>
     <span id="messageText"></span>
+    <button id="undoBtn" hidden>Undo</button>
     <button id="dismissMessageBtn"
       aria-label="Dismiss message">
       x 
@@ -430,23 +508,16 @@
 
     <!-- search stays fixed under header -->
     <div id="searchArea">
-      <input
-        disabled
-        id="search"
-        type="text"
-        placeholder="Search plant..."
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-      >
+      <input id="search" type="text" autocomplete="off" autocorrect="off"
+        autocapitalize="none" spellcheck="false"
+        placeholder="Search plant..." disabled >
       <button id="clearSearch" type="button" aria-label="Clear search">
         X
       </button>
     </div>
 
     <!-- normal content -->
-    <select id="logTrailSelect"></select>
+    <select id="logTrailSelect" hidden></select>
 
     <div id="log"></div>
 
@@ -456,49 +527,31 @@
   </div> <!-- #logView -->
 
   <div id="notesView" hidden>
+    <input id="date" aria-label="Survey date">
 
-      <!-- notes buttons -->
-    <div class = "noteActions">
-      <button id="startBtn">Start Note</button>
-      <button id="trailBtn">Trail Notes</button>
-      <button id="closeBtn">Closing Note</button>
+    <div class="participantWrapper">
+      <textarea id="participants" rows="2" autocapitalize="words"
+        placeholder="Participants" aria-label="Participants"></textarea>
+
+      <div id="participantResults" class="participantResults" ></div>
     </div>
 
-    <div id="startPanel">
-      <input id="startDate">
+    <div class="surveyTimeRow">
+      <label for="startTime">Start</label>
       <input id="startTime">
       <input id="startWeather" autocapitalize="none"
-        placeholder="75 F, partly cloudy">
-
-      <div class="participantWrapper">
-
-        <textarea id="participants"
-          autocapitalize="words"
-          rows="2"
-          placeholder="Participants"
-        ></textarea>
-
-        <div id="participantResults"
-          class="participantResults">
-        </div>
-      </div>
-      <textarea id="startNote" class="longNote" autocapitalize="none"
-        placeholder="Starting notes"></textarea>
+        placeholder="55 F, partly cloudy" aria-label="Starting weather">
     </div>
 
-    <div id="trailPanel" hidden>
-      <select id="notesTrailSelect"></select>
-      <textarea id="trailNotes" class="longNote" autocapitalize="none"
-        placeholder="Notes..." ></textarea>
+    <div class="surveyTimeRow">
+      <label for="endTime">End</label>
+      <input id="endTime" disabled>
+      <input id="endWeather" disabled autocapitalize="none"
+        placeholder="88 F, sunny" aria-label="Ending weather">
     </div>
 
-    <div id="closePanel"  hidden>
-      <input id="closeTime">
-      <input id="closeWeather" autocapitalize="none"
-        placeholder="82 F, sunny">	
-      <textarea id="closeNote" class="longNote" autocapitalize="none"
-        placeholder="Closing notes"></textarea>
-    </div>
+    <textarea id="notes" class="longNote" autocapitalize="none"
+      placeholder="Notes" aria-label="Survey notes"></textarea>
 
   </div> <!-- #notesView -->
 
