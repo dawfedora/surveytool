@@ -1757,9 +1757,9 @@ function createLogSection(leg, log) {
 function formatLegLabel(leg) {
   const trailName = trailNetwork.trails[leg.trailId];
 
-  if (leg.tailId === "garden")
+  if (leg.trailId === "garden")
     return trailName;
-  
+
   return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
 }
 
