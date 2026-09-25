@@ -1692,7 +1692,7 @@ function formatSegmentChoice(choice) {
   }
 
   if (choice.kind === "uturn")
-    return `U-turn — ${trailName} toward ${destination}`;
+    return `${choice.atPost} — ${trailName} back toward ${destination}`;
 
   return `${choice.atPost} — ${trailName} toward ${destination}`;
 }
@@ -1757,6 +1757,9 @@ function createLogSection(leg, log) {
 function formatLegLabel(leg) {
   const trailName = trailNetwork.trails[leg.trailId];
 
+  if (leg.tailId === "garden")
+    return trailName;
+  
   return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
 }
 
