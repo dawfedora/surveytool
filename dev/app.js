@@ -41,6 +41,7 @@ let pendingStores = [];
 let activeChoiceOverlay = null;
 let undoCache = null;
 let undoTimer = null;
+let logEntryMenuTarget = null;
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
@@ -381,7 +382,8 @@ function initUI() {
     search: document.getElementById('search'),
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
-    log: document.getElementById("log")
+    log: document.getElementById("log"),
+    logEntryMenu: document.getElementById("logEntryMenu")
   };
 
   ui.log.currentHeader = document.createElement("div");
@@ -456,7 +458,8 @@ function initHeader() {
 function initLogView() {
   ui.log.search.addEventListener("beforeinput", validateSearchInput);
   ui.log.search.addEventListener("focus", scrollToCurrentLeg);
-
+  ui.log.entryMenu.addEventListener("click", handleLogEntryMenuChoice);
+  
   let searchTimer;
 
   ui.log.search.addEventListener("input", e => {
@@ -2401,7 +2404,7 @@ function newSurvey() {
 
 function startSurvey() {
   
-  // verify starting fields: date, time, weather, paricipants
+  // verify starting fields: date, time, weather, participants
   if (!startInfoComplete()) {
     showMessage("Fill in the starting information first");
     focusNextNotesField();
@@ -3049,18 +3052,18 @@ function createLogRow(entry, legId) {
   row.appendChild(label);
   row.appendChild(note);
 
-  const del = document.createElement('button');
-  del.textContent = '×';
-  del.className = 'deleteBtn';
+  const editBtn = document.createElement("button");
+  editBtn.textContent = "E";
+  editBtn.className = "editBtn";
+  editBtn.type = "button";
+  editBtn.setAttribute("aria-label", `Edit ${entry.commonName}`);
+  editBtn.setAttribute("aria-haspopup", "menu");
 
-  del.onclick = () => {
-    if (!confirm( `Delete "${entry.commonName}"?`))
-      return;
-    deleteLogEntry(entry, legId);
-    div.remove();
-  };
+  editBtn.addEventListener("click", () => {
+    openLogEntryMenu(editBtn, div, entry, legId);
+  });
 
-  row.appendChild(del);
+  row.appendChild(editBtn);
   div.appendChild(row);
   return div;
 }
@@ -3078,8 +3081,64 @@ function appendPlantLabel(parent, commonName, scientificName) {
   parent.appendChild(scientific);
 }
 
+
+function openLogEntryMenu(button, row, entry, legId) {
+  logEntryMenuTarget = {button, row, entry, legId};
+
+  const menu = ui.log.entryMenu;
+  const rect = button.getBoundingClientRect();
+
+  menu.hidden = false;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.right =
+    `${Math.max(4, window.innerWidth - rect.right)}px`;
+
+  button.setAttribute("aria-expanded", "true");
+  menu.querySelector("button")?.focus();
+}
+
+function closeLogEntryMenu() {
+  const target = logEntryMenuTarget;
+
+  ui.log.entryMenu.hidden = true;
+  logEntryMenuTarget = null;
+
+  if (target) {
+    target.button.setAttribute("aria-expanded", "false");
+    target.button.focus();
+  }
+}
+
+function handleLogEntryMenuChoice(event) {
+  const action = event.target.dataset.action;
+  const target = logEntryMenuTarget;
+
+  if (!target || !action)
+    return;
+
+  closeLogEntryMenu();
+
+  switch (action) {
+    case "delete":
+      deleteLogEntry(target.entry, target.legId);
+      target.row.remove();
+      break;
+
+    case "edit":
+      beginEditingLogEntry(target.entry, target.legId);
+      break;
+
+    case "insert":
+      beginInsertingLogEntry(target.entry, target.legId);
+      break;
+  }
+}
+
 function deleteLogEntry(entry, legId) {
   let entries;
+  
+  if (!confirm( `Delete "${entry.commonName}"?`))
+    return;
 
   if (legId === null) {
     entries = survey.currentLog;
@@ -3087,7 +3146,6 @@ function deleteLogEntry(entry, legId) {
     entries = survey.completedLogs[legId];
     if (!entries)
       throw new Error(`Missing completed log "${legId}"`);
-
   }
 
   const index = entries.indexOf(entry);
@@ -3101,6 +3159,14 @@ function deleteLogEntry(entry, legId) {
     storeCurrentLog();
   else
     storeCompletedLog(legId);
+}
+
+function beginEditingLogEntry(entry, legId) {   
+  // Implementation for beginning to edit a log entry
+}
+
+function beginInsertingLogEntry(entry, legId) {
+  // Implementation for beginning to insert a log entry
 }
 
 function resizeNote(note, expanded = false) {
