@@ -3217,7 +3217,7 @@ function buildSurveyHeaderRows(survey) {
     .join(", ");
 
   if (observedNotes) {
-    rows.push(...blankRows(3));
+    rows.push(...blankRows(2));
     rows.push([
       `Also Observed: ${observedNotes}`
     ]);
@@ -3226,7 +3226,7 @@ function buildSurveyHeaderRows(survey) {
 }
 
 function blankRows(count) {
-  return Array.from({ length: count }, () => ["", ""]);
+  return Array.from({ length: count }, () => ["", "", "", "", ""]);
 }
 
 function splitParticipants(participantsText) {
