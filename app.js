@@ -3220,10 +3220,10 @@ function buildSurveyHeaderRows(survey) {
 
   if (alsoLines) {
     rows.push([
-      `Also observed: alsoLines[0]`
+      `Also observed: ${alsoLines[0]}`
     ]);
     rows.push([
-      `alsoLines[1]`
+      alsoLines[1]
     ]);
   }
   return rows;
