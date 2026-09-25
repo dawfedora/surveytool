@@ -1623,6 +1623,9 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
     if (!outgoing)
       throw new Error(`No segments leave post "${postId}"`);
 
+    const reverse = outgoing.find(segment =>
+      isReverseSegment(segment, incoming)) || null;
+
     const forward =
       outgoing.filter(segment => !isReverseSegment(segment, incoming));
 
@@ -1638,23 +1641,19 @@ function buildNextSegmentChoices(currentLeg, segmentsByPost) {
       }
     }
 
+    // Then offer returning over the segment that reached this post.
+    if (reverse && incoming.fromPost !== incoming.toPost) {
+      choices.push({
+        kind: "uturn",
+        atPost: postId,
+        completedLeg: rollUpCompletedLeg(currentLeg, path),
+        nextSegment: reverse
+      });
+    }    
+
     // Topology validation guarantees zero or one continuation.
     incoming =
       forward.find(segment => segment.trailId === currentLeg.trailId) || null;
-  }
-
-  const reverse = findReverseSegment(currentLeg, segmentsByPost);
-
-  if (reverse && currentLeg.fromPost !== currentLeg.toPost) {
-    choices.push({
-      kind: "uturn",
-      atPost: currentLeg.toPost,
-      completedLeg: rollUpCompletedLeg(
-        currentLeg,
-        [currentLeg]
-      ),
-      nextSegment: reverse
-    });
   }
 
   return choices;
@@ -1683,15 +1682,6 @@ function isReverseSegment(candidate, segment) {
   );
 }
 
-function findReverseSegment(segment, segmentsByPost) {
-  const outgoing = segmentsByPost.get(segment.toPost) || [];
-
-  return outgoing.find(candidate =>
-    isReverseSegment(candidate, segment)
-  ) || null;
-
-}
-
 function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
   const trailName = trailNetwork.trails[segment.trailId];
@@ -1705,7 +1695,7 @@ function formatSegmentChoice(choice) {
   }
 
   if (choice.kind === "uturn")
-    return `U-turn — ${trailName} toward ${destination}`;
+    return `${choice.atPost} — ${trailName} back toward ${destination}`;
 
   return `${choice.atPost} — ${trailName} toward ${destination}`;
 }
@@ -1769,6 +1759,9 @@ function createLogSection(leg, log) {
 
 function formatLegLabel(leg) {
   const trailName = trailNetwork.trails[leg.trailId];
+
+  if (leg.trailId === "garden")
+    return trailName;
 
   return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
 }
@@ -3382,19 +3375,24 @@ function buildSurveyLogRows(data) {
         heading: formatLegLabel(leg),
         entries: log
       };
-    })
-    .filter(column => column.entries.length > 0);
-
+    });
+    
   if (columns.length === 0)
     return [];
 
-  const maxRows = columns.reduce(
-    (maximum, column) => Math.max(maximum, column.entries.length), 0);
+  const maxRows = 
+    Math.max(1, columns.reduce(
+    (maximum, column) => Math.max(maximum, column.entries.length), 0));
 
   const rows = [ columns.map(column => column.heading) ];
 
   for (let index = 0; index < maxRows; index++) {
-    rows.push( columns.map(column => column.entries[index]?.commonName || ""));
+    rows.push( columns.map(column => {
+      if (column.entries.length === 0)
+        return index === 0 ? "-0-" : "";
+
+      return column.entries[index]?.commonName || "";
+    }));
   }
 
   return rows;
