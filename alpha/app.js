@@ -3216,10 +3216,12 @@ function buildSurveyHeaderRows(survey) {
     .filter(Boolean)
     .join(", ");
 
-  if (observedNotes) {
+  const alsoLines = splitAlsoObs(observedNotes);
+
+  if (alsoLines) {
     rows.push(...blankRows(2));
     rows.push([
-      `Also Observed: ${observedNotes}`
+      `Also observed: ${alsoLines}`
     ]);
   }
   return rows;
@@ -3229,9 +3231,52 @@ function blankRows(count) {
   return Array.from({ length: count }, () => ["", "", "", "", ""]);
 }
 
+function splitAlsoObs(observedNotes) {
+  const FIRST_ALSO_LINE_LIMIT = 110;
+  const SECOND_ALSO_LINE_LIMIT = 125;
+  const shortLine = observedNotes
+    .trim()
+    .replace(/(?:,\s*)+$/, '');
+
+  if (shortLine.length <= FIRST_ALSO_LINE_LIMIT)
+    return [shortLine, ''];
+
+  const participants = observedNotes
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean);
+
+  let bestSplit = 1;
+  let bestOverflow = Infinity;
+  let bestBalance = Infinity;
+
+  for (let i = 1; i < participants.length; i++) {
+    const first = participants.slice(0, i).join(', ');
+    const second = participants.slice(i).join(', ');
+    const overflow = Math.max(
+      first.length - FIRST_ALSO_LINE_LIMIT,
+      second.length - SECOND_ALSO_LINE_LIMIT,
+      0
+    );
+    const balance = Math.abs(first.length - second.length);
+
+    if (overflow < bestOverflow ||
+        (overflow === bestOverflow && balance < bestBalance)) {
+      bestSplit = i;
+      bestOverflow = overflow;
+      bestBalance = balance;
+    }
+  }
+
+  return [
+    participants.slice(0, bestSplit).join(', ') + ',',
+    participants.slice(bestSplit).join(', ')
+  ];
+}
+
 function splitParticipants(participantsText) {
-  const FIRST_PARTICIPANT_LINE_LIMIT = 60;
-  const SECOND_PARTICIPANT_LINE_LIMIT = 74;
+  const FIRST_PARTICIPANT_LINE_LIMIT = 61;
+  const SECOND_PARTICIPANT_LINE_LIMIT = 75;
   const shortLine = participantsText
     .trim()
     .replace(/(?:,\s*)+$/, '');
