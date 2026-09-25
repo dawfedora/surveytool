@@ -3219,9 +3219,11 @@ function buildSurveyHeaderRows(survey) {
   const alsoLines = splitAlsoObs(observedNotes);
 
   if (alsoLines) {
-    rows.push(...blankRows(2));
     rows.push([
-      `Also observed: ${alsoLines}`
+      `Also observed: alsoLines[0]`
+    ]);
+    rows.push([
+      `alsoLines[1]`
     ]);
   }
   return rows;
