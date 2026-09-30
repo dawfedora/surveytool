@@ -383,7 +383,7 @@ function initUI() {
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
     log: document.getElementById("log"),
-    EntryMenu: document.getElementById("logEntryMenu")
+    entryMenu: document.getElementById("logEntryMenu")
   };
 
   ui.log.currentHeader = document.createElement("div");
