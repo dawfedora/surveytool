@@ -11,5 +11,8 @@ This is a cache-first app.  On a mobile device it is loaded, and then a link is 
 
 It is intended to work on iOS and Android, on a number of browsers.  We have used it with Chrome, Firefox, and Safari.
 
-The current working version is deployed to dawfedora.gihub.io/surveytool
-The development version is at dawfedora.github.io/surveytool/dev.  Dev may be broken at any given time, 'cause to test, you need to load it as a webpage.
+The current working version is deployed to                    dawfedora.gihub.io/surveytool
+There are several grades of development branch.
+Beta, almost ready for te big times.                          dawfedora.github.io/surveytool/beta
+Alphs, Sorta works, mostly.                                   dawfedora.github.io/surveytool/alpha
+Dev, may or may not work at any given time.                   dawfedora.github.io/surveytool/dev
