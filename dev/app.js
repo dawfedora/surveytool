@@ -1695,7 +1695,7 @@ function formatSegmentChoice(choice) {
   }
 
   if (choice.kind === "uturn")
-    return `${choice.atPost} — ${trailName} back toward ${destination}`;
+    return `${choice.atPost} — back on ${trailName} toward ${destination}`;
 
   return `${choice.atPost} — ${trailName} toward ${destination}`;
 }
@@ -3283,7 +3283,7 @@ function buildSurveyHeaderRows(survey) {
     .join(", ");
 
   if (observedNotes) {
-    rows.push(...blankRows(3));
+    rows.push(...blankRows(2));
     rows.push([
       `Also Observed: ${observedNotes}`
     ]);
@@ -3292,7 +3292,7 @@ function buildSurveyHeaderRows(survey) {
 }
 
 function blankRows(count) {
-  return Array.from({ length: count }, () => ["", ""]);
+  return Array.from({ length: count }, () => ["", "", "", "", ""]);
 }
 
 function splitParticipants(participantsText) {
