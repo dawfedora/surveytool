@@ -383,7 +383,7 @@ function initUI() {
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
     log: document.getElementById("log"),
-    logEntryMenu: document.getElementById("logEntryMenu")
+    EntryMenu: document.getElementById("logEntryMenu")
   };
 
   ui.log.currentHeader = document.createElement("div");
@@ -3154,11 +3154,11 @@ function deleteLogEntry(entry, legId) {
     storeCompletedLog(legId);
 }
 
-function beginEditingLogEntry(entry, legId) {   
+function beginEditingLogEntry() {   
   // Implementation for beginning to edit a log entry
 }
 
-function beginInsertingLogEntry(entry, legId) {
+function beginInsertingLogEntry() {
   // Implementation for beginning to insert a log entry
 }
 
