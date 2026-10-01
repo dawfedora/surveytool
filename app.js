@@ -3046,7 +3046,7 @@ function createLogRow(entry, legId) {
   row.appendChild(note);
 
   const editBtn = document.createElement("button");
-  editBtn.textContent = "E";
+  editBtn.textContent = "\u2630";
   editBtn.className = "editBtn";
   editBtn.type = "button";
   editBtn.setAttribute("aria-label", `Edit ${entry.commonName}`);
