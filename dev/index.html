@@ -226,6 +226,13 @@
       background-color: #fff;
     }
 
+    #logTrailSelect {
+      witdth: fit-content;
+      max-width: 100%;
+      align-self: flex-start;
+      padding: 2px;
+    }
+
     #log {
       flex: 1 1 auto;
       min-height: 0;
@@ -492,15 +499,15 @@
     </div>
 
     <div class="headerActions">
-      <select id="viewSelect" aria-label="View" hidden>
+      <select id="viewSelect" title="View" hidden>
         <option value="log" disabled>Log</option>
         <option value="notes" disabled>Notes</option>
       </select>
-      <button id="startBtn" hidden disabled>Start...</button>
+      <button id="startBtn" title="Start Survey" hidden disabled>Start...</button>
       <button id="nextBtn" hidden disabled>Next...</button>
       <button id="endBtn" hidden>End</button>
       <button id="saveBtn" hidden>Save</button>
-      <button id="newBtn" aria-label="New Survey" hidden>New</button>
+      <button id="newBtn" title="New Survey" hidden>New</button>
       <button id="refreshBtn" title="Refresh App" hidden>
         <span class="refreshGlyph"> &#8635; </span>
       </button>
@@ -515,7 +522,7 @@
     <span id="messageText"></span>
     <button id="undoBtn" hidden>Undo</button>
     <button id="dismissMessageBtn"
-      aria-label="Dismiss message">
+      title="Dismiss message">
       x 
     </button>
   </div>
@@ -530,7 +537,7 @@
       <input id="search" type="text" autocomplete="off" autocorrect="off"
         autocapitalize="none" spellcheck="false"
         placeholder="Search plant..." disabled >
-      <button id="clearSearch" type="button" aria-label="Clear search">
+      <button id="clearSearch" type="button" title="Clear search">
         X
       </button>
     </div>
@@ -553,11 +560,11 @@
   </div> <!-- #logView -->
 
   <div id="notesView" hidden>
-    <input id="date" aria-label="Survey date">
+    <input id="date" title="Survey date">
 
     <div class="participantWrapper">
       <textarea id="participants" rows="2" autocapitalize="words"
-        placeholder="Participants" aria-label="Participants"></textarea>
+        placeholder="Participants" title="Participants"></textarea>
 
       <div id="participantResults" class="participantResults" ></div>
     </div>
@@ -566,18 +573,18 @@
       <label for="startTime">Start</label>
       <input id="startTime">
       <input id="startWeather" autocapitalize="none"
-        placeholder="55 F, partly cloudy" aria-label="Starting weather">
+        placeholder="55 F, partly cloudy" title="Starting weather">
     </div>
 
     <div class="surveyTimeRow">
       <label for="endTime">End</label>
       <input id="endTime" disabled>
       <input id="endWeather" disabled autocapitalize="none"
-        placeholder="88 F, sunny" aria-label="Ending weather">
+        placeholder="88 F, sunny" title="Ending weather">
     </div>
 
     <textarea id="notes" class="longNote" autocapitalize="none"
-      placeholder="Notes" aria-label="Survey notes"></textarea>
+      placeholder="Notes" title="Survey notes"></textarea>
 
   </div> <!-- #notesView -->
 
