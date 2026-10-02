@@ -1694,13 +1694,14 @@ function isReverseSegment(candidate, segment) {
 function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
   const trailName = trailNetwork.trails[segment.trailId];
+  const posts = trailNetwork.posts;
   const destination = trailNetwork.posts[segment.toPost];
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
       return `${trailNetwork.posts[segment.fromPost]}`;
 
-    return `${choice.atPost} ${trailName} ${RIGHT_ARROW} ${destination}`;
+    return `${posts[choice.atPost]} ${RIGHT_ARROW} ${destination}`;
   }
 
   if (choice.kind === "uturn")
