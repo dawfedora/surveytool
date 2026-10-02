@@ -1587,6 +1587,11 @@ function populateSegmentOptions(select, promptText, choices) {
   prompt.selected = true;
   select.appendChild(prompt);
 
+  const cancel = document.createElement("option");
+  cancel.value = "cancel";
+  cancel.textContent = "Cancel";
+  select.appendChild(cancel);
+
   choices.forEach((choice, index) => {
     const option = document.createElement("option");
 
@@ -1793,6 +1798,13 @@ function handleTrailChange(event) {
 
   if (choice === "")
     return;
+
+  if (choice === "cancel") {
+    select.hidden = true;
+    segmentChoices = [];
+    ui.log.search.focus();
+    return;
+  }
 
   const selection = segmentChoices[Number(choice)];
 
