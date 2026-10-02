@@ -3124,6 +3124,9 @@ function handleLogEntryMenuChoice(event) {
     case "insert":
       beginInsertingLogEntry(target.entry, target.legId);
       break;
+
+    case "cancel":
+      break;
   }
 }
 
