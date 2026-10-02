@@ -1698,7 +1698,7 @@ function formatSegmentChoice(choice) {
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
-      return `${choice.atPost} — ${trailName}`;
+      return `${trailNetwork.posts[segment.fromPost]}`;
 
     return `${choice.atPost} ${trailName} ${RIGHT_ARROW} ${destination}`;
   }
