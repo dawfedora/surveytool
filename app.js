@@ -1706,7 +1706,7 @@ function formatSegmentChoice(choice) {
   if (choice.kind === "uturn")
     return `${choice.atPost} ${UTURN} ${destination}`;
 
-  return `${choice.atPost} — ${trailName} toward ${destination}`;
+  return `${choice.atPost} ${trailName} ${RIGHT_ARROW}  ${destination}`;
 }
 
 function renderLogView() {
