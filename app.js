@@ -28,6 +28,10 @@ const ui = {
   notes: {}
 };
 
+const HAMBURGER = "\u2630";
+const RIGHT_ARROW = "\u2192";
+const UTURN = "\u21AA";
+
 let  STORAGE_TAG = null;
 
 
@@ -1696,11 +1700,11 @@ function formatSegmentChoice(choice) {
     if (segment.fromPost === segment.toPost)
       return `${choice.atPost} — ${trailName}`;
 
-    return `${choice.atPost} — ${trailName} toward ${destination}`;
+    return `${choice.atPost} ${trailName} ${RIGHT_ARROW} ${destination}`;
   }
 
   if (choice.kind === "uturn")
-    return `${choice.atPost} — back on ${trailName} toward ${destination}`;
+    return `${choice.atPost} ${UTURN} ${destination}`;
 
   return `${choice.atPost} — ${trailName} toward ${destination}`;
 }
@@ -3058,7 +3062,7 @@ function createLogRow(entry, legId) {
   row.appendChild(note);
 
   const editBtn = document.createElement("button");
-  editBtn.textContent = "\u2630";
+  editBtn.textContent = HAMBURGER;
   editBtn.className = "editBtn";
   editBtn.type = "button";
   editBtn.setAttribute("aria-label", `Edit ${entry.commonName}`);
