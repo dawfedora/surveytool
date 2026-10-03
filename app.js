@@ -2977,35 +2977,76 @@ function hideParticipantResults(e) {
 
 // --- LOG ENTRIES ---
 function addSighting(item) {
-
   if (!survey) {
-    alert('No active survey');
-    return;
+    alert("No active survey");
+    return false;
   }
 
   const entries = survey.currentLog;
 
-  const duplicate = entries.some(e => e.commonName === item.displayCommon);
+  if (!confirmDuplicateSighting(entries, item))
+    return false;
 
-  if (duplicate && !confirm('Already recorded on this trail. Add again?'))
-    return;
-
-  // Add to END (most recent last)
-  const entry = {
-    commonName: item.displayCommon,
-    scientificName: item.scientificName,
-    note: "",
-    time: formatTimestamp()
-  };
+  const entry = createSightingEntry(item);
   entries.push(entry);
 
   clearUndo();
-
   storeCurrentLog();
 
   const row = createLogRow(entry, null);
   ui.log.log.prepend(row);
   highlightLogRow(row);
+
+  return true;
+}
+
+function setEntrySpecies(entry, item) {
+  entry.commonName = item.displayCommon;
+  entry.scientificName = item.scientificName;
+
+  return entry;
+}
+
+function createSightingEntry(item) {
+  const entry = {
+    note: "",
+    time: formatTimestamp()
+  };
+
+  return setEntrySpecies(entry, item);
+}
+
+function getLogEntries(legId) {
+  if (legId === null)
+    return survey.currentLog;
+
+  const entries = survey.completedLogs[legId];
+
+  if (!entries)
+    throw new Error(`Missing completed log "${legId}"`);
+
+  return entries;
+}
+
+function storeLogEntries(legId) {
+  if (legId === null)
+    storeCurrentLog();
+  else
+    storeCompletedLog(legId);
+}
+
+function confirmDuplicateSighting(entries, item, excludedEntry = null) {
+  const duplicate = entries.some(entry =>
+    entry !== excludedEntry &&
+    entry.commonName === item.displayCommon
+  );
+
+  if (!duplicate)
+    return true;
+
+  return confirm(
+    `"${item.displayCommon}" is already recorded on this leg. Add it anyway?`
+  );
 }
 
 function highlightLogRow(row) {
