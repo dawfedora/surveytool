@@ -46,6 +46,9 @@ let activeChoiceOverlay = null;
 let undoCache = null;
 let undoTimer = null;
 let logEntryMenuTarget = null;
+let entryEditorTarget = null;
+let searchTimer = null;
+
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
@@ -402,6 +405,14 @@ function initUI() {
 
   ui.log.log.before(ui.log.currentHeader);
 
+  ui.log.entryEditor = {
+    overlay: document.getElementById('entryEditorOverlay'),
+    context: document.getElementById('entryEditorContext'),
+    search: document.getElementById('entrySearch'),
+    cancel: document.getElementById("cancelEntryEditor"),
+    results: document.getElementById('entryResults'),
+  };
+
   ui.notes = {
     view: document.getElementById('notesView'),
     date: document.getElementById('date'),
@@ -464,22 +475,20 @@ function initLogView() {
   ui.log.search.addEventListener("focus", scrollToCurrentLeg);
   ui.log.entryMenu.addEventListener("click", handleLogEntryMenuChoice);
   
-  let searchTimer;
 
-  ui.log.search.addEventListener("input", e => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        const results = search(e.target.value);
-        renderResults(results);
-      }, 100);
-    }
-  );
+  ui.log.search.addEventListener("input", handleMainSearchInput);
+
   ui.log.clearSearch.addEventListener("click", () => {
       ui.log.search.value = "";
       ui.log.search.dispatchEvent(new Event("input"));
       ui.log.search.focus();
     }
   );
+
+  ui.log.entryEditor.search.addEventListener("input",
+    handleEntrySearchInput);
+  ui.log.entryEditor.cancel.addEventListener("click",
+    closeEntryEditor);
 
   window.addEventListener("resize", debounce(positionResults, 50));
   window.visualViewport?.addEventListener( "resize",
@@ -2810,46 +2819,40 @@ function search(q) {
   ].slice(0, 30);
 }
 
-function renderResults(list) {
-  const container = ui.log.results;
-  container.innerHTML = '';
+function clearSpeciesResults(container) {
+  container.replaceChildren();
+  container.hidden = true;
+}
+
+function appendSpeciesResults(container, list, handleSelection) {
+  container.replaceChildren();
+  container.hidden = false;
   container.scrollTop = 0;
 
-  const input = ui.log.search;
-
-  if (input.value.length < 2) {
-    container.innerHTML = '';
-    container.style.display = "none";
-    return;
-  }
-
-  container.style.display = 'block';
-
   if (list.length === 0) {
-    container.innerHTML = '<div class="item">No matches</div>';
+    const div = document.createElement("div");
+    div.className = "item";
+    div.textContent = "No matches";
+    container.appendChild(div);
     return;
   }
 
-  if (!Array.isArray(list)) return;
+  for (const item of list) {
+    const div = document.createElement("div");
+    div.className = "resultItem";
 
-  list.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'resultItem';
+    appendPlantLabel(
+      div,
+      item.commonName,
+      item.scientificName
+    );
 
-    appendPlantLabel(div, item.commonName, item.scientificName);
-
-    div.onclick = () => {
-      addSighting(item);
-
-      const input = ui.log.search;
-      input.value = '';
-      renderResults([]);
-
-      refocusAfterSelection(input);
-    };
+    div.addEventListener("click", () => {
+      handleSelection(item);
+    });
 
     container.appendChild(div);
-  });
+  }
 }
 
 function positionResults() {
@@ -2976,6 +2979,74 @@ function hideParticipantResults(e) {
 }
 
 // --- LOG ENTRIES ---
+function handleMainSearchInput(event) {
+  handleSearchInput(
+    event.currentTarget,
+    ui.log.results,
+    handleMainSearchSelection
+  );
+}
+
+function handleEntrySearchInput(event) {
+  handleSearchInput(
+    event.currentTarget,
+    ui.log.entryEditor.results,
+    handleEntrySearchSelection
+  );
+}
+
+function handleSearchInput(input, resultsContainer, selectResult) {
+  clearTimeout(searchTimer);
+
+  searchTimer = setTimeout(() => {
+    searchTimer = null;
+
+    const query = input.value.trim();
+
+    if (query.length < 2) {
+      clearSpeciesResults(resultsContainer);
+      return;
+    }
+
+    const matches = search(query);
+
+    appendSpeciesResults(
+      resultsContainer,
+      matches,
+      selectResult
+    );
+  }, 100);
+}
+
+function handleMainSearchSelection(item) {
+  if (!addSighting(item))
+    return;
+
+  ui.log.search.value = "";
+  clearSpeciesResults(ui.log.results);
+  refocusAfterSelection(ui.log.search);
+}
+
+function handleEntrySearchSelection(item) {
+  if (!entryEditorTarget)
+    throw new Error("Entry search selection has no target");
+
+  const { mode, entry, legId } = entryEditorTarget;
+  let succeeded;
+
+  if (mode === "edit") {
+    succeeded = editSighting(entry, legId, item);
+  } else if (mode === "insert") {
+    succeeded = insertSightingBefore(entry, legId, item);
+  } else {
+    throw new Error(`Unknown entry editor mode "${mode}"`);
+  }
+
+  // Leave the editor open if the user rejected a duplicate.
+  if (succeeded)
+    closeEntryEditor();
+}
+
 function addSighting(item) {
   if (!survey) {
     alert("No active survey");
@@ -2996,6 +3067,44 @@ function addSighting(item) {
   const row = createLogRow(entry, null);
   ui.log.log.prepend(row);
   highlightLogRow(row);
+
+  return true;
+}
+
+function insertSightingBefore(targetEntry, legId, item) {
+  const entries = getLogEntries(legId);
+  const index = entries.indexOf(targetEntry);
+
+  if (index < 0)
+    throw new Error("Could not find insertion point");
+
+  if (!confirmDuplicateSighting(entries, item))
+    return false;
+
+  const entry = createSightingEntry(item);
+  entries.splice(index, 0, entry);
+
+  clearUndo();
+  storeLogEntries(legId);
+  renderLogView();
+
+  return true;
+}
+
+function editSighting(entry, legId, item) {
+  const entries = getLogEntries(legId);
+
+  if (!entries.includes(entry))
+    throw new Error("Could not find entry to edit");
+
+  if (!confirmDuplicateSighting(entries, item, entry))
+    return false;
+
+  setEntrySpecies(entry, item);
+
+  clearUndo();
+  storeLogEntries(legId);
+  renderLogView();
 
   return true;
 }
@@ -3171,16 +3280,16 @@ function handleLogEntryMenuChoice(event) {
 
   switch (action) {
     case "delete":
-      deleteLogEntry(target.entry, target.legId);
-      target.row.remove();
+      if (deleteLogEntry(target.entry, target.legId) === true)
+        target.row.remove();
       break;
 
     case "edit":
-      beginEditingLogEntry(target.entry, target.legId);
+      openEntryEditor("edit", target.entry, target.legId);
       break;
 
     case "insert":
-      beginInsertingLogEntry(target.entry, target.legId);
+      openEntryEditor("insert", target.entry, target.legId);
       break;
 
     case "cancel":
@@ -3192,7 +3301,7 @@ function deleteLogEntry(entry, legId) {
   let entries;
   
   if (!confirm( `Delete "${entry.commonName}"?`))
-    return;
+    return false;
 
   if (legId === null) {
     entries = survey.currentLog;
@@ -3213,14 +3322,35 @@ function deleteLogEntry(entry, legId) {
     storeCurrentLog();
   else
     storeCompletedLog(legId);
+
+  return true;
 }
 
-function beginEditingLogEntry() {   
-  // Implementation for beginning to edit a log entry
+function openEntryEditor(mode, entry, legId) {
+  entryEditorTarget = { mode, entry, legId };
+
+  const action =
+    mode === "edit" ? "Edit" : "Insert below";
+
+  ui.log.entryEditor.context.textContent =
+    `${action}: ${entry.commonName}`;
+
+  ui.log.entryEditor.search.value = "";
+  clearSpeciesResults(ui.log.entryEditor.results);
+
+  ui.log.entryEditor.overlay.hidden = false;
+  ui.log.entryEditor.search.focus();
 }
 
-function beginInsertingLogEntry() {
-  // Implementation for beginning to insert a log entry
+function closeEntryEditor() {
+  clearTimeout(searchTimer);
+  searchTimer = null;
+
+  ui.log.entryEditor.search.value = "";
+  clearSpeciesResults(ui.log.entryEditor.results);
+  ui.log.entryEditor.overlay.hidden = true;
+
+  entryEditorTarget = null;
 }
 
 function resizeNote(note, expanded = false) {

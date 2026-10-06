@@ -356,6 +356,64 @@
       background: #dcecff;
     }
 
+/* Entry Editor Overlay */
+
+    #entryEditorOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 4000;
+      background: #d9e1df;
+    }
+
+    #entryEditor {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      padding: 4px;
+      box-sizing: border-box;
+    }
+
+    .entryEditorHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      padding-bottom: 4px;
+    }
+
+    #entryEditorContext {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .entrySearchArea {
+      position: relative;
+    }
+
+    #entrySearch {
+      padding-right: 2.5rem;
+    }
+
+    #cancelEntryEditor {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: none;
+      font-size: 1.375rem;
+      padding: 6px;
+    }
+
+    #entryResults {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
 /* Notes View */
 
     #notesView {
@@ -555,13 +613,33 @@
     <!-- overlays selector + log -->
     <div id="results"></div>
 
-<div id="logEntryMenu" hidden>
-  <button type="button" data-action="delete">Delete</button>
-  <button type="button" data-action="edit">Edit</button>
-  <button type="button" data-action="insert">Insert below</button>
-  <button type="button" data-action="cancel">cancel</button>
-</div>
+    <div id="logEntryMenu" hidden>
+      <button type="button" data-action="delete">Delete</button>
+      <button type="button" data-action="edit">Edit</button>
+      <button type="button" data-action="insert">Insert below</button>
+      <button type="button" data-action="cancel">cancel</button>
+    </div>
 
+    <div id="entryEditorOverlay" hidden>
+      <div id="entryEditor">
+        <div class="entryEditorHeader">
+          <div id="entryEditorContext"></div>
+        </div>
+
+        <div class="entrySearchArea">
+
+          <input id="entrySearch" type="text" autocomplete="off"
+            autocorrect="off" autocapitalize="none" spellcheck="false"
+            placeholder="Search plant...">
+          <button id="cancelEntryEditor" type="button" title="Cancel edit">
+            X
+          </button>
+        </div>
+
+        <div id="entryResults"></div>
+
+      </div>
+    </div>
   </div> <!-- #logView -->
 
   <div id="notesView" hidden>
