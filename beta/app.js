@@ -28,6 +28,10 @@ const ui = {
   notes: {}
 };
 
+const HAMBURGER = "\u2630";
+const RIGHT_ARROW = "\u2192";
+const UTURN = "\u21AA";
+
 let  STORAGE_TAG = null;
 
 
@@ -41,6 +45,10 @@ let pendingStores = [];
 let activeChoiceOverlay = null;
 let undoCache = null;
 let undoTimer = null;
+let logEntryMenuTarget = null;
+let entryEditorTarget = null;
+let searchTimer = null;
+
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 
@@ -381,7 +389,8 @@ function initUI() {
     search: document.getElementById('search'),
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
-    log: document.getElementById("log")
+    log: document.getElementById("log"),
+    entryMenu: document.getElementById("logEntryMenu")
   };
 
   ui.log.currentHeader = document.createElement("div");
@@ -395,6 +404,14 @@ function initUI() {
   ui.log.currentHeader.append(ui.log.currentLabel, ui.log.undoBtn);
 
   ui.log.log.before(ui.log.currentHeader);
+
+  ui.log.entryEditor = {
+    overlay: document.getElementById('entryEditorOverlay'),
+    context: document.getElementById('entryEditorContext'),
+    search: document.getElementById('entrySearch'),
+    cancel: document.getElementById("cancelEntryEditor"),
+    results: document.getElementById('entryResults'),
+  };
 
   ui.notes = {
     view: document.getElementById('notesView'),
@@ -429,6 +446,8 @@ function initHeader() {
 
   // Hook up buttons
   ui.header.viewSelect.addEventListener('change', event => {
+    flushPendingStores();
+
     currentView = event.target.value;
     renderControls();
     renderView();
@@ -456,23 +475,23 @@ function initHeader() {
 function initLogView() {
   ui.log.search.addEventListener("beforeinput", validateSearchInput);
   ui.log.search.addEventListener("focus", scrollToCurrentLeg);
+  ui.log.entryMenu.addEventListener("click", handleLogEntryMenuChoice);
+  
 
-  let searchTimer;
+  ui.log.search.addEventListener("input", handleMainSearchInput);
 
-  ui.log.search.addEventListener("input", e => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        const results = search(e.target.value);
-        renderResults(results);
-      }, 100);
-    }
-  );
   ui.log.clearSearch.addEventListener("click", () => {
       ui.log.search.value = "";
       ui.log.search.dispatchEvent(new Event("input"));
       ui.log.search.focus();
     }
   );
+
+  ui.log.entryEditor.search.addEventListener("beforeinput", validateSearchInput);
+  ui.log.entryEditor.search.addEventListener("input",
+    handleEntrySearchInput);
+  ui.log.entryEditor.cancel.addEventListener("click",
+    closeEntryEditor);
 
   window.addEventListener("resize", debounce(positionResults, 50));
   window.visualViewport?.addEventListener( "resize",
@@ -555,7 +574,7 @@ function updateSaveReadiness() {
   ui.header.saveBtn.title = disabled
     ? "Fill in the end weather to enable Save"
     : "";
-
+  
 }
 
 function saveInfoComplete () {
@@ -1549,6 +1568,8 @@ function populateTrailSelector() {
   const currentLeg = survey.route.currentLeg;
   let prompt;
 
+  clearTransients();
+
   if (currentLeg === null) {
     prompt = "Choose starting point";
 
@@ -1583,6 +1604,11 @@ function populateSegmentOptions(select, promptText, choices) {
   prompt.disabled = true;
   prompt.selected = true;
   select.appendChild(prompt);
+
+  const cancel = document.createElement("option");
+  cancel.value = "cancel";
+  cancel.textContent = "Cancel";
+  select.appendChild(cancel);
 
   choices.forEach((choice, index) => {
     const option = document.createElement("option");
@@ -1741,19 +1767,20 @@ function isReverseSegment(candidate, segment) {
 function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
   const trailName = trailNetwork.trails[segment.trailId];
+  const posts = trailNetwork.posts;
   const destination = trailNetwork.posts[segment.toPost];
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
-      return `${choice.atPost} — ${trailName}`;
+      return `${trailNetwork.posts[segment.fromPost]}`;
 
-    return `${choice.atPost} — ${trailName} toward ${destination}`;
+    return `${posts[choice.atPost]} ${RIGHT_ARROW} ${destination}`;
   }
 
   if (choice.kind === "uturn")
-    return `${choice.atPost} — ${trailName} back toward ${destination}`;
+    return `${choice.atPost} ${UTURN} ${destination}`;
 
-  return `${choice.atPost} — ${trailName} toward ${destination}`;
+  return `${choice.atPost} ${trailName} ${RIGHT_ARROW}  ${destination}`;
 }
 
 function renderLogView() {
@@ -1765,7 +1792,16 @@ function renderLogView() {
   renderLogSections();
   ui.log.results.innerHTML = "";
   requestAnimationFrame(positionResults);
-  focusField(ui.log.search);
+  focusLogSearch();
+}
+
+function focusLogSearch() {
+  requestAnimationFrame(() => {
+    if (entryEditorTarget)
+      ui.log.entryEditor.search.focus();
+    else
+      ui.log.search.focus();
+  });
 }
 
 function renderLogSections() {
@@ -1850,6 +1886,13 @@ function handleTrailChange(event) {
   if (choice === "")
     return;
 
+  if (choice === "cancel") {
+    select.hidden = true;
+    segmentChoices = [];
+    ui.log.search.focus();
+    return;
+  }
+
   const selection = segmentChoices[Number(choice)];
 
   if (!selection)
@@ -1867,6 +1910,8 @@ function handleTrailChange(event) {
 
 function transitionLeg(choice) {
   const route = survey.route;
+
+  flushPendingStores();
 
   undoCache = {
     phase: survey.phase,
@@ -2001,9 +2046,10 @@ function makeUniqueLegId(baseId) {
 
 // --- MESSAGES and DIALOGS
 function showMessage(text, duration = 30000) {
-  if (messageTimeoutId)
+  if (messageTimeoutId) {
     clearTimeout(messageTimeoutId);
     messageTimeoutId = null;
+  }
 
   ui.message.undoBtn.hidden = true;
   ui.message.text.textContent = text;
@@ -2081,6 +2127,7 @@ function makeChoicePanel(question, actions, finish) {
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
 async function refreshApp() {
+  clearTransients();
   flushPendingStores();
   showMessage("Refreshing...");
 
@@ -2432,6 +2479,8 @@ function newSurvey() {
 
   cancelPendingStores();
 
+  clearTransients();
+
   // clearStoredSurvey also removes surveyExists
   clearStoredSurvey();
 
@@ -2453,7 +2502,7 @@ function newSurvey() {
 
 function startSurvey() {
   
-  // verify starting fields: date, time, weather, paricipants
+  // verify starting fields: date, time, weather, participants
   if (!startInfoComplete()) {
     showMessage("Fill in the starting information first");
     focusNextNotesField();
@@ -2482,6 +2531,8 @@ async function endSurvey() {
     throw new Error("Cannot end a survey without a current leg");
   }
 
+  clearTransients();
+
   flushPendingStores();
 
   const currentLeg = survey.route.currentLeg;
@@ -2496,15 +2547,16 @@ async function endSurvey() {
     const trailName =
       trailNetwork.trails[completedLeg.trailId] || completedLeg.trailId;
 
-    const confirmed =
-      confirm(` Did you finish on ${trailName} ` +
-      `${completedLeg.fromPost} - ${completedLeg.toPost}?`
-    );
+    const rejected = (!confirm(`Did you finish on ${trailName} ` +
+      `${completedLeg.fromPost} - ${completedLeg.toPost}?`));
 
-    if (confirmed) {
+    if (rejected) {
+      await offerEndFallback(rejected);
+    } else {
       finishSurveyWithLeg(completedLeg);
-      return;
     }
+ 
+    return;
   }
 
   await offerEndFallback();
@@ -2539,11 +2591,15 @@ function findDirectPathHome(currentLeg, startPost, segmentsByPost) {
   return null;
 }
 
-async function offerEndFallback() {
+async function offerEndFallback(rejected = false) {
   const currentLeg = survey.route.currentLeg;
+  let different = "";
+
+  if (rejected)
+    different = "different ";
 
   const choice = await chooseAction(
-    `I couldn't trace a path back from ${currentLeg.fromPost} to the start. ` +
+    `I couldn't trace a ${different}path back from ${currentLeg.fromPost} to the start. ` +
     "You can use 'Next' to record more of the route", [
       { value: "continue", label: "Keep going" },
       { value: "endHere", label: `End at ${currentLeg.toPost}` }
@@ -2849,46 +2905,40 @@ function search(q) {
   ].slice(0, 30);
 }
 
-function renderResults(list) {
-  const container = ui.log.results;
-  container.innerHTML = '';
+function clearSpeciesResults(container) {
+  container.replaceChildren();
+  container.hidden = true;
+}
+
+function appendSpeciesResults(container, list, handleSelection) {
+  container.replaceChildren();
+  container.hidden = false;
   container.scrollTop = 0;
 
-  const input = ui.log.search;
-
-  if (input.value.length < 2) {
-    container.innerHTML = '';
-    container.style.display = "none";
-    return;
-  }
-
-  container.style.display = 'block';
-
   if (list.length === 0) {
-    container.innerHTML = '<div class="item">No matches</div>';
+    const div = document.createElement("div");
+    div.className = "item";
+    div.textContent = "No matches";
+    container.appendChild(div);
     return;
   }
 
-  if (!Array.isArray(list)) return;
+  for (const item of list) {
+    const div = document.createElement("div");
+    div.className = "resultItem";
 
-  list.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'resultItem';
+    appendPlantLabel(
+      div,
+      item.commonName,
+      item.scientificName
+    );
 
-    appendPlantLabel(div, item.commonName, item.scientificName);
-
-    div.onclick = () => {
-      addSighting(item);
-
-      const input = ui.log.search;
-      input.value = '';
-      renderResults([]);
-
-      refocusAfterSelection(input);
-    };
+    div.addEventListener("click", () => {
+      handleSelection(item);
+    });
 
     container.appendChild(div);
-  });
+  }
 }
 
 function positionResults() {
@@ -3015,36 +3065,183 @@ function hideParticipantResults(e) {
 }
 
 // --- LOG ENTRIES ---
-function addSighting(item) {
+function handleMainSearchInput(event) {
+  handleSearchInput(
+    event.currentTarget,
+    ui.log.results,
+    handleMainSearchSelection
+  );
+}
 
-  if (!survey) {
-    alert('No active survey');
+function handleEntrySearchInput(event) {
+  handleSearchInput(
+    event.currentTarget,
+    ui.log.entryEditor.results,
+    handleEntrySearchSelection
+  );
+}
+
+function handleSearchInput(input, resultsContainer, selectResult) {
+  clearTimeout(searchTimer);
+
+  searchTimer = setTimeout(() => {
+    searchTimer = null;
+
+    const query = input.value.trim();
+
+    if (query.length < 2) {
+      clearSpeciesResults(resultsContainer);
+      return;
+    }
+
+    const matches = search(query);
+
+    appendSpeciesResults(
+      resultsContainer,
+      matches,
+      selectResult
+    );
+  }, 100);
+}
+
+function handleMainSearchSelection(item) {
+  if (!addSighting(item))
     return;
+
+  ui.log.search.value = "";
+  clearSpeciesResults(ui.log.results);
+  refocusAfterSelection(ui.log.search);
+}
+
+function handleEntrySearchSelection(item) {
+  if (!entryEditorTarget)
+    throw new Error("Entry search selection has no target");
+
+  const { mode, entry, legId } = entryEditorTarget;
+  let succeeded;
+
+  if (mode === "edit") {
+    succeeded = editSighting(entry, legId, item);
+  } else if (mode === "insert") {
+    succeeded = insertSightingBefore(entry, legId, item);
+  } else {
+    throw new Error(`Unknown entry editor mode "${mode}"`);
+  }
+
+  // Leave the editor open if the user rejected a duplicate.
+  if (succeeded)
+    closeEntryEditor();
+}
+
+function addSighting(item) {
+  if (!survey) {
+    alert("No active survey");
+    return false;
   }
 
   const entries = survey.currentLog;
 
-  const duplicate = entries.some(e => e.commonName === item.displayCommon);
+  if (!confirmDuplicateSighting(entries, item))
+    return false;
 
-  if (duplicate && !confirm('Already recorded on this trail. Add again?'))
-    return;
-
-  // Add to END (most recent last)
-  const entry = {
-    commonName: item.displayCommon,
-    scientificName: item.scientificName,
-    note: "",
-    time: formatTimestamp()
-  };
+  const entry = createSightingEntry(item);
   entries.push(entry);
 
   clearUndo();
-
   storeCurrentLog();
 
   const row = createLogRow(entry, null);
   ui.log.log.prepend(row);
   highlightLogRow(row);
+
+  return true;
+}
+
+function insertSightingBefore(targetEntry, legId, item) {
+  const entries = getLogEntries(legId);
+  const index = entries.indexOf(targetEntry);
+
+  if (index < 0)
+    throw new Error("Could not find insertion point");
+
+  if (!confirmDuplicateSighting(entries, item))
+    return false;
+
+  const entry = createSightingEntry(item);
+  entries.splice(index, 0, entry);
+
+  clearUndo();
+  storeLogEntries(legId);
+  renderLogView();
+
+  return true;
+}
+
+function editSighting(entry, legId, item) {
+  const entries = getLogEntries(legId);
+
+  if (!entries.includes(entry))
+    throw new Error("Could not find entry to edit");
+
+  if (!confirmDuplicateSighting(entries, item, entry))
+    return false;
+
+  setEntrySpecies(entry, item);
+
+  clearUndo();
+  storeLogEntries(legId);
+  renderLogView();
+
+  return true;
+}
+
+function setEntrySpecies(entry, item) {
+  entry.commonName = item.displayCommon;
+  entry.scientificName = item.scientificName;
+
+  return entry;
+}
+
+function createSightingEntry(item) {
+  const entry = {
+    note: "",
+    time: formatTimestamp()
+  };
+
+  return setEntrySpecies(entry, item);
+}
+
+function getLogEntries(legId) {
+  if (legId === null)
+    return survey.currentLog;
+
+  const entries = survey.completedLogs[legId];
+
+  if (!entries)
+    throw new Error(`Missing completed log "${legId}"`);
+
+  return entries;
+}
+
+function storeLogEntries(legId) {
+  if (legId === null)
+    storeCurrentLog();
+  else
+    storeCompletedLog(legId);
+}
+
+function confirmDuplicateSighting(entries, item, excludedEntry = null) {
+  const duplicate = entries.some(entry =>
+    entry !== excludedEntry &&
+    entry.commonName === item.displayCommon
+  );
+
+  if (!duplicate)
+    return true;
+
+  return confirm(
+    `"${item.displayCommon}" is already recorded on this leg. Add it anyway?`
+  );
 }
 
 function highlightLogRow(row) {
@@ -3093,26 +3290,26 @@ function createLogRow(entry, legId) {
   note.addEventListener('blur', () => {
     resizeNote(note, false);
     if (legId === null)
-      storeCurrentLog();
+      storeCurrentLogLater.flush();
     else
-      storeCompletedLog(legId);
+      storeCompletedLogLater.flush();
   });
 
   row.appendChild(label);
   row.appendChild(note);
 
-  const del = document.createElement('button');
-  del.textContent = '×';
-  del.className = 'deleteBtn';
+  const editBtn = document.createElement("button");
+  editBtn.textContent = HAMBURGER;
+  editBtn.className = "editBtn";
+  editBtn.type = "button";
+  editBtn.setAttribute("aria-label", `Edit ${entry.commonName}`);
+  editBtn.setAttribute("aria-haspopup", "menu");
 
-  del.onclick = () => {
-    if (!confirm( `Delete "${entry.commonName}"?`))
-      return;
-    deleteLogEntry(entry, legId);
-    div.remove();
-  };
+  editBtn.addEventListener("click", () => {
+    openLogEntryMenu(editBtn, div, entry, legId);
+  });
 
-  row.appendChild(del);
+  row.appendChild(editBtn);
   div.appendChild(row);
   return div;
 }
@@ -3130,8 +3327,76 @@ function appendPlantLabel(parent, commonName, scientificName) {
   parent.appendChild(scientific);
 }
 
+
+function openLogEntryMenu(button, row, entry, legId) {
+  const sameButton = logEntryMenuTarget?.button === button;
+
+  clearTransients();
+
+  flushPendingStores();
+
+  if (sameButton)
+    return;
+
+  logEntryMenuTarget = {button, row, entry, legId};
+
+  const menu = ui.log.entryMenu;
+  const rect = button.getBoundingClientRect();
+
+  menu.hidden = false;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.right =
+    `${Math.max(4, window.innerWidth - rect.right)}px`;
+
+  button.setAttribute("aria-expanded", "true");
+  menu.querySelector("button")?.focus();
+}
+
+function closeLogEntryMenu() {
+  const target = logEntryMenuTarget;
+
+  ui.log.entryMenu.hidden = true;
+  logEntryMenuTarget = null;
+
+  if (target) {
+    target.button.setAttribute("aria-expanded", "false");
+    target.button.focus();
+  }
+}
+
+function handleLogEntryMenuChoice(event) {
+  const action = event.target.dataset.action;
+  const target = logEntryMenuTarget;
+
+  if (!target || !action)
+    return;
+
+  closeLogEntryMenu();
+
+  switch (action) {
+    case "delete":
+      if (deleteLogEntry(target.entry, target.legId) === true)
+        target.row.remove();
+      break;
+
+    case "edit":
+      openEntryEditor("edit", target.entry, target.legId);
+      break;
+
+    case "insert":
+      openEntryEditor("insert", target.entry, target.legId);
+      break;
+
+    case "cancel":
+      break;
+  }
+}
+
 function deleteLogEntry(entry, legId) {
   let entries;
+  
+  if (!confirm( `Delete "${entry.commonName}"?`))
+    return false;
 
   if (legId === null) {
     entries = survey.currentLog;
@@ -3139,7 +3404,6 @@ function deleteLogEntry(entry, legId) {
     entries = survey.completedLogs[legId];
     if (!entries)
       throw new Error(`Missing completed log "${legId}"`);
-
   }
 
   const index = entries.indexOf(entry);
@@ -3153,6 +3417,44 @@ function deleteLogEntry(entry, legId) {
     storeCurrentLog();
   else
     storeCompletedLog(legId);
+
+  return true;
+}
+
+function openEntryEditor(mode, entry, legId) {
+  clearTransients();
+
+  entryEditorTarget = { mode, entry, legId };
+
+  const action =
+    mode === "edit" ? "Edit" : "Insert below";
+
+  ui.log.entryEditor.context.textContent =
+    `${action}: ${entry.commonName}`;
+
+  ui.log.entryEditor.search.value = "";
+  clearSpeciesResults(ui.log.entryEditor.results);
+
+  ui.log.entryEditor.overlay.hidden = false;
+  ui.log.entryEditor.search.focus();
+}
+
+function closeEntryEditor() {
+  clearTimeout(searchTimer);
+  searchTimer = null;
+
+  ui.log.entryEditor.search.value = "";
+  clearSpeciesResults(ui.log.entryEditor.results);
+  ui.log.entryEditor.overlay.hidden = true;
+
+  entryEditorTarget = null;
+}
+
+function clearTransients() {
+  closeLogEntryMenu();
+  closeEntryEditor();
+  clearSpeciesResults(ui.log.results);
+  hideParticipantResults();
 }
 
 function resizeNote(note, expanded = false) {
@@ -3260,8 +3562,10 @@ function buildSurveyHeaderRows(survey) {
     `Participants: ${participantLines[0]}`
   ]);
 
+  const distance = Number(rollUpLengths(survey.route).toFixed(2));
+
   rows.push([
-    `Hike: ${rollUpLengths(survey.route)} mi`,
+    `Hike: ${distance} mi`,
     participantLines[1]
   ]);
 
@@ -3460,7 +3764,7 @@ async function importSurveyFile(event) {
       if (!ok)
         return;
     }
-
+    
 
     const text = await file.text();
     console.log("Import file:", {

@@ -1,6 +1,6 @@
 # Project Context: Edgewood Survey Tool
 
-Read this before reviewing or changing the project. Distinguish settled design decisions from transitional code: `app.js` is presently partway through a substantial trail/log refactor and is not expected to be internally consistent everywhere yet.
+Read this before reviewing or changing the project. The major trail/log refactor is now substantially integrated. Distinguish settled design decisions from the remaining cleanup and interface-policy questions, but do not assume that current code is merely disposable bridge code.
 
 ## Project and Users
 
@@ -80,9 +80,9 @@ There is one intentional cusp: clicking Start switches to the Log view to choose
 
 New Survey remains available for deliberate replacement of the current survey, with confirmation (and potentially stronger warning during FIELD). Refresh remains available in every application state.
 
-## Interface Direction
+## Interface
 
-The target header is compact:
+The header is compact:
 
 ```text
 [Notes/Log] [Start/Next/End/Save]        [New Survey] [Refresh]
@@ -102,11 +102,11 @@ There are two principal views:
 - Notes: one combined survey-notes form.
 - Log: search, current/past leg headers, and sightings.
 
-The separate Route view is being removed. Route review will be integrated into the Log view.
+There is no separate Route view. Route review is integrated into the Log view.
 
 The Notes view contains date; participants with name suggestions; start time and weather on one row; end time and weather on one row; and one general notes textarea. End fields remain disabled until END. The old per-trail notes and notes-side trail selector are gone.
 
-The intended Log layout is:
+The Log layout is:
 
 ```text
 Search
@@ -118,9 +118,16 @@ Newest sightings from that leg
 ...
 ```
 
-Sightings are stored chronologically but displayed newest first. Completed legs are stored chronologically but displayed newest leg first. Leg headings may become sticky as the user scrolls. Focusing the main search should return the log to the newest part of the current leg.
+Sightings are stored chronologically but displayed newest first. Completed legs are stored chronologically but displayed newest leg first. Completed-leg headings are sticky as the user scrolls. Focusing the main search returns the log to the newest part of the current leg.
 
-Each historical entry will eventually have a small Edit control offering Delete, Edit, and Insert below. Historical insertion/editing can reuse species-search behavior through a separate popup search field; the main search always adds to the current leg.
+Each entry has a small menu control offering Delete, Edit, and Insert below. Delete operates on either `currentLog` or the completed log identified by the rendered row's `legId`. Edit and Insert open an entry-editor overlay with its own search field and results area. Both searches share the species-search and result-rendering code, while their selection handlers apply different actions. The main search always appends to the current leg. Edit preserves the entry's note and timestamp while replacing its species fields. Insert creates a new entry immediately below the target in the reverse-chronological display, which means inserting immediately before the target in the chronological stored array.
+
+The entry editor is physically inside `#logView` and is initialized by `initLogView()`. Its temporary target is separate from the entry-menu target:
+
+- `logEntryMenuTarget` exists only while the small Delete/Edit/Insert menu is open and includes DOM references needed by that menu.
+- `entryEditorTarget` survives after that menu closes and records `{mode, entry, legId}` until Edit/Insert completes or is canceled.
+
+The present transient-UI policy is deliberately simple: `clearTransients()` closes the log-entry menu and entry editor, clears main species results, and hides participant suggestions. Actions that conflict with an existing transient call this shotgun cleanup rather than using a registry, dispatcher, or framework-like popup subsystem. Only introduce more elaborate transient management if a concrete interaction requires it. Switching temporarily to Notes may preserve the entry editor; if so, returning to Log must focus the editor search rather than the covered main search.
 
 ## Trail Network Terminology
 
@@ -179,7 +186,7 @@ Every validated physical segment produces one or two directed segment objects at
 }
 ```
 
-A non-self-loop produces its reverse as well. `sourceIndex` is being removed; directed segment identity and reverse lookup should use segment fields/IDs. Segment and completed-leg IDs use:
+A non-self-loop produces its reverse as well. There is no `sourceIndex`; directed segment identity and reverse lookup use segment fields/IDs. Segment and completed-leg base IDs use:
 
 ```js
 function makeLegId(trailId, startPost, endPost) {
@@ -210,17 +217,29 @@ Clicking Start or Next populates and displays the same segment selector. Its dis
 For a current ray, choices are ordered by walking forward along its trail:
 
 1. Other trails leaving the first reachable post.
-2. Other trails leaving the next post along the current trail.
-3. Continue similarly while the current trail has an unambiguous continuation.
-4. Add the immediate U-turn as the final choice.
+2. The immediate U-turn back over the segment that reached that post.
+3. Other trails leaving the next post along the current trail.
+4. The immediate U-turn at that post.
+5. Continue similarly while the current trail has an unambiguous continuation.
 
-Each menu choice carries enough derived information to complete the current leg without recalculating the traversal:
+Thus each reachable post gets its own U-turn choice after the branch choices at that post. Previously traversed directed segments are not globally suppressed.
+
+Each menu choice carries enough derived information to complete the current leg without recalculating the traversal. Start choices and later choices currently have slightly different derived fields:
 
 ```js
+// Start
 {
-  kind: "start" | "turn" | "uturn",
+  kind: "start",
   atPost: "P5",
-  path: [/* directed segments traversed before taking nextSegment */],
+  path: [],
+  nextSegment: { /* directed segment beginning the first leg */ }
+}
+
+// Turn or U-turn
+{
+  kind: "turn" | "uturn",
+  atPost: "P5",
+  completedLeg: { /* precomputed completed current leg */ },
   nextSegment: { /* directed segment beginning the new leg */ }
 }
 ```
@@ -263,18 +282,20 @@ survey = {
 
 `route.currentLeg` is a ray/unfinished leg object during FIELD. `route.legs` contains completed leg objects in chronological order. Route objects hold location/path/distance/timing metadata; sightings are kept separately.
 
-`currentLog` is the sighting array for the unfinished current leg. `completedLogs[legId]` is the sighting array for a completed directed leg. If the same directed leg ID is traversed more than once during one survey, its observations may be amalgamated: if a plant was observed on that stretch that morning, separate passes do not need separate sighting bins.
+`currentLog` is the sighting array for the unfinished current leg. `completedLogs[legId]` is the sighting array for a completed leg. Repeating the same base leg during one survey currently produces a unique suffixed ID such as `.2`, `.3`, and so on. This prevents one pass from overwriting another while later output/merge policy remains open.
 
 When changing trails or ending:
 
 1. Convert the current ray into a completed leg by assigning its actual endpoint, total length, and final ID.
-2. Merge/copy `currentLog` into `completedLogs[leg.id]`.
+2. Assign the current sighting array to `completedLogs[leg.id]`.
 3. Append the completed leg object to `route.legs`.
 4. Persist the completed log and route in an order chosen to minimize sighting loss.
 5. Replace `survey.currentLog` with a new empty array and persist `logs.current`.
 6. On Next, create the next current ray from the selected directed segment; on End, leave `currentLeg` null.
 
-Replacing the current-log array is preferable to mutating its length because rendered handlers may still hold references. When a current leg becomes completed, initially favor re-rendering only that newly completed section so entry handlers acquire the correct completed `legId`. Do not re-render every historical row on every sighting or transition. A large leg can contain roughly 100–120 entries, which should still be inexpensive enough to render once at transition; measure before adding optimization machinery.
+Replacing the current-log array is preferable to mutating its length because rendered handlers may still hold references. The Log view is currently re-rendered after Edit, Insert, and route transitions so that row handlers acquire the correct `legId`. Ordinary new sightings prepend one row rather than re-rendering the history. A large leg can contain roughly 100–120 entries; this has not justified more elaborate incremental-rendering machinery. Measure a field-visible problem before optimizing it.
+
+Start, Next, and End transitions have a short-lived Undo operation. Undo restores the previous phase and `currentLeg`; when a leg was just completed it moves that completed log back into `currentLog`, removes the last route leg, and deletes the completed-log record. Ending additionally clears the generated end time. Undo is intentionally brief and disappears after a timeout or after a new sighting makes the transition no longer immediate.
 
 ## Persistent Survey Storage
 
@@ -296,26 +317,30 @@ surveyExists
 Persistence timing:
 
 - Store a new sighting immediately.
-- Store deletion and substantive entry edits promptly; note typing may be debounced but must be flushable.
+- Store deletion, species Edit, and Insert immediately.
+- Debounce note-text writes so a whole leg is not serialized for every character. The debounced wrappers expose `.flush()` and `.cancel()` methods because JavaScript functions are objects and `flushableDebounce()` attaches those methods explicitly.
+- On note blur, flush the pending current- or completed-log write. If nothing is pending, `.flush()` is a no-op; otherwise it retains the `legId` supplied by the earlier input event.
 - Store phase and route transitions immediately.
-- Flush pending notes before refresh, transitions, and export.
+- Flush pending writes before view changes, route transitions, refresh, export, and entry-menu operations that may change context.
 - Do not persist generated selector choices or other reconstructible UI state.
 
 `clearStoredSurvey()` intentionally clears all keys for the current `STORAGE_TAG` through `clearAppStorage()`. Load/recovery policy belongs in `loadSurvey()`, not in the clearing routine. Developers can clear stale branch test data manually through browser site settings; no survey schema-version migration system is planned.
 
-## Current Transitional State
+## Current State and Remaining Work
 
-The target structures above are not fully wired through `app.js`. When reviewing current code, expect and call out remnants rather than treating them as design commitments. Known transition areas include:
+The leg-based field workflow, combined current/completed Log view, per-leg persistence, Undo, entry deletion, species Edit, Insert-below, JSON export/import normalization, and TSV export are now wired through `app.js`. Do not reintroduce `currentTrail`, trail-wide sighting bins, `currentLeg.segments`, `sourceIndex`, the old `{firstEntered, entries}` log wrapper, or a separate Route view.
 
-- Some trail-transition routines still use an obsolete `currentLeg.segments` wrapper or top-level `survey.currentLeg` instead of `survey.route.currentLeg`.
-- Some traversal code still refers to removed `sourceIndex` identity.
-- Some rendering and entry-edit routines still expect the former trail-log object shape (`{firstEntered, entries}`) instead of arrays keyed by `legId`.
-- The current Log renderer is not yet the planned combined current/completed-leg stack.
-- Starting-segment display is newly being integrated with Start, Next, `segmentChoices`, and the native selector.
-- Export/TSV and Import deliberately lag behind the new storage model and should be repaired after core field workflow and persistence are coherent.
-- `VIEW.ROUTE` or `ui.route` remnants may still exist in JavaScript even though the separate Route option/view is being removed from the interface.
+Current areas to treat as active design or cleanup work include:
 
-Do not repair these areas by reintroducing `currentTrail` or trail-wide sighting bins. Move them toward the leg-based model.
+- Transient cleanup currently uses the intentionally broad `clearTransients()` approach. Keep it direct unless actual conflicts require more nuance.
+- Whether an entry-edit interaction should survive a temporary switch to Notes remains a UI-policy choice. The current design can preserve it because the editor lives inside `#logView`.
+- End-of-survey path inference first proposes the continuous path home on the current trail. Rejecting that guess produces a distinct "different path" fallback and allows the user to keep recording with Next or exceptionally end at the current location.
+- Completed-log note typing uses one shared flushable debounce. The UI normally has only one focused note at a time, and blur flushes it before another note can be edited.
+- Repeated base legs receive unique suffixed IDs. Any eventual amalgamation in exported output is separate from safe runtime persistence.
+- TSV rows deliberately begin with a blank cell to avoid spreadsheet auto-header behavior. Blank spacer rows contain several tab-separated cells because that helps spreadsheet software recognize TSV rather than mistaking participant commas for CSV delimiters. Empty leg columns contain `-0-` in their first data row. Total hike distance is rounded to two decimal places for display.
+- Import remains a developer aid. It validates the current format only; backward compatibility and migrations are not goals.
+- Trail-network and survey-load validation can still be strengthened when concrete bad-input cases justify it, but reference trail data changes rarely and presently validates cleanly.
+- There is no automated behavioral test suite yet; ESLint is the current automated check. Small dependency-free tests for traversal ordering, transition/Undo invariants, repeated-leg IDs, insertion ordering, and TSV output would provide useful protection without introducing a framework.
 
 ## Review Priorities
 
