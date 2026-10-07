@@ -446,6 +446,8 @@ function initHeader() {
 
   // Hook up buttons
   ui.header.viewSelect.addEventListener('change', event => {
+    flushPendingStores();
+
     currentView = event.target.value;
     renderControls();
     renderView();
@@ -485,6 +487,7 @@ function initLogView() {
     }
   );
 
+  ui.log.entryEditor.search.addEventListener("beforeinput", validateSearchInput);
   ui.log.entryEditor.search.addEventListener("input",
     handleEntrySearchInput);
   ui.log.entryEditor.cancel.addEventListener("click",
@@ -1565,6 +1568,8 @@ function populateTrailSelector() {
   const currentLeg = survey.route.currentLeg;
   let prompt;
 
+  clearTransients();
+
   if (currentLeg === null) {
     prompt = "Choose starting point";
 
@@ -1728,7 +1733,16 @@ function renderLogView() {
   renderLogSections();
   ui.log.results.innerHTML = "";
   requestAnimationFrame(positionResults);
-  focusField(ui.log.search);
+  focusLogSearch();
+}
+
+function focusLogSearch() {
+  requestAnimationFrame(() => {
+    if (entryEditorTarget)
+      ui.log.entryEditor.search.focus();
+    else
+      ui.log.search.focus();
+  });
 }
 
 function renderLogSections() {
@@ -1837,6 +1851,8 @@ function handleTrailChange(event) {
 
 function transitionLeg(choice) {
   const route = survey.route;
+
+  flushPendingStores();
 
   undoCache = {
     phase: survey.phase,
@@ -1971,9 +1987,10 @@ function makeUniqueLegId(baseId) {
 
 // --- MESSAGES and DIALOGS
 function showMessage(text, duration = 30000) {
-  if (messageTimeoutId)
+  if (messageTimeoutId) {
     clearTimeout(messageTimeoutId);
     messageTimeoutId = null;
+  }
 
   ui.message.undoBtn.hidden = true;
   ui.message.text.textContent = text;
@@ -2051,6 +2068,7 @@ function makeChoicePanel(question, actions, finish) {
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
 async function refreshApp() {
+  clearTransients();
   flushPendingStores();
   showMessage("Refreshing...");
 
@@ -2402,6 +2420,8 @@ function newSurvey() {
 
   cancelPendingStores();
 
+  clearTransients();
+
   // clearStoredSurvey also removes surveyExists
   clearStoredSurvey();
 
@@ -2452,6 +2472,8 @@ async function endSurvey() {
     throw new Error("Cannot end a survey without a current leg");
   }
 
+  clearTransients();
+
   flushPendingStores();
 
   const currentLeg = survey.route.currentLeg;
@@ -2466,15 +2488,16 @@ async function endSurvey() {
     const trailName =
       trailNetwork.trails[completedLeg.trailId] || completedLeg.trailId;
 
-    const confirmed =
-      confirm(` Did you finish on ${trailName} ` +
-      `${completedLeg.fromPost} - ${completedLeg.toPost}?`
-    );
+    const rejected = (!confirm(`Did you finish on ${trailName} ` +
+      `${completedLeg.fromPost} - ${completedLeg.toPost}?`));
 
-    if (confirmed) {
+    if (rejected) {
+      await offerEndFallback(rejected);
+    } else {
       finishSurveyWithLeg(completedLeg);
-      return;
     }
+ 
+    return;
   }
 
   await offerEndFallback();
@@ -2509,11 +2532,15 @@ function findDirectPathHome(currentLeg, startPost, segmentsByPost) {
   return null;
 }
 
-async function offerEndFallback() {
+async function offerEndFallback(rejected = false) {
   const currentLeg = survey.route.currentLeg;
+  let different = "";
+
+  if (rejected)
+    different = "different ";
 
   const choice = await chooseAction(
-    `I couldn't trace a path back from ${currentLeg.fromPost} to the start. ` +
+    `I couldn't trace a ${different}path back from ${currentLeg.fromPost} to the start. ` +
     "You can use 'Next' to record more of the route", [
       { value: "continue", label: "Keep going" },
       { value: "endHere", label: `End at ${currentLeg.toPost}` }
@@ -3204,9 +3231,9 @@ function createLogRow(entry, legId) {
   note.addEventListener('blur', () => {
     resizeNote(note, false);
     if (legId === null)
-      storeCurrentLog();
+      storeCurrentLogLater.flush();
     else
-      storeCompletedLog(legId);
+      storeCompletedLogLater.flush();
   });
 
   row.appendChild(label);
@@ -3243,6 +3270,15 @@ function appendPlantLabel(parent, commonName, scientificName) {
 
 
 function openLogEntryMenu(button, row, entry, legId) {
+  const sameButton = logEntryMenuTarget?.button === button;
+
+  clearTransients();
+
+  flushPendingStores();
+
+  if (sameButton)
+    return;
+
   logEntryMenuTarget = {button, row, entry, legId};
 
   const menu = ui.log.entryMenu;
@@ -3327,6 +3363,8 @@ function deleteLogEntry(entry, legId) {
 }
 
 function openEntryEditor(mode, entry, legId) {
+  clearTransients();
+
   entryEditorTarget = { mode, entry, legId };
 
   const action =
@@ -3351,6 +3389,13 @@ function closeEntryEditor() {
   ui.log.entryEditor.overlay.hidden = true;
 
   entryEditorTarget = null;
+}
+
+function clearTransients() {
+  closeLogEntryMenu();
+  closeEntryEditor();
+  clearSpeciesResults(ui.log.results);
+  hideParticipantResults();
 }
 
 function resizeNote(note, expanded = false) {
@@ -3458,8 +3503,10 @@ function buildSurveyHeaderRows(survey) {
     `Participants: ${participantLines[0]}`
   ]);
 
+  const distance = Number(rollUpLengths(survey.route).toFixed(2));
+
   rows.push([
-    `Hike: ${rollUpLengths(survey.route)} mi`,
+    `Hike: ${distance} mi`,
     participantLines[1]
   ]);
 
