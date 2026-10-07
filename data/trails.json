@@ -14,7 +14,7 @@
     {"id": "sylvan", "name": "Sylvan"}
   ],
   "posts": [
-    {"id":"P1","name":"Native Garden"},
+    {"id":"P1","name":"Entrance/Native Garden"},
     {"id":"P4"},
     {"id":"P5"},
     {"id":"P6"},
@@ -35,7 +35,7 @@
     {"id":"P18","name":"Edgewood/Canada Trailhead"},
     {"id":"P19"},
     {"id":"P20"},
-    {"id":"SG","name":"Sunset Trailhead"},
+    {"id":"SG","name":"Sunset Gate"},
     {"id":"P21","name":"Sunset Kiosk"},
     {"id":"P22"},
     {"id":"P23","name":"Clarkia Trailhead"}
