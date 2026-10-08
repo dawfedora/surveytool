@@ -1629,65 +1629,6 @@ function populateSegmentOptions(select, promptText, choices) {
       // The browser will leave it focused if it cannot open the picker.
     }
   }
-
-  survey.route.legs.slice().reverse().forEach(leg => {
-    const log = survey.completedLogs[leg.id];
-
-    if (log)
-      container.appendChild(createLogSection(leg, log));
-  });
-}
-
-function createLogSection(leg, log) {
-  if (!leg)
-    return null;
-
-  const section = document.createElement("section");
-  section.className = "logSection";
-
-  const header = document.createElement("div");
-  header.className = "logSectionHeader";
-  header.textContent = formatLegLabel(leg);
-
-  section.appendChild(header);
-
-  log.slice().reverse().forEach(entry => {
-    section.appendChild(
-      createLogRow(entry, leg.id)
-    );
-  });
-
-  return section;
-}
-
-function formatLegLabel(leg) {
-  const trailName = trailNetwork.trails[leg.trailId];
-
-  if (leg.trailId === "garden")
-    return trailName;
-
-  return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
-}
-
-function scrollToCurrentLeg() {
-  ui.log.log.scrollTop = 0;
-}
-
-function renderNotesView() {
-  if (!survey)
-    return;
-
-  const n = ui.notes;
-  const data = survey.notes || {};
-
-  n.date.value = data.date || '';
-  n.startTime.value = data.startTime || '';
-  n.startWeather.value = data.startWeather || '';
-  n.participants.value = data.participants || '';
-  n.endTime.value = data.endTime || '';
-  n.endWeather.value = data.endWeather || '';
-  n.notes.value = data.notes || '';
-  focusNextNotesField();
 }
 
 function buildNextSegmentChoices(currentLeg, segmentsByPost) {
