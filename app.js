@@ -828,7 +828,7 @@ function processTrailNetwork(data) {
 
   const segmentsByPost = indexSegmentsByPost(directedSegments);
 
-  addTowardLabels(directedSegments, posts);
+  addTowardLabels(directedSegments, segmentsByPost, posts);
 
   validatePostCoverage(posts, segmentsByPost, errors);
 
@@ -1164,13 +1164,13 @@ function indexSegmentsByPost(directedSegments) {
   return segmentsByPost;
 }
 
-function addTowardLabels(directedSegments, posts) {
+function addTowardLabels(directedSegments, segmentsByPost, posts) {
   for (const segment of directedSegments) {
     const toPost = segment.toPost;
     if(toPost !== posts[toPost]) {
       segment.toward = posts[toPost];
     } else {
-      const nextSegment = trailNetwork.segmentsByPost.get(toPost).
+      const nextSegment = segmentsByPost.get(toPost).
         find(s => s.trailId !== segment.trailId);
       if (nextSegment) {
           segment.toward = nextSegment.trailId;
@@ -1728,7 +1728,7 @@ function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
   const trailName = trailNetwork.trails[segment.trailId];
   const posts = trailNetwork.posts;
-  const destination = trailNetwork.posts[segment.toPost];
+  const destination = segment.toward;
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
