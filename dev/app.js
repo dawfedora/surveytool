@@ -1173,7 +1173,7 @@ function addTowardLabels(directedSegments, segmentsByPost, posts) {
       const nextSegment = segmentsByPost.get(toPost).
         find(s => s.trailId !== segment.trailId);
       if (nextSegment) {
-          segment.toward = nextSegment.trailId;
+          segment.toward = trails[nextSegment.trailId];
       } else {
         segment.toward = toPost;
       }
