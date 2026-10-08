@@ -828,7 +828,7 @@ function processTrailNetwork(data) {
 
   const segmentsByPost = indexSegmentsByPost(directedSegments);
 
-  addTowardLabels(directedSegments, posts);
+  addTowardLabels(directedSegments, segmentsByPost, posts);
 
   validatePostCoverage(posts, segmentsByPost, errors);
 
@@ -1164,13 +1164,13 @@ function indexSegmentsByPost(directedSegments) {
   return segmentsByPost;
 }
 
-function addTowardLabels(directedSegments, posts) {
+function addTowardLabels(directedSegments, segmentsByPost, posts) {
   for (const segment of directedSegments) {
     const toPost = segment.toPost;
     if(toPost !== posts[toPost]) {
       segment.toward = posts[toPost];
     } else {
-      const nextSegment = trailNetwork.segmentsByPost.get(toPost).
+      const nextSegment = segmentsByPost.get(toPost).
         find(s => s.trailId !== segment.trailId);
       if (nextSegment) {
           segment.toward = nextSegment.trailId;
@@ -1648,65 +1648,6 @@ function populateSegmentOptions(select, promptText, choices) {
       // The browser will leave it focused if it cannot open the picker.
     }
   }
-
-  survey.route.legs.slice().reverse().forEach(leg => {
-    const log = survey.completedLogs[leg.id];
-
-    if (log)
-      container.appendChild(createLogSection(leg, log));
-  });
-}
-
-function createLogSection(leg, log) {
-  if (!leg)
-    return null;
-
-  const section = document.createElement("section");
-  section.className = "logSection";
-
-  const header = document.createElement("div");
-  header.className = "logSectionHeader";
-  header.textContent = formatLegLabel(leg);
-
-  section.appendChild(header);
-
-  log.slice().reverse().forEach(entry => {
-    section.appendChild(
-      createLogRow(entry, leg.id)
-    );
-  });
-
-  return section;
-}
-
-function formatLegLabel(leg) {
-  const trailName = trailNetwork.trails[leg.trailId];
-
-  if (leg.trailId === "garden")
-    return trailName;
-
-  return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
-}
-
-function scrollToCurrentLeg() {
-  ui.log.log.scrollTop = 0;
-}
-
-function renderNotesView() {
-  if (!survey)
-    return;
-
-  const n = ui.notes;
-  const data = survey.notes || {};
-
-  n.date.value = data.date || '';
-  n.startTime.value = data.startTime || '';
-  n.startWeather.value = data.startWeather || '';
-  n.participants.value = data.participants || '';
-  n.endTime.value = data.endTime || '';
-  n.endWeather.value = data.endWeather || '';
-  n.notes.value = data.notes || '';
-  focusNextNotesField();
 }
 
 function buildNextSegmentChoices(currentLeg, segmentsByPost) {
@@ -1787,7 +1728,7 @@ function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
   const trailName = trailNetwork.trails[segment.trailId];
   const posts = trailNetwork.posts;
-  const destination = trailNetwork.posts[segment.toPost];
+  const destination = segment.toward;
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
