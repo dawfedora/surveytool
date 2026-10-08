@@ -385,25 +385,16 @@ function initUI() {
 
   ui.log = {
     view: document.getElementById('logView'),
-    trailSelect: document.getElementById('logTrailSelect'),
+    currentHeader: document.getElementById("currentLegHeader"),
+    currentLabel: document.getElementById("currentLabel"),
+    undoBtn: document.getElementById("legUndoBtn"),
     search: document.getElementById('search'),
+    trailSelect: document.getElementById('logTrailSelect'),
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
     log: document.getElementById("log"),
     entryMenu: document.getElementById("logEntryMenu")
   };
-
-  ui.log.currentHeader = document.createElement("div");
-  ui.log.currentHeader.id = "currentLegHeader";
-
-  ui.log.currentLabel = document.createElement("span");
-  ui.log.undoBtn = document.createElement("button");
-  ui.log.undoBtn.textContent = "Undo";
-  ui.log.undoBtn.hidden = true;
-
-  ui.log.currentHeader.append(ui.log.currentLabel, ui.log.undoBtn);
-
-  ui.log.log.before(ui.log.currentHeader);
 
   ui.log.entryEditor = {
     overlay: document.getElementById('entryEditorOverlay'),
