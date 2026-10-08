@@ -828,7 +828,7 @@ function processTrailNetwork(data) {
 
   const segmentsByPost = indexSegmentsByPost(directedSegments);
 
-  addTowardLabels(directedSegments, segmentsByPost, posts);
+  addTowardLabels(directedSegments, segmentsByPost, posts, trails);
 
   validatePostCoverage(posts, segmentsByPost, errors);
 
@@ -1164,7 +1164,7 @@ function indexSegmentsByPost(directedSegments) {
   return segmentsByPost;
 }
 
-function addTowardLabels(directedSegments, segmentsByPost, posts) {
+function addTowardLabels(directedSegments, segmentsByPost, posts, trails) {
   for (const segment of directedSegments) {
     const toPost = segment.toPost;
     if(toPost !== posts[toPost]) {
