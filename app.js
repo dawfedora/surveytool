@@ -931,7 +931,7 @@ function validateTrails(rawTrails, errors) {
 }
 
 const POSTID_PAT = /^(?:P[1-9][0-9]?|[A-Z]{2,})$/;
-const POSTNAME_PAT = /^[A-Za-z]+(?:[ /][A-Za-z]+)*$/;
+const POSTNAME_PAT = /^[A-Za-zñ]+(?:[ /][A-Za-zñ]+)*$/;
 const POST_KEYS = new Set(['id', 'name']);
 
 function validatePosts(rawPosts, errors) {
