@@ -404,6 +404,14 @@ function initUI() {
     results: document.getElementById('entryResults'),
   };
 
+  ui.log.entryEditor = {
+    overlay: document.getElementById('entryEditorOverlay'),
+    context: document.getElementById('entryEditorContext'),
+    search: document.getElementById('entrySearch'),
+    cancel: document.getElementById("cancelEntryEditor"),
+    results: document.getElementById('entryResults'),
+  };
+
   ui.notes = {
     view: document.getElementById('notesView'),
     date: document.getElementById('date'),
