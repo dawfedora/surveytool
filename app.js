@@ -911,7 +911,7 @@ function validateTrails(rawTrails, errors) {
 }
 
 const POSTID_PAT = /^(?:P[1-9][0-9]?|[A-Z]{2,})$/;
-const POSTNAME_PAT = /^[A-Za-z]+(?:[ /][A-Za-z]+)*$/;
+const POSTNAME_PAT = /^[A-Za-zñ]+(?:[ /][A-Za-zñ]+)*$/;
 const POST_KEYS = new Set(['id', 'name']);
 
 function validatePosts(rawPosts, errors) {
@@ -1762,7 +1762,7 @@ function renderLogSections() {
   const currentLeg = survey.route.currentLeg;
   ui.log.currentHeader.hidden = !currentLeg;
   ui.log.currentLabel.textContent =
-    currentLeg ? formatLegLabel(currentLeg) : "";
+    currentLeg ? formatCurrentLegLabel(currentLeg) : "";
 
   if (currentLeg) {
     survey.currentLog.slice().reverse().forEach(entry => {
@@ -1787,7 +1787,7 @@ function createLogSection(leg, log) {
 
   const header = document.createElement("div");
   header.className = "logSectionHeader";
-  header.textContent = formatLegLabel(leg);
+  header.textContent = `${formatLegLabel(leg)} · ${leg.length.toFixed(2)} mi`;
 
   section.appendChild(header);
 
@@ -1798,6 +1798,19 @@ function createLogSection(leg, log) {
   });
 
   return section;
+}
+
+function formatCurrentLegLabel(leg) {
+  const trailName = trailNetwork.trails[leg.trailId];
+
+  if (leg.trailId === "garden")
+    return trailName;
+
+  // Look up the derived toward label in reference data after reload.
+  const segment = trailNetwork.directedSegments.find(segment =>
+    segment.id === leg.id);
+
+  return `${trailName} ${trailNetwork.posts[leg.fromPost]} ${RIGHT_ARROW} ${segment.toward}`;
 }
 
 function formatLegLabel(leg) {
