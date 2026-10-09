@@ -385,25 +385,24 @@ function initUI() {
 
   ui.log = {
     view: document.getElementById('logView'),
-    trailSelect: document.getElementById('logTrailSelect'),
+    currentHeader: document.getElementById("currentLegHeader"),
+    currentLabel: document.getElementById("currentLabel"),
+    undoBtn: document.getElementById("legUndoBtn"),
     search: document.getElementById('search'),
+    trailSelect: document.getElementById('logTrailSelect'),
     clearSearch: document.getElementById('clearSearch'),
     results: document.getElementById('results'),
     log: document.getElementById("log"),
     entryMenu: document.getElementById("logEntryMenu")
   };
 
-  ui.log.currentHeader = document.createElement("div");
-  ui.log.currentHeader.id = "currentLegHeader";
-
-  ui.log.currentLabel = document.createElement("span");
-  ui.log.undoBtn = document.createElement("button");
-  ui.log.undoBtn.textContent = "Undo";
-  ui.log.undoBtn.hidden = true;
-
-  ui.log.currentHeader.append(ui.log.currentLabel, ui.log.undoBtn);
-
-  ui.log.log.before(ui.log.currentHeader);
+  ui.log.entryEditor = {
+    overlay: document.getElementById('entryEditorOverlay'),
+    context: document.getElementById('entryEditorContext'),
+    search: document.getElementById('entrySearch'),
+    cancel: document.getElementById("cancelEntryEditor"),
+    results: document.getElementById('entryResults'),
+  };
 
   ui.log.entryEditor = {
     overlay: document.getElementById('entryEditorOverlay'),
@@ -828,6 +827,8 @@ function processTrailNetwork(data) {
 
   const segmentsByPost = indexSegmentsByPost(directedSegments);
 
+  addTowardLabels(directedSegments, segmentsByPost, posts, trails);
+
   validatePostCoverage(posts, segmentsByPost, errors);
 
   validateTrailCoverage(trails, directedSegments, errors);
@@ -1160,6 +1161,23 @@ function indexSegmentsByPost(directedSegments) {
   }
 
   return segmentsByPost;
+}
+
+function addTowardLabels(directedSegments, segmentsByPost, posts, trails) {
+  for (const segment of directedSegments) {
+    const toPost = segment.toPost;
+    if(toPost !== posts[toPost]) {
+      segment.toward = posts[toPost];
+    } else {
+      const nextSegment = segmentsByPost.get(toPost).
+        find(s => s.trailId !== segment.trailId);
+      if (nextSegment) {
+          segment.toward = trails[nextSegment.trailId];
+      } else {
+        segment.toward = toPost;
+      }
+    }
+  }
 }
 
 function validatePostCoverage(posts, segmentsByPost, errors) {
@@ -1709,7 +1727,7 @@ function formatSegmentChoice(choice) {
   const segment = choice.nextSegment;
   const trailName = trailNetwork.trails[segment.trailId];
   const posts = trailNetwork.posts;
-  const destination = trailNetwork.posts[segment.toPost];
+  const destination = segment.toward;
 
   if (choice.kind === "start") {
     if (segment.fromPost === segment.toPost)
@@ -1903,37 +1921,38 @@ function undoRouteTransition() {
   const phase = u.phase;
   const phaseBeforeUndo = survey.phase;
 
-// should I do something with event?
-
   flushPendingStores();
-
-  clearUndo();
-
-  setSurveyPhase(phase);
-
-
-  r.currentLeg = u.currentLeg;
 
   if (legId) {
     const completedLeg = r.legs.at(-1);
     if (!completedLeg || completedLeg.id !== legId)
       throw new Error("Route does not match the undo record");
 
-    r.legs.pop();
-
     if (!Object.hasOwn(survey.completedLogs, legId))
       throw new Error(`missing completed log "${legId}"`);
     survey.currentLog = survey.completedLogs[legId];
-    clearCompletedLog(legId);
   }
+
+  // Save the restored sightings while the completed copy still exists.
+  // If a later write fails, neither copy has been deleted.
+  storeCurrentLog();
+
+  clearUndo();
+  r.currentLeg = u.currentLeg;
+  if (legId)
+    r.legs.pop();
+
+  storeRoute();
+  setSurveyPhase(phase);
 
   if (phaseBeforeUndo === SURVEY_PHASE.END) {
     survey.notes.endTime = "";
     storeNotes();
   }
 
-  storeRoute();
-  storeCurrentLog();
+  // Only discard the completed copy after the restored state is stored.
+  if (legId)
+    clearCompletedLog(legId);
 
   currentView = VIEW.LOG;
   renderControls();
@@ -2068,6 +2087,11 @@ function makeChoicePanel(question, actions, finish) {
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
 async function refreshApp() {
+
+  if (!confirm("Refresh requires a reliable internet connection.\n" +
+    "Refresh now?")) 
+    return;
+
   clearTransients();
   flushPendingStores();
   showMessage("Refreshing...");
@@ -3729,8 +3753,8 @@ async function importSurveyFile(event) {
     storeSurvey();
     localStorage.setItem(storageKey("surveyExists"), "true");
 
-    setAppState(APP_STATE.ACTIVE);
-    showMessage(`Imported ${file.name}`, 5000);
+    // Reinitialize all runtime and transient state, preserving the survey info
+    location.reload();
 
   } catch(e) {
     console.error("Import failed", e);
