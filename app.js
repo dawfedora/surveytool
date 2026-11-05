@@ -1830,7 +1830,7 @@ function formatCurrentLegLabel(leg) {
   const segment = trailNetwork.directedSegments.find(segment =>
     segment.id === leg.id);
 
-  return `${trailName} ${trailNetwork.posts[leg.fromPost]} ${RIGHT_ARROW} ${segment.toward}`;
+  return `${trailName}: ${trailNetwork.posts[leg.fromPost]} ${RIGHT_ARROW} ${segment.toward}`;
 }
 
 function formatLegLabel(leg) {
@@ -1839,7 +1839,7 @@ function formatLegLabel(leg) {
   if (leg.trailId === "garden")
     return trailName;
 
-  return `${trailName} ${leg.fromPost} - ${leg.toPost}`;
+  return `${trailName}: ${leg.fromPost} - ${leg.toPost}`;
 }
 
 function scrollToCurrentLeg() {
