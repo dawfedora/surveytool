@@ -10,7 +10,7 @@
     {"id": "lost", "name": "Lost Trail"},
     {"id": "ridgeview", "name": "Ridgeview"},
     {"id": "serpentine", "name": "Serpentine"},
-    {"id": "stage", "name": "Old Stage Rd"},
+    {"id": "stage", "name": "Old Stage"},
     {"id": "sylvan", "name": "Sylvan"}
   ],
   "posts": [
@@ -32,7 +32,7 @@
     {"id":"P16"},
     {"id":"P17","name":"The Saddle"},
     {"id":"IH","name":"Inspiration Height"},
-    {"id":"P18","name":"Edgewood/Canada Trailhead"},
+    {"id":"P18","name":"Cañada Trailhead"},
     {"id":"P19"},
     {"id":"P20"},
     {"id":"SG","name":"Sunset Gate"},
