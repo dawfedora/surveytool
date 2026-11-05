@@ -45,8 +45,8 @@ let pendingStores = [];
 let activeChoiceOverlay = null;
 let undoCache = null;
 let undoTimer = null;
-let logEntryMenuTarget = null;
-let entryEditorTarget = null;
+let entryMenuContext = null;
+let entryEditorContext = null;
 let searchTimer = null;
 
 
@@ -276,7 +276,7 @@ function chooseInitialView() {
 
 function renderControls() {
   const active = appState === APP_STATE.ACTIVE;
-
+  const notes = currentView === VIEW.NOTES
   const starting = active && survey.phase === SURVEY_PHASE.START;
   const choosingStartingTrail = starting && currentView === VIEW.LOG;
   const field = active && survey.phase === SURVEY_PHASE.FIELD;
@@ -299,10 +299,10 @@ function renderControls() {
     ui.header.startBtn.title = "";
   }
 
-  ui.header.nextBtn.hidden = !(choosingStartingTrail || field);
+  ui.header.nextBtn.hidden = !(choosingStartingTrail || field) || notes;;
   ui.header.nextBtn.disabled = !field;
 
-  ui.header.endBtn.hidden = !(choosingStartingTrail || field);
+  ui.header.endBtn.hidden = !(choosingStartingTrail || field) || notes;
   ui.header.endBtn.disabled = !field;
 
   ui.header.saveBtn.hidden = !ended;
@@ -453,7 +453,7 @@ function initHeader() {
 
     currentView = event.target.value;
     renderControls();
-    renderView();
+    showView();
   });
 
   ui.header.startBtn.addEventListener('click', startSurvey);
@@ -750,12 +750,11 @@ function processSpecies(species) {
     s.status = suffix;
     s.scientificName = scientific;
     s.scientificNorm = normalizeScientific(scientific);
-    s.scientificWords = s.scientificNorm.split(" ");
     s.commonName = common;
     s.displayCommon = common + suffix;
     s.commonNorm = normalizeCommon(common);
-    s.commonWords = s.commonNorm.split(" ");
-    s.commonJoined = s.commonWords.join("");
+    const commonWords = s.commonNorm.split(" ");
+    s.commonJoined = commonWords.join("");
 
     return true;
   });
@@ -822,7 +821,7 @@ function processTrailNetwork(data) {
 
   const posts = validatePosts(data.posts, errors);
 
-  const directedSegments = processSegments(
+  const [directedSegments, segmentsById] = processSegments(
     data.segments,
     trails,
     posts,
@@ -855,6 +854,7 @@ function processTrailNetwork(data) {
     posts,
     startingSegments,
     directedSegments,
+    segmentsById,
     segmentsByPost
   };
 }
@@ -997,6 +997,7 @@ function validatePosts(rawPosts, errors) {
 
 function processSegments(rawSegments, trails, posts, errors) {
   const directedSegments = [];
+  const segmentsById = new Map();
   const connections = new Set();
 
   rawSegments.forEach((rawSegment, index) => {
@@ -1022,26 +1023,31 @@ function processSegments(rawSegments, trails, posts, errors) {
 
     connections.add(connectionKey);
 
-    directedSegments.push({
+    const forwardSegment = {
       id: makeLegId(segment.trailId, segment.startPost, segment.endPost),
       trailId: segment.trailId,
       fromPost: segment.startPost,
       toPost: segment.endPost,
       length: segment.length
-    });
+    };
+
+    directedSegments.push(forwardSegment);
+    segmentsById.set(forwardSegment.id, forwardSegment);
 
     if (segment.startPost !== segment.endPost) {
-      directedSegments.push({
+      const reverseSegment = {
         id: makeLegId(segment.trailId, segment.endPost, segment.startPost),
         trailId: segment.trailId,
         fromPost: segment.endPost,
         toPost: segment.startPost,
         length: segment.length
-      });
+      };
+      directedSegments.push(reverseSegment)
+      segmentsById.set(reverseSegment.id, reverseSegment);
     }
   });
 
-  return directedSegments;
+  return [directedSegments, segmentsById];
 }
 
 function makeLegId (trailId, startPost, endPost) {
@@ -1393,15 +1399,14 @@ function validateTextInput(event, allowed) {
   // normalize punctuation
   const c = normalizeInputChar(event.data);
 
-  if (c !== event.data) {
-    event.preventDefault();
-    input.setRangeText(c, input.selectionStart, input.selectionEnd, "end");
-  }
-
   // validate normalized char against allowed regex
   if (!allowed.test(c)) {
     event.preventDefault();
     flashInvalidTextInput(input);
+  } else if (c !== event.data) {
+    event.preventDefault();
+    input.setRangeText(c, input.selectionStart, input.selectionEnd, "end");
+    input.dispatchEvent(new Event("input", {bubbles: true}))
   }
 }
 
@@ -1481,7 +1486,7 @@ function normalizeInputChar(c) {
       return "'";
 
     case "‐": // hyphen
-    case "-": // non-breaking hyphen
+    case "\u2011": // non-breaking hyphen
     case "–": // en dash
     case "—": // em dash
       return "-";
@@ -1571,16 +1576,22 @@ function isValidSurveyPhase(phase) {
 
 // --- MODE, TRAIL, and VIEW RENDERING
 function renderView() {
+  renderLogView();
+  renderNotesView();
+  showView();
+}
+
+function showView() {
   ui.header.viewSelect.value = currentView;
 
   if (currentView === VIEW.LOG) {
     ui.log.view.hidden = false;
     ui.notes.view.hidden = true;
-    renderLogView();
+    showLogView();
   } else if (currentView === VIEW.NOTES) {
     ui.log.view.hidden = true;
     ui.notes.view.hidden = false;
-    renderNotesView();
+    showNotesView();
   }
 }
 
@@ -1598,7 +1609,6 @@ function populateTrailSelector() {
     segmentChoices = trailNetwork.startingSegments.map(segment => ({
       kind: "start",
       atPost: segment.fromPost,
-      path: [],
       nextSegment: segment
     }));
   } else {
@@ -1753,6 +1763,9 @@ function renderLogView() {
   }
 
   renderLogSections();
+}
+
+function showLogView() {
   ui.log.results.innerHTML = "";
   requestAnimationFrame(positionResults);
   focusLogSearch();
@@ -1760,7 +1773,7 @@ function renderLogView() {
 
 function focusLogSearch() {
   requestAnimationFrame(() => {
-    if (entryEditorTarget)
+    if (entryEditorContext)
       ui.log.entryEditor.search.focus();
     else
       ui.log.search.focus();
@@ -1819,8 +1832,7 @@ function formatCurrentLegLabel(leg) {
     return trailName;
 
   // Look up the derived toward label in reference data after reload.
-  const segment = trailNetwork.directedSegments.find(segment =>
-    segment.id === leg.id);
+  const segment = trailNetwork.segmentsById.get(leg.id);
 
   return `${trailName} ${trailNetwork.posts[leg.fromPost]} ${RIGHT_ARROW} ${segment.toward}`;
 }
@@ -1852,6 +1864,10 @@ function renderNotesView() {
   n.endTime.value = data.endTime || '';
   n.endWeather.value = data.endWeather || '';
   n.notes.value = data.notes || '';
+  showNotesView();
+}
+
+function showNotesView() {
   focusNextNotesField();
 }
 
@@ -1881,6 +1897,7 @@ function handleTrailChange(event) {
   setupUndo();
 
   renderLogView();
+  showLogView();
   renderControls();
 }
 
@@ -2353,21 +2370,34 @@ async function commitStagedCache(staging, cacheName, appShell, oldCacheName) {
 }
 
 async function replaceCurrentCacheFromStaging(staging, cacheName, appShell) {
+  let doCleanup = false;
   const backupName = `${cacheName}:backup:${Date.now()}`;
   const hadCurrentCache = await caches.has(cacheName);
 
-  try {
-    if (hadCurrentCache) {
+  if (hadCurrentCache) {
+    try {
       await copyCache(cacheName, backupName);
+    } catch (error) {
+      console.error("Could not back up cache");
+      try {
+        await caches.delete(backupName);
+      } catch {
+        console.error(`Could not delete backup cache ${backupName}`);
+      }
+      throw error;
     }
+  }
 
+  try {
     await caches.delete(cacheName);
     await copyStagingToCache(staging, cacheName, appShell);
+    doCleanup = true;
   } catch (e) {
     if (hadCurrentCache) {
       try {
         await caches.delete(cacheName);
         await copyCache(backupName, cacheName);
+        doCleanup = true;
       } catch (restoreError) {
         console.error('Could not restore cache backup', backupName, restoreError);
       }
@@ -2375,7 +2405,7 @@ async function replaceCurrentCacheFromStaging(staging, cacheName, appShell) {
 
     throw e;
   } finally {
-    if (hadCurrentCache) {
+    if (hadCurrentCache && doCleanup) {
       try {
         await caches.delete(backupName);
       } catch (cleanupError) {
@@ -2426,7 +2456,8 @@ function createSurvey() {
   const date = formatDate(now);
   let startTime = formatTime(now);
 
-  // for now
+  // Sandy prefers the nominal start time as the default.
+  // If necessary it can be hand edited
   startTime = "8:00 am";
 
   return {
@@ -2663,7 +2694,8 @@ function loadSurvey() {
     return survey;
 
   } catch(e) {
-    showMessage("Survey data appears corrupted. Please save/reset.");
+    showMessage("Survey data appears corrupted. Please refresh " +
+      "and then start a new survey..");
     console.error('Bad survey data', e);
     return null;
   }
@@ -2951,7 +2983,6 @@ function handleParticipantInput(e) {
     hideParticipantResults();
     return;
    }
-
   const current =
     input.value
       .split(/\s*,\s*/)
@@ -3025,6 +3056,7 @@ function insertParticipant(name) {
   input.value = pieces.join(", ") + ", ";
 
   survey.notes.participants = input.value;
+  storeNotesLater.cancel();
   storeNotes();
 
   input.focus();
@@ -3096,18 +3128,18 @@ function handleMainSearchSelection(item) {
 }
 
 function handleEntrySearchSelection(item) {
-  if (!entryEditorTarget)
-    throw new Error("Entry search selection has no target");
+  const context = entryEditorContext;
+  if (!context)
+    throw new Error("Entry search selection has no context");
 
-  const { mode, entry, legId } = entryEditorTarget;
   let succeeded;
 
-  if (mode === "edit") {
-    succeeded = editSighting(entry, legId, item);
-  } else if (mode === "insert") {
-    succeeded = insertSightingBefore(entry, legId, item);
+  if (context.action === "edit") {
+    succeeded = editSighting(context, item);
+  } else if (context.action === "insert") {
+    succeeded = insertSightingBefore(context, item);
   } else {
-    throw new Error(`Unknown entry editor mode "${mode}"`);
+    throw new Error(`Unknown entry editor action "${context.action}"`);
   }
 
   // Leave the editor open if the user rejected a duplicate.
@@ -3139,28 +3171,33 @@ function addSighting(item) {
   return true;
 }
 
-function insertSightingBefore(targetEntry, legId, item) {
-  const entries = getLogEntries(legId);
-  const index = entries.indexOf(targetEntry);
+function insertSightingBefore(context, item) {
+  const entries = getLogEntries(context.legId);
+  const index = entries.indexOf(context.entry);
 
   if (index < 0)
     throw new Error("Could not find insertion point");
 
+  const entry = createSightingEntry(item);
+
   if (!confirmDuplicateSighting(entries, item))
     return false;
 
-  const entry = createSightingEntry(item);
   entries.splice(index, 0, entry);
 
+  const newRow = createLogRow(entry, context.legId);
+  context.row.after(newRow);
+
   clearUndo();
-  storeLogEntries(legId);
-  renderLogView();
+  storeLogEntries(context.legId);
+  showLogView();
 
   return true;
 }
 
-function editSighting(entry, legId, item) {
-  const entries = getLogEntries(legId);
+function editSighting(context, item) {
+  const entries = getLogEntries(context.legId);
+  const entry = context.entry;
 
   if (!entries.includes(entry))
     throw new Error("Could not find entry to edit");
@@ -3170,9 +3207,11 @@ function editSighting(entry, legId, item) {
 
   setEntrySpecies(entry, item);
 
+  context.row.replaceWith(createLogRow(entry, context.legId));
+
   clearUndo();
-  storeLogEntries(legId);
-  renderLogView();
+  storeLogEntries(context.legId);
+  showLogView();
 
   return true;
 }
@@ -3311,7 +3350,7 @@ function appendPlantLabel(parent, commonName, scientificName) {
 
 
 function openLogEntryMenu(button, row, entry, legId) {
-  const sameButton = logEntryMenuTarget?.button === button;
+  const sameButton = entryMenuContext?.button === button;
 
   clearTransients();
 
@@ -3320,7 +3359,7 @@ function openLogEntryMenu(button, row, entry, legId) {
   if (sameButton)
     return;
 
-  logEntryMenuTarget = {button, row, entry, legId};
+  entryMenuContext = {button, row, entry, legId};
 
   const menu = ui.log.entryMenu;
   const rect = button.getBoundingClientRect();
@@ -3335,10 +3374,10 @@ function openLogEntryMenu(button, row, entry, legId) {
 }
 
 function closeLogEntryMenu() {
-  const target = logEntryMenuTarget;
+  const target = entryMenuContext;
 
   ui.log.entryMenu.hidden = true;
-  logEntryMenuTarget = null;
+  entryMenuContext = null;
 
   if (target) {
     target.button.setAttribute("aria-expanded", "false");
@@ -3348,25 +3387,24 @@ function closeLogEntryMenu() {
 
 function handleLogEntryMenuChoice(event) {
   const action = event.target.dataset.action;
-  const target = logEntryMenuTarget;
+  const context = entryMenuContext;
 
-  if (!target || !action)
+  if (!context || !action)
     return;
 
   closeLogEntryMenu();
 
   switch (action) {
     case "delete":
-      if (deleteLogEntry(target.entry, target.legId) === true)
-        target.row.remove();
+      deleteLogEntry(context);
       break;
 
     case "edit":
-      openEntryEditor("edit", target.entry, target.legId);
+      openEntryEditor("edit", context);
       break;
 
     case "insert":
-      openEntryEditor("insert", target.entry, target.legId);
+      openEntryEditor("insert", context);
       break;
 
     case "cancel":
@@ -3374,11 +3412,14 @@ function handleLogEntryMenuChoice(event) {
   }
 }
 
-function deleteLogEntry(entry, legId) {
+function deleteLogEntry(context) {
   let entries;
+  const entry = context.entry;
   
   if (!confirm( `Delete "${entry.commonName}"?`))
     return false;
+
+  const legId = context.legId;
 
   if (legId === null) {
     entries = survey.currentLog;
@@ -3388,7 +3429,7 @@ function deleteLogEntry(entry, legId) {
       throw new Error(`Missing completed log "${legId}"`);
   }
 
-  const index = entries.indexOf(entry);
+  const index = entries.indexOf(context.entry);
 
   if (index < 0)
     throw new Error("Could not find log entry to delete");
@@ -3400,19 +3441,24 @@ function deleteLogEntry(entry, legId) {
   else
     storeCompletedLog(legId);
 
+  context.row.remove();
+
   return true;
 }
 
-function openEntryEditor(mode, entry, legId) {
+function openEntryEditor(action, menuContext) {
+  let row = menuContext.row;
+  let legId = menuContext.legId;
+  let entry = menuContext.entry;
   clearTransients();
 
-  entryEditorTarget = { mode, entry, legId };
+  entryEditorContext = { action, row, legId, entry };
 
-  const action =
-    mode === "edit" ? "Edit" : "Insert below";
+  const actionLabel =
+    action === "edit" ? "Edit" : "Insert below";
 
   ui.log.entryEditor.context.textContent =
-    `${action}: ${entry.commonName}`;
+    `${actionLabel}: ${entry.commonName}`;
 
   ui.log.entryEditor.search.value = "";
   clearSpeciesResults(ui.log.entryEditor.results);
@@ -3429,7 +3475,7 @@ function closeEntryEditor() {
   clearSpeciesResults(ui.log.entryEditor.results);
   ui.log.entryEditor.overlay.hidden = true;
 
-  entryEditorTarget = null;
+  entryEditorContext = null;
 }
 
 function clearTransients() {
@@ -3732,7 +3778,7 @@ function formatTsvCell(value) {
     .trim();
 }
 
-// --- IMPORT SURVEY !! NOT READY FOR PRIME-TIME !! ---
+// --- IMPORT SURVEY !! DEBUG TOOL !! ---
 async function importSurveyFile(event) {
   const input = event.target;
   const file = input.files?.[0];
@@ -3870,7 +3916,6 @@ function normalizeCompletedLogs(completedLogs, route) {
   const normalized = {};
 
   for (const leg of route.legs) {
-// have to fix this later when we decide how to handle repeats
     if (routeIds.has(leg.id))
       throw new Error(`Duplicate route leg ID "${leg.id}"`);
 
