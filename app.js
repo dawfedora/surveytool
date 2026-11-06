@@ -501,6 +501,12 @@ function initLogView() {
     debounce(positionResults, 50)
   );
 
+  ui.log.log.addEventListener("scroll", positionLogEntryMenu);
+  window.addEventListener("scroll", positionLogEntryMenu);
+  window.addEventListener("resize", positionLogEntryMenu);
+  window.visualViewport?.addEventListener("resize", positionLogEntryMenu);
+  window.visualViewport?.addEventListener("scroll", positionLogEntryMenu);
+
   ui.log.trailSelect.addEventListener("change", handleTrailChange);
 
   ui.log.undoBtn.addEventListener("click", undoRouteTransition);
@@ -3362,18 +3368,52 @@ function openLogEntryMenu(button, row, entry, legId) {
   entryMenuContext = {button, row, entry, legId};
 
   const menu = ui.log.entryMenu;
-  const rect = button.getBoundingClientRect();
-
   menu.hidden = false;
-  menu.style.top = `${rect.bottom + 4}px`;
-  menu.style.right =
-    `${Math.max(4, window.innerWidth - rect.right)}px`;
-
   button.setAttribute("aria-expanded", "true");
-  menu.querySelector("button")?.focus();
+  positionLogEntryMenu();
+  if (entryMenuContext) {
+    menu.querySelector("button")?.focus({ preventScroll: true });
+    // Focusing the menu can collapse a note and dismiss the keyboard.
+    positionLogEntryMenu();
+  }
 }
 
-function closeLogEntryMenu() {
+function positionLogEntryMenu() {
+  const context = entryMenuContext;
+  if (!context)
+    return;
+
+  if (!context.row.isConnected || ui.log.view.hidden) {
+    closeLogEntryMenu(false);
+    return;
+  }
+
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+  const logRect = ui.log.log.getBoundingClientRect();
+  const visibleTop = Math.max(viewportTop, logRect.top);
+  const visibleBottom = Math.min(viewportBottom, logRect.bottom);
+  const rowRect = context.row.getBoundingClientRect();
+
+  if (rowRect.bottom <= visibleTop || rowRect.top >= visibleBottom) {
+    // Returning focus here could scroll an offscreen entry back into view.
+    closeLogEntryMenu(false);
+    return;
+  }
+
+  const menu = ui.log.entryMenu;
+  const height = menu.getBoundingClientRect().height;
+  const centeredTop = (rowRect.top + rowRect.bottom - height) / 2;
+  const top = Math.max(visibleTop + 4,
+    Math.min(centeredTop, visibleBottom - height - 4));
+  const buttonRect = context.button.getBoundingClientRect();
+
+  menu.style.top = `${top}px`;
+  menu.style.right = `${Math.max(4, window.innerWidth - buttonRect.right)}px`;
+}
+
+function closeLogEntryMenu(restoreFocus = true) {
   const target = entryMenuContext;
 
   ui.log.entryMenu.hidden = true;
@@ -3381,7 +3421,8 @@ function closeLogEntryMenu() {
 
   if (target) {
     target.button.setAttribute("aria-expanded", "false");
-    target.button.focus();
+    if (restoreFocus)
+      target.button.focus();
   }
 }
 
