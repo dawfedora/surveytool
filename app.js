@@ -2513,7 +2513,7 @@ function newSurvey() {
   currentView = VIEW.NOTES;
 
   storeSurvey();
-  localStorage.setItem(storageKey("surveyExists"), "true");
+  writeStoredSection(storageKey("surveyExists"), "true");
 
   // now we're in active state
   setAppState(APP_STATE.ACTIVE);
@@ -2683,14 +2683,14 @@ function storeSurvey() {
 
 function loadSurvey() {
 
-  const surveyExists = localStorage.getItem(storageKey("surveyExists"));
-  if (!surveyExists)
-    return null;
-
-  const survey = {};
-
-  // These should all have been created and stored in newSurvey()
   try {
+    const surveyExists = localStorage.getItem(storageKey("surveyExists"));
+    if (!surveyExists)
+      return null;
+
+    const survey = {};
+
+    // These should all have been created and stored in newSurvey()
     survey.phase = loadPhase();
     survey.notes = loadNotes();
     survey.route = loadRoute(survey.phase);
@@ -2758,7 +2758,8 @@ function loadPhase() {
 }
 
 function storePhase() {
-  localStorage.setItem(storageKey('phase'), JSON.stringify(survey.phase));
+  const value = JSON.stringify(survey.phase);
+  writeStoredSection(storageKey('phase'), value);
 }
 
 function loadNotes() {
@@ -2801,25 +2802,36 @@ function loadCompletedLog(legId) {
 }
 
 function storeNotes() {
-  localStorage.setItem(storageKey('notes'), JSON.stringify(survey.notes));
+  const value = JSON.stringify(survey.notes);
+  writeStoredSection(storageKey('notes'), value);
 }
 
 function storeRoute() {
-  localStorage.setItem(storageKey('route'), JSON.stringify(survey.route));
+  const value = JSON.stringify(survey.route);
+  writeStoredSection(storageKey('route'), value);
 }
 
 function storageKey(key) {
   return `${STORAGE_TAG}:${key}`;
 }
 
+function writeStoredSection(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.error("Storage write failed", key, error);
+    throw error;
+  }
+}
+
 function storeCurrentLog() {
-  localStorage.setItem(storageKey('logs.current'),
-    JSON.stringify(survey.currentLog));
+  const value = JSON.stringify(survey.currentLog);
+  writeStoredSection(storageKey('logs.current'), value);
 }
 
 function storeCompletedLog(legId) {
-  localStorage.setItem(storageKey(`logs.${legId}`),
-    JSON.stringify(survey.completedLogs[legId]));
+  const value = JSON.stringify(survey.completedLogs[legId]);
+  writeStoredSection(storageKey(`logs.${legId}`), value);
 }
 
 function clearCompletedLog(legId) {
@@ -3855,7 +3867,7 @@ async function importSurveyFile(event) {
     survey = imported;
 
     storeSurvey();
-    localStorage.setItem(storageKey("surveyExists"), "true");
+    writeStoredSection(storageKey("surveyExists"), "true");
 
     // Reinitialize all runtime and transient state, preserving the survey info
     location.reload();
