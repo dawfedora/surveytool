@@ -94,17 +94,29 @@ async function init() {
 
   STORAGE_TAG = version.storageTag;
 
-  // Update Check before going into the field
-  const latest = await checkForUpdate();
-  if (latest) {
-    const doUpdate = await chooseAction(
-      `Newer version ${latest.version} is available.\n\nRefresh now?`, [
-        { value: true, label: "Refresh Now" },
-        { value: false, label: "Use current" }
-    ]);
-    if (doUpdate) {
-      refreshApp();
-      return;
+  // A deliberate cached reload skips the update check once in this tab.
+  const skipUpdateCheckKey = `FoE:survey:${location.pathname}:skipUpdateCheckOnce`;
+  const skipUpdateCheck = sessionStorage.getItem(skipUpdateCheckKey) === "true";
+  sessionStorage.removeItem(skipUpdateCheckKey);
+
+  if (!skipUpdateCheck) {
+    let latest = null;
+    try {
+      latest = await checkForUpdate();
+    } catch (error) {
+      console.warn("Startup update check failed", error);
+      showMessage("Could not fetch the latest version. Using the cached app.");
+    }
+
+    if (latest) {
+      const doUpdate = await chooseAction(
+        `Newer version ${latest.version} is available.\n\n` +
+        "Upgrade now? Requires a reliable internet connection.", [
+          { value: true, label: "Upgrade" },
+          { value: false, label: "Use current" }
+      ]);
+      if (doUpdate)
+        await refreshApp();
     }
   }
 
@@ -147,7 +159,7 @@ function setStatus(text) {
 async function checkForUpdate() {
 
   if (!navigator.onLine)
-    return null;
+    throw new Error("No network connection");
 
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -166,12 +178,6 @@ async function checkForUpdate() {
 
     return latest;
 
-  } catch (e) {
-    if (e.name === "AbortError")
-      console.warn(`Update check timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000} seconds`);
-    else
-      console.warn("Update check failed", e);
-    return null;
   } finally {
     clearTimeout(timeout);
   }
@@ -461,7 +467,7 @@ function initHeader() {
   ui.header.endBtn.addEventListener('click', endSurvey);
   ui.header.saveBtn.addEventListener('click', saveSurvey);
   ui.header.newBtn.addEventListener('click', newSurvey);
-  ui.header.refreshBtn.addEventListener('click', refreshApp);
+  ui.header.refreshBtn.addEventListener('click', refreshOrReloadApp);
   ui.header.importBtn.addEventListener('click', () => {
     ui.header.importInput.click();
   });
@@ -2126,12 +2132,46 @@ function makeChoicePanel(question, actions, finish) {
 }
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
-async function refreshApp() {
+async function refreshOrReloadApp() {
+  let latest = null;
+  let checkFailed = false;
+  try {
+    latest = await checkForUpdate();
+  } catch (error) {
+    checkFailed = true;
+    console.warn("Update check failed", error);
+  }
 
-  if (!confirm("Refresh requires a reliable internet connection.\n" +
-    "Refresh now?")) 
+  if (latest) {
+    const doUpdate = await chooseAction(
+      `Newer version ${latest.version} is available.\n\n` +
+      "Upgrade now? Requires a reliable internet connection.", [
+        { value: true, label: "Upgrade" },
+        { value: false, label: "Use current" }
+    ]);
+    if (doUpdate) {
+      await refreshApp();
+      return;
+    }
+  }
+
+  const question = checkFailed
+    ? "Could not fetch the latest version. Reload the cached app?"
+    : "Reload the current cached app?";
+  const reload = await chooseAction(question, [
+    { value: true, label: "Reload" },
+    { value: false, label: "Cancel" }
+  ]);
+  if (!reload)
     return;
 
+  flushPendingStores();
+  const skipUpdateCheckKey = `FoE:survey:${location.pathname}:skipUpdateCheckOnce`;
+  sessionStorage.setItem(skipUpdateCheckKey, "true");
+  location.reload();
+}
+
+async function refreshApp() {
   clearTransients();
   flushPendingStores();
   showMessage("Refreshing...");
