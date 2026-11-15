@@ -3669,7 +3669,7 @@ function buildSurveyTsv(survey) {
   ];
 
   return rows
-    .map(row => ["",...row].map(formatTsvCell).join('\t'))
+    .map(row => row.map(formatTsvCell).join('\t'))
     .join('\n') + '\n';
 }
 
@@ -3727,7 +3727,7 @@ function splitAlsoObs(observedNotes) {
   if (shortLine.length <= FIRST_ALSO_LINE_LIMIT)
     return [shortLine, ''];
 
-  const participants = observedNotes
+  const alsoNotes = observedNotes
     .split(',')
     .map(name => name.trim())
     .filter(Boolean);
@@ -3736,9 +3736,9 @@ function splitAlsoObs(observedNotes) {
   let bestOverflow = Infinity;
   let bestBalance = Infinity;
 
-  for (let i = 1; i < participants.length; i++) {
-    const first = participants.slice(0, i).join(', ');
-    const second = participants.slice(i).join(', ');
+  for (let i = 1; i < alsoNotes.length; i++) {
+    const first = alsoNotes.slice(0, i).join(', ');
+    const second = alsoNotes.slice(i).join(', ');
     const overflow = Math.max(
       first.length - FIRST_ALSO_LINE_LIMIT,
       second.length - SECOND_ALSO_LINE_LIMIT,
@@ -3755,8 +3755,8 @@ function splitAlsoObs(observedNotes) {
   }
 
   return [
-    participants.slice(0, bestSplit).join(', ') + ',',
-    participants.slice(bestSplit).join(', ')
+    alsoNotes.slice(0, bestSplit).join(', ') + ',',
+    alsoNotes.slice(bestSplit).join(', ')
   ];
 }
 
