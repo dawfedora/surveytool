@@ -94,17 +94,29 @@ async function init() {
 
   STORAGE_TAG = version.storageTag;
 
-  // Update Check before going into the field
-  const latest = await checkForUpdate();
-  if (latest) {
-    const doUpdate = await chooseAction(
-      `Newer version ${latest.version} is available.\n\nRefresh now?`, [
-        { value: true, label: "Refresh Now" },
-        { value: false, label: "Use current" }
-    ]);
-    if (doUpdate) {
-      refreshApp();
-      return;
+  // A deliberate cached reload skips the update check once in this tab.
+  const skipUpdateCheckKey = `FoE:survey:${location.pathname}:skipUpdateCheckOnce`;
+  const skipUpdateCheck = sessionStorage.getItem(skipUpdateCheckKey) === "true";
+  sessionStorage.removeItem(skipUpdateCheckKey);
+
+  if (!skipUpdateCheck) {
+    let latest = null;
+    try {
+      latest = await checkForUpdate();
+    } catch (error) {
+      console.warn("Startup update check failed", error);
+      showMessage("Could not fetch the latest version. Using the cached app.");
+    }
+
+    if (latest) {
+      const doUpdate = await chooseAction(
+        `Newer version ${latest.version} is available.\n\n` +
+        "Upgrade now? Requires a reliable internet connection.", [
+          { value: true, label: "Upgrade" },
+          { value: false, label: "Use current" }
+      ]);
+      if (doUpdate)
+        await refreshApp();
     }
   }
 
@@ -147,7 +159,7 @@ function setStatus(text) {
 async function checkForUpdate() {
 
   if (!navigator.onLine)
-    return null;
+    throw new Error("No network connection");
 
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -166,12 +178,6 @@ async function checkForUpdate() {
 
     return latest;
 
-  } catch (e) {
-    if (e.name === "AbortError")
-      console.warn(`Update check timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000} seconds`);
-    else
-      console.warn("Update check failed", e);
-    return null;
   } finally {
     clearTimeout(timeout);
   }
@@ -461,7 +467,7 @@ function initHeader() {
   ui.header.endBtn.addEventListener('click', endSurvey);
   ui.header.saveBtn.addEventListener('click', saveSurvey);
   ui.header.newBtn.addEventListener('click', newSurvey);
-  ui.header.refreshBtn.addEventListener('click', refreshApp);
+  ui.header.refreshBtn.addEventListener('click', refreshOrReloadApp);
   ui.header.importBtn.addEventListener('click', () => {
     ui.header.importInput.click();
   });
@@ -500,6 +506,12 @@ function initLogView() {
   window.visualViewport?.addEventListener( "resize",
     debounce(positionResults, 50)
   );
+
+  ui.log.log.addEventListener("scroll", positionLogEntryMenu);
+  window.addEventListener("scroll", positionLogEntryMenu);
+  window.addEventListener("resize", positionLogEntryMenu);
+  window.visualViewport?.addEventListener("resize", positionLogEntryMenu);
+  window.visualViewport?.addEventListener("scroll", positionLogEntryMenu);
 
   ui.log.trailSelect.addEventListener("change", handleTrailChange);
 
@@ -2120,12 +2132,46 @@ function makeChoicePanel(question, actions, finish) {
 }
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
-async function refreshApp() {
+async function refreshOrReloadApp() {
+  let latest = null;
+  let checkFailed = false;
+  try {
+    latest = await checkForUpdate();
+  } catch (error) {
+    checkFailed = true;
+    console.warn("Update check failed", error);
+  }
 
-  if (!confirm("Refresh requires a reliable internet connection.\n" +
-    "Refresh now?")) 
+  if (latest) {
+    const doUpdate = await chooseAction(
+      `Newer version ${latest.version} is available.\n\n` +
+      "Upgrade now? Requires a reliable internet connection.", [
+        { value: true, label: "Upgrade" },
+        { value: false, label: "Use current" }
+    ]);
+    if (doUpdate) {
+      await refreshApp();
+      return;
+    }
+  }
+
+  const question = checkFailed
+    ? "Could not fetch the latest version. Reload the cached app?"
+    : "Reload the current cached app?";
+  const reload = await chooseAction(question, [
+    { value: true, label: "Reload" },
+    { value: false, label: "Cancel" }
+  ]);
+  if (!reload)
     return;
 
+  flushPendingStores();
+  const skipUpdateCheckKey = `FoE:survey:${location.pathname}:skipUpdateCheckOnce`;
+  sessionStorage.setItem(skipUpdateCheckKey, "true");
+  location.reload();
+}
+
+async function refreshApp() {
   clearTransients();
   flushPendingStores();
   showMessage("Refreshing...");
@@ -2507,7 +2553,7 @@ function newSurvey() {
   currentView = VIEW.NOTES;
 
   storeSurvey();
-  localStorage.setItem(storageKey("surveyExists"), "true");
+  writeStoredSection(storageKey("surveyExists"), "true");
 
   // now we're in active state
   setAppState(APP_STATE.ACTIVE);
@@ -2677,14 +2723,14 @@ function storeSurvey() {
 
 function loadSurvey() {
 
-  const surveyExists = localStorage.getItem(storageKey("surveyExists"));
-  if (!surveyExists)
-    return null;
-
-  const survey = {};
-
-  // These should all have been created and stored in newSurvey()
   try {
+    const surveyExists = localStorage.getItem(storageKey("surveyExists"));
+    if (!surveyExists)
+      return null;
+
+    const survey = {};
+
+    // These should all have been created and stored in newSurvey()
     survey.phase = loadPhase();
     survey.notes = loadNotes();
     survey.route = loadRoute(survey.phase);
@@ -2752,7 +2798,8 @@ function loadPhase() {
 }
 
 function storePhase() {
-  localStorage.setItem(storageKey('phase'), JSON.stringify(survey.phase));
+  const value = JSON.stringify(survey.phase);
+  writeStoredSection(storageKey('phase'), value);
 }
 
 function loadNotes() {
@@ -2795,25 +2842,36 @@ function loadCompletedLog(legId) {
 }
 
 function storeNotes() {
-  localStorage.setItem(storageKey('notes'), JSON.stringify(survey.notes));
+  const value = JSON.stringify(survey.notes);
+  writeStoredSection(storageKey('notes'), value);
 }
 
 function storeRoute() {
-  localStorage.setItem(storageKey('route'), JSON.stringify(survey.route));
+  const value = JSON.stringify(survey.route);
+  writeStoredSection(storageKey('route'), value);
 }
 
 function storageKey(key) {
   return `${STORAGE_TAG}:${key}`;
 }
 
+function writeStoredSection(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.error("Storage write failed", key, error);
+    throw error;
+  }
+}
+
 function storeCurrentLog() {
-  localStorage.setItem(storageKey('logs.current'),
-    JSON.stringify(survey.currentLog));
+  const value = JSON.stringify(survey.currentLog);
+  writeStoredSection(storageKey('logs.current'), value);
 }
 
 function storeCompletedLog(legId) {
-  localStorage.setItem(storageKey(`logs.${legId}`),
-    JSON.stringify(survey.completedLogs[legId]));
+  const value = JSON.stringify(survey.completedLogs[legId]);
+  writeStoredSection(storageKey(`logs.${legId}`), value);
 }
 
 function clearCompletedLog(legId) {
@@ -3362,18 +3420,52 @@ function openLogEntryMenu(button, row, entry, legId) {
   entryMenuContext = {button, row, entry, legId};
 
   const menu = ui.log.entryMenu;
-  const rect = button.getBoundingClientRect();
-
   menu.hidden = false;
-  menu.style.top = `${rect.bottom + 4}px`;
-  menu.style.right =
-    `${Math.max(4, window.innerWidth - rect.right)}px`;
-
   button.setAttribute("aria-expanded", "true");
-  menu.querySelector("button")?.focus();
+  positionLogEntryMenu();
+  if (entryMenuContext) {
+    menu.querySelector("button")?.focus({ preventScroll: true });
+    // Focusing the menu can collapse a note and dismiss the keyboard.
+    positionLogEntryMenu();
+  }
 }
 
-function closeLogEntryMenu() {
+function positionLogEntryMenu() {
+  const context = entryMenuContext;
+  if (!context)
+    return;
+
+  if (!context.row.isConnected || ui.log.view.hidden) {
+    closeLogEntryMenu(false);
+    return;
+  }
+
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+  const logRect = ui.log.log.getBoundingClientRect();
+  const visibleTop = Math.max(viewportTop, logRect.top);
+  const visibleBottom = Math.min(viewportBottom, logRect.bottom);
+  const rowRect = context.row.getBoundingClientRect();
+
+  if (rowRect.bottom <= visibleTop || rowRect.top >= visibleBottom) {
+    // Returning focus here could scroll an offscreen entry back into view.
+    closeLogEntryMenu(false);
+    return;
+  }
+
+  const menu = ui.log.entryMenu;
+  const height = menu.getBoundingClientRect().height;
+  const centeredTop = (rowRect.top + rowRect.bottom - height) / 2;
+  const top = Math.max(visibleTop + 4,
+    Math.min(centeredTop, visibleBottom - height - 4));
+  const buttonRect = context.button.getBoundingClientRect();
+
+  menu.style.top = `${top}px`;
+  menu.style.right = `${Math.max(4, window.innerWidth - buttonRect.right)}px`;
+}
+
+function closeLogEntryMenu(restoreFocus = true) {
   const target = entryMenuContext;
 
   ui.log.entryMenu.hidden = true;
@@ -3381,7 +3473,8 @@ function closeLogEntryMenu() {
 
   if (target) {
     target.button.setAttribute("aria-expanded", "false");
-    target.button.focus();
+    if (restoreFocus)
+      target.button.focus();
   }
 }
 
@@ -3576,7 +3669,7 @@ function buildSurveyTsv(survey) {
   ];
 
   return rows
-    .map(row => ["",...row].map(formatTsvCell).join('\t'))
+    .map(row => row.map(formatTsvCell).join('\t'))
     .join('\n') + '\n';
 }
 
@@ -3634,7 +3727,7 @@ function splitAlsoObs(observedNotes) {
   if (shortLine.length <= FIRST_ALSO_LINE_LIMIT)
     return [shortLine, ''];
 
-  const participants = observedNotes
+  const alsoNotes = observedNotes
     .split(',')
     .map(name => name.trim())
     .filter(Boolean);
@@ -3643,9 +3736,9 @@ function splitAlsoObs(observedNotes) {
   let bestOverflow = Infinity;
   let bestBalance = Infinity;
 
-  for (let i = 1; i < participants.length; i++) {
-    const first = participants.slice(0, i).join(', ');
-    const second = participants.slice(i).join(', ');
+  for (let i = 1; i < alsoNotes.length; i++) {
+    const first = alsoNotes.slice(0, i).join(', ');
+    const second = alsoNotes.slice(i).join(', ');
     const overflow = Math.max(
       first.length - FIRST_ALSO_LINE_LIMIT,
       second.length - SECOND_ALSO_LINE_LIMIT,
@@ -3662,8 +3755,8 @@ function splitAlsoObs(observedNotes) {
   }
 
   return [
-    participants.slice(0, bestSplit).join(', ') + ',',
-    participants.slice(bestSplit).join(', ')
+    alsoNotes.slice(0, bestSplit).join(', ') + ',',
+    alsoNotes.slice(bestSplit).join(', ')
   ];
 }
 
@@ -3814,7 +3907,7 @@ async function importSurveyFile(event) {
     survey = imported;
 
     storeSurvey();
-    localStorage.setItem(storageKey("surveyExists"), "true");
+    writeStoredSection(storageKey("surveyExists"), "true");
 
     // Reinitialize all runtime and transient state, preserving the survey info
     location.reload();
