@@ -2,15 +2,13 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 
-const REQUIRED_COLUMNS = [
-  "commonName",
-  "scientificName",
-  "status",
-  "dioecious"
-];
+const SECTION_COLUMNS = {
+  "Non-Specific Taxa": ["scientificName", "commonName"],
+  "Master Flora": ["scientificName", "commonName", "status"]
+};
 
-const [inputPath = "data/SurveyPlantList.tsv", outputPath = "data/plants.json"] =
-  process.argv.slice(2);
+const [inputPath = "data/SurveyPlantList.tsv", outputPath = "data/plants.json",
+  dioeciousPath = "data/dioecious"] = process.argv.slice(2);
 
 const report = {
   inputPath,
@@ -23,36 +21,62 @@ const report = {
 };
 
 try {
-  const text = normalizeText(readFileSync(inputPath, "utf8"));
-  const rows = parseTsv(text);
+  // The separate list may include its section title and column header.
+  const dioeciousNames = new Set();
+  for (const [index, row] of parseTsv(normalizeText(readFileSync(dioeciousPath, "utf8"))).entries()) {
+    if (isBlankRow(row)) continue;
+    const name = normalizeField(index + 1, "dioecious commonName", row[0]);
+    if (name === "Dioecious Plants" || name === "commonName") continue;
+    if (row.slice(1).some(value => value.trim() !== ""))
+      fail(`${dioeciousPath} row ${index + 1}: expected one common name`);
+    if (dioeciousNames.has(name))
+      fail(`${dioeciousPath} row ${index + 1}: duplicate name ${JSON.stringify(name)}`);
+    dioeciousNames.add(name);
+  }
+  if (!dioeciousNames.size) fail("Dioecious list is empty");
 
-  if (rows.length === 0)
-    fail("Input TSV is empty");
-
-  const header = rows[0];
-  const indexes = columnIndexes(header, REQUIRED_COLUMNS);
-  const sourceRows = rows.slice(1);
+  const rows = parseTsv(normalizeText(readFileSync(inputPath, "utf8")));
+  const matchedDioecious = new Set();
+  const sections = new Set();
+  let section = null;
+  let indexes = null;
   const species = [];
   const seenCommonNames = new Set();
 
-  report.inputRows = sourceRows.length;
-
-  sourceRows.forEach((row, index) => {
-    const rowNumber = index + 2; // header is row 1
-
-    if (isBlankRow(row))
+  rows.forEach((row, index) => {
+    const rowNumber = index + 1;
+    if (isBlankRow(row)) return;
+    const title = row[0].trim();
+    if (Object.hasOwn(SECTION_COLUMNS, title) && row.slice(1).every(value => value.trim() === "")) {
+      if (sections.has(title)) fail(`row ${rowNumber}: duplicate section ${title}`);
+      if (section && !indexes) fail(`Missing column header for ${section}`);
+      section = title;
+      sections.add(title);
+      indexes = null;
       return;
- 
+    }
+    if (!section) fail(`row ${rowNumber}: expected a section title`);
+    if (!indexes) {
+      indexes = columnIndexes(row.map(value => value.trim()), SECTION_COLUMNS[section]);
+      return;
+    }
+    // A final spreadsheet status-count footer has no plant names.
+    if (section === "Master Flora" &&
+        field(row, indexes.scientificName).trim() === "" &&
+        field(row, indexes.commonName).trim() === "" &&
+        /^\d+$/.test(field(row, indexes.status).trim()) &&
+        rows.slice(index + 1).every(isBlankRow)) {
+      warn(rowNumber, "ignored trailing status-count total");
+      return;
+    }
+    report.inputRows++;
     const commonName = normalizeField(rowNumber, "commonName",
       field(row, indexes.commonName));
     const scientificName = normalizeField(rowNumber, "scientificName",
       field(row, indexes.scientificName));
     const status = normalizeField(rowNumber, "status",
       field(row, indexes.status));
-    const dioecious = normalizeField(rowNumber, "dioecious",
-      field(row, indexes.dioecious));
-
-    validateRow({ rowNumber, commonName, scientificName, status, dioecious });
+    validateRow({ rowNumber, commonName, scientificName, status });
 
     addSpecies(species, seenCommonNames, {
       rowNumber,
@@ -61,7 +85,8 @@ try {
       status
     });
 
-    if (dioecious === "D") {
+    if (dioeciousNames.has(commonName)) {
+      matchedDioecious.add(commonName);
       report.dioeciousRows++;
       addSpecies(species, seenCommonNames, {
         rowNumber,
@@ -77,6 +102,15 @@ try {
       });
     }
   });
+
+  for (const title of Object.keys(SECTION_COLUMNS)) {
+    if (!sections.has(title)) fail(`Missing section: ${title}`);
+  }
+  if (!indexes) fail(`Missing column header for ${section}`);
+  for (const name of dioeciousNames) {
+    if (!matchedDioecious.has(name))
+      report.errors.push(`${dioeciousPath}: no plant matches ${JSON.stringify(name)}`);
+  }
 
   if (report.errors.length) {
     printReport(report);
@@ -168,18 +202,15 @@ function field(row, index) {
 }
 
 function isBlankRow(row) {
-  return row.every(value => value === "");
+  return row.every(value => value.trim() === "");
 }
 
-function validateRow({ rowNumber, commonName, scientificName, status, dioecious }) {
+function validateRow({ rowNumber, commonName, scientificName, status }) {
   requireCleanField(rowNumber, "commonName", commonName);
   requireCleanField(rowNumber, "scientificName", scientificName);
 
   if (status !== "" && /\d/.test(status))
     error(rowNumber, `status contains a digit: ${JSON.stringify(status)}`);
-
-  if (dioecious !== "" && dioecious !== "D")
-    error(rowNumber, `dioecious must be blank or "D": ${JSON.stringify(dioecious)}`);
 }
 
 function requireCleanField(rowNumber, name, value) {
