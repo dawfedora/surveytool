@@ -1,7 +1,7 @@
 {
   "header": {
     "version": "1.0",
-    "count": "618"
+    "count": "620"
   },
   "species": [
     {"scientificName":"Hypericum calycinum","commonName":"Aaron's beard","status":"*"},
@@ -102,8 +102,6 @@
     {"scientificName":"Helianthus californicus","commonName":"California sunflower","status":""},
     {"scientificName":"Rupertia physodes","commonName":"California tea","status":""},
     {"scientificName":"Morella californica","commonName":"California wax myrtle","status":""},
-    {"scientificName":"Morella californica","commonName":"California wax myrtle (f)","status":""},
-    {"scientificName":"Morella californica","commonName":"California wax myrtle (m)","status":""},
     {"scientificName":"Navarretia heterodoxa","commonName":"Calistoga navarretia","status":""},
     {"scientificName":"Zantedeschia aethiopica","commonName":"calla lily","status":"*"},
     {"scientificName":"Camellia species","commonName":"camellia","status":"*"},
@@ -114,6 +112,8 @@
     {"scientificName":"Lomatium caruifolium var. caruifolium","commonName":"caraway-leaved lomatium","status":""},
     {"scientificName":"Adenostoma fasciculatum var. fasciculatum","commonName":"chamise","status":""},
     {"scientificName":"Clematis lasiantha","commonName":"chaparral clematis","status":""},
+    {"scientificName":"Clematis lasiantha","commonName":"chaparral clematis (f)","status":""},
+    {"scientificName":"Clematis lasiantha","commonName":"chaparral clematis (m)","status":""},
     {"scientificName":"Ribes malvaceum var. malvaceum","commonName":"chaparral currant","status":""},
     {"scientificName":"Pickeringia montana var. montana","commonName":"chaparral pea","status":""},
     {"scientificName":"Platanthera elongata","commonName":"chaparral rein orchid","status":""},
@@ -386,6 +386,8 @@
     {"scientificName":"Prunus sp.","commonName":"ornamental plum","status":"*"},
     {"scientificName":"Rosa sp.","commonName":"ornamental rose","status":"*"},
     {"scientificName":"Oemleria cerasiformis","commonName":"oso berry","status":""},
+    {"scientificName":"Oemleria cerasiformis","commonName":"oso berry (f)","status":""},
+    {"scientificName":"Oemleria cerasiformis","commonName":"oso berry (m)","status":""},
     {"scientificName":"Leucanthemum vulgare","commonName":"ox-eye daisy","status":"*"},
     {"scientificName":"Arbutus menziesii","commonName":"Pacific madrone","status":""},
     {"scientificName":"Physocarpus capitatus","commonName":"Pacific ninebark","status":""},
@@ -400,8 +402,6 @@
     {"scientificName":"Mentha pulegium","commonName":"pennyroyal","status":"*"},
     {"scientificName":"Veronica persica","commonName":"Persian speedwell","status":"*"},
     {"scientificName":"Diospyros sp.","commonName":"persimmon","status":"*"},
-    {"scientificName":"Diospyros sp.","commonName":"persimmon (f)","status":"*"},
-    {"scientificName":"Diospyros sp.","commonName":"persimmon (m)","status":"*"},
     {"scientificName":"Euphorbia peplus","commonName":"petty spurge","status":"*"},
     {"scientificName":"Matricaria discoidea","commonName":"pineapple weed","status":""},
     {"scientificName":"Pseudognaphalium ramosissimum","commonName":"pink everlasting","status":""},
@@ -520,6 +520,8 @@
     {"scientificName":"Spartium junceum","commonName":"Spanish broom","status":"*"},
     {"scientificName":"Agrostis exarata","commonName":"spike bent grass","status":""},
     {"scientificName":"Rhamnus crocea","commonName":"spiny redberry","status":""},
+    {"scientificName":"Rhamnus crocea","commonName":"spiny redberry (f)","status":""},
+    {"scientificName":"Rhamnus crocea","commonName":"spiny redberry (m)","status":""},
     {"scientificName":"Medicago arabica","commonName":"spotted burclover","status":"*"},
     {"scientificName":"Corallorhiza maculata var. maculata","commonName":"spotted coralroot","status":""},
     {"scientificName":"Delphinium patens ssp. patens","commonName":"spreading larkspur","status":""},
