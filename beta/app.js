@@ -3430,42 +3430,7 @@ function openLogEntryMenu(button, row, entry, legId) {
   }
 }
 
-function positionLogEntryMenu() {
-  const context = entryMenuContext;
-  if (!context)
-    return;
-
-  if (!context.row.isConnected || ui.log.view.hidden) {
-    closeLogEntryMenu(false);
-    return;
-  }
-
-  const viewport = window.visualViewport;
-  const viewportTop = viewport?.offsetTop ?? 0;
-  const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
-  const logRect = ui.log.log.getBoundingClientRect();
-  const visibleTop = Math.max(viewportTop, logRect.top);
-  const visibleBottom = Math.min(viewportBottom, logRect.bottom);
-  const rowRect = context.row.getBoundingClientRect();
-
-  if (rowRect.bottom <= visibleTop || rowRect.top >= visibleBottom) {
-    // Returning focus here could scroll an offscreen entry back into view.
-    closeLogEntryMenu(false);
-    return;
-  }
-
-  const menu = ui.log.entryMenu;
-  const height = menu.getBoundingClientRect().height;
-  const centeredTop = (rowRect.top + rowRect.bottom - height) / 2;
-  const top = Math.max(visibleTop + 4,
-    Math.min(centeredTop, visibleBottom - height - 4));
-  const buttonRect = context.button.getBoundingClientRect();
-
-  menu.style.top = `${top}px`;
-  menu.style.right = `${Math.max(4, window.innerWidth - buttonRect.right)}px`;
-}
-
-function closeLogEntryMenu(restoreFocus = true) {
+function closeLogEntryMenu() {
   const target = entryMenuContext;
 
   ui.log.entryMenu.hidden = true;
