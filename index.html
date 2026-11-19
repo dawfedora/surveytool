@@ -477,6 +477,15 @@
     }
 
 /* Choice dialog */
+    #refreshBlock {
+      position: fixed;
+      inset: 0;
+      z-index: 4500;
+      background: rgba(0, 0, 0, 0.18);
+      cursor: wait;
+      touch-action: none;
+    }
+
     .choiceOverlay {
       position: fixed;
       inset: 0;
@@ -541,6 +550,8 @@
 </head>
 
 <body autocorrect="off" spellcheck="false">
+
+  <div id="refreshBlock" hidden></div>
 
   <div id="bootFallback">
     Survey Tool did not finish loading.
