@@ -412,6 +412,18 @@ function initUI() {
     results: document.getElementById('entryResults'),
   };
 
+  ui.log.currentHeader = document.createElement("div");
+  ui.log.currentHeader.id = "currentLegHeader";
+
+  ui.log.currentLabel = document.createElement("span");
+  ui.log.undoBtn = document.createElement("button");
+  ui.log.undoBtn.textContent = "Undo";
+  ui.log.undoBtn.hidden = true;
+
+  ui.log.currentHeader.append(ui.log.currentLabel, ui.log.undoBtn);
+
+  ui.log.log.before(ui.log.currentHeader);
+
   ui.notes = {
     view: document.getElementById('notesView'),
     date: document.getElementById('date'),
