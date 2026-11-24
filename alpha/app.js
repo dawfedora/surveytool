@@ -48,6 +48,7 @@ let undoTimer = null;
 let entryMenuContext = null;
 let entryEditorContext = null;
 let searchTimer = null;
+let refreshing = false;
 
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
@@ -360,6 +361,7 @@ function endInfoComplete() {
 function initUI() {
 
   ui.bootFallback = document.getElementById("bootFallback");
+  ui.refreshBlock = document.getElementById("refreshBlock");
   const viewSelect = document.getElementById("viewSelect");
 
   ui.header = {
@@ -1759,13 +1761,13 @@ function formatSegmentChoice(choice) {
     if (segment.fromPost === segment.toPost)
       return `${trailNetwork.posts[segment.fromPost]}`;
 
-    return `${posts[choice.atPost]} ${RIGHT_ARROW} ${destination}`;
+    return `${trailName}: ${posts[choice.atPost]} ${RIGHT_ARROW} ${destination}`;
   }
 
   if (choice.kind === "uturn")
-    return `${choice.atPost} ${UTURN} ${destination}`;
+    return `${trailName}:${choice.atPost} ${UTURN} ${destination}`;
 
-  return `${choice.atPost} ${trailName} ${RIGHT_ARROW}  ${destination}`;
+  return `${trailName}: ${choice.atPost} ${RIGHT_ARROW}  ${destination}`;
 }
 
 function renderLogView() {
@@ -2133,6 +2135,9 @@ function makeChoicePanel(question, actions, finish) {
 
 // --- REFRESH and SERVICE WORKER ACTIVATION
 async function refreshOrReloadApp() {
+  if (refreshing)
+    return;
+
   let latest = null;
   let checkFailed = false;
   try {
@@ -2165,6 +2170,10 @@ async function refreshOrReloadApp() {
   if (!reload)
     return;
 
+  reloadCachedApp();
+}
+
+function reloadCachedApp() {
   flushPendingStores();
   const skipUpdateCheckKey = `FoE:survey:${location.pathname}:skipUpdateCheckOnce`;
   sessionStorage.setItem(skipUpdateCheckKey, "true");
@@ -2172,100 +2181,154 @@ async function refreshOrReloadApp() {
 }
 
 async function refreshApp() {
-  clearTransients();
-  flushPendingStores();
-  showMessage("Refreshing...");
+  if (refreshing)
+    return;
 
-  const oldCacheName = getCurrentCacheName();
+  refreshing = true;
+  let reloading = false;
   let stagingName = null;
+  let cacheName = null;
+  let discardNewCache = false;
+  const panels = [ui.header.panel, ui.log.view, ui.notes.view,
+    ui.message.panel, ui.message.statePanel];
+  const previousInert = panels.map(panel => panel.inert);
 
   try {
-    if (!navigator.onLine) throw new Error("Offline");
+    clearTransients();
+    flushPendingStores();
+    panels.forEach(panel => { panel.inert = true; });
+    ui.refreshBlock.hidden = false;
+    document.activeElement?.blur();
+    showMessage("Refreshing...");
 
-    const freshVersion = await loadVersion(true);
+    // Phase 1: obtain configuration without changing the current cache.
+    let freshVersion;
+    let staging;
+    let appShell;
+    try {
+      if (!navigator.onLine)
+        throw new Error("Offline");
+      freshVersion = await loadVersion(true);
+      if (version && freshVersion.version === version.version) {
+        reloadCachedApp();
+        reloading = true;
+        return;
+      }
 
-    // Stage saves into a temporary cache first
-    // Use a branch-specific temporary staging name.
-
-    stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
-    const staging = await caches.open(stagingName);
-
-    // first get shell-config to see what files we need
-
-    const shellReq = new Request("./shell-config.js");
-    const freshShellReq = makeRefreshRequest("./shell-config.js");
-
-    let shellRes = await fetch(freshShellReq);
-    if (!shellRes.ok)
-      throw new Error("Failed to fetch shell-config.js");
-    await staging.put(shellReq, shellRes.clone());
-
-    shellRes = await staging.match(shellReq);
-    if (!shellRes)
-      throw new Error('shell-config.js missing in staging');
-
-    // Evaluate in isolated function scope; return only the two expected values
-
-    const shellText = await shellRes.text();
-    const cfg = (new Function(shellText + '\nreturn { CACHE_NAME, APP_SHELL };'))();
-    const cacheName = cfg.CACHE_NAME;
-    const newAppShell = cfg.APP_SHELL;
-    console.log('Extracted cacheName from shell-config.js:', cacheName);
-
-    // Now get the files
-
-    for (const file of newAppShell) {
-      const req = new Request(file);
-
-      if (await staging.match(req))
-        continue;
-
-      const freshReq = makeRefreshRequest(file);
-      const res = await fetch(freshReq);
-
-      if (!res.ok)
-        throw new Error(`Failed to refresh ${file}`);
-
-      await staging.put(req, res.clone());
-
-      if (!await staging.match(req))
-        throw new Error(`Staging missing ${file}`);
+      stagingName = `FoE:survey:${freshVersion.branch}:staging:${Date.now()}`;
+      staging = await caches.open(stagingName);
+      const response = await fetch(makeRefreshRequest("./shell-config.js"));
+      if (!response.ok)
+        throw new Error("Failed to fetch shell-config.js");
+      const shellText = await response.clone().text();
+      const config = (new Function(shellText +
+        '\nreturn { CACHE_NAME, APP_SHELL };'))();
+      cacheName = config.CACHE_NAME;
+      appShell = config.APP_SHELL;
+      if (cacheName !== `FoE:survey:${freshVersion.version}` ||
+          cacheName === getCurrentCacheName() ||
+          !Array.isArray(appShell) || appShell.length === 0)
+        throw new Error("Invalid or inconsistent shell configuration");
+      await staging.put(new Request("./shell-config.js"), response);
+    } catch (error) {
+      console.error("Refresh configuration failed", error);
+      showMessage("Could not prepare the upgrade. Keeping the current app.");
+      return;
     }
 
-    // Verify staged version.json matches the fresh version
+    // Phase 2: download and verify a complete staging cache.
+    try {
+      for (const file of appShell) {
+        const request = new Request(file);
+        if (await staging.match(request))
+          continue;
+        const response = await fetch(makeRefreshRequest(file));
+        if (!response.ok)
+          throw new Error(`Failed to refresh ${file}`);
+        await staging.put(request, response);
+      }
+      await verifyCacheContains(staging, appShell);
+      const response = await staging.match("./version.json");
+      if (!response || (await response.json()).version !== freshVersion.version)
+        throw new Error("Staging version mismatch");
+    } catch (error) {
+      console.error("Refresh download failed", error);
+      showMessage("Upgrade download failed. Keeping the current app.");
+      return;
+    }
 
-    const vRes = await staging.match('./version.json');
-    if (!vRes) throw new Error('version.json missing in staging');
-    const vData = await vRes.json();
-    if (vData.version !== freshVersion.version)
-      throw new Error('Staging version mismatch');
+    // Phase 3: populate the new version's cache; never replace the active one.
+    try {
+      discardNewCache = !await caches.has(cacheName);
+      await copyStagingToCache(staging, cacheName, appShell);
+    } catch (error) {
+      console.error("Refresh cache copy failed", error);
+      showMessage("Could not store the upgrade. Keeping the current app.");
+      return;
+    }
 
-    // Commit only after staging is complete and verified. If the target cache
-    // is the currently active cache, preserve a backup so refresh failure can
-    // restore the old shell.
-    await commitStagedCache(staging, cacheName, newAppShell, oldCacheName);
+    // Phase 4: activation can complete even if our wait times out.
+    // Retain both version caches once we start working with the new worker.
+    discardNewCache = false;
+    try {
+      if (!await activateMatchingWaitingWorker(cacheName))
+        throw new Error("No matching service worker is available");
+    } catch (error) {
+      console.error("Refresh worker activation failed", error);
+      try {
+        const controller = navigator.serviceWorker?.controller;
+        const info = controller && await getServiceWorkerCacheInfo(controller, 3000);
+        if (!info || info.cacheName !== cacheName) {
+          showMessage("Upgrade activation could not be confirmed. " +
+            "Cached versions have been retained. Please try again.");
+          return;
+        }
+      } catch (checkError) {
+        console.error("Could not determine the controlling worker", checkError);
+        showMessage("Could not confirm which app version is active. " +
+          "Cached versions have been retained. Please try again.");
+        return;
+      }
+    }
 
-    // Now fire off the new Service Worker
-
-    const activated = await activateMatchingWaitingWorker(cacheName);
-    if (!activated && oldCacheName !== cacheName) {
-      throw new Error(
-        "Refresh downloaded a new app, but no matching SW is waiting");
+    // Phase 5: confirmed control. Cleanup is best effort, not part of activation.
+    try {
+      await deleteOldAppCaches(cacheName);
+    } catch (error) {
+      console.warn("Upgrade succeeded, but old-cache cleanup failed", error);
     }
     showMessage("Refresh complete", 5000);
     location.reload();
-  } catch (e) {
-    console.error("REFRESH FAILED:", e);
-    alert("Refresh failed:\n" + e.message);
-    showMessage("Refresh failed");
+    reloading = true;
+  } catch (error) {
+    console.error("Refresh failed", error);
+    showMessage("Refresh failed: " + error.message);
   } finally {
-    if (stagingName) {
+    for (const name of [stagingName, discardNewCache ? cacheName : null]) {
+      if (!name)
+        continue;
       try {
-        await caches.delete(stagingName);
-      } catch (e) {
-        console.warn('Could not delete staging cache', stagingName, e);
+        await caches.delete(name);
+      } catch (error) {
+        console.warn("Could not delete temporary refresh cache", name, error);
       }
     }
+    refreshing = false;
+    if (!reloading) {
+      panels.forEach((panel, index) => { panel.inert = previousInert[index]; });
+      ui.refreshBlock.hidden = true;
+    }
+  }
+}
+
+async function deleteOldAppCaches(cacheName) {
+  const match = cacheName.match(/^FoE:survey:([^:]+):/);
+  if (!match)
+    throw new Error("Cannot identify cache family: " + cacheName);
+  const prefix = `FoE:survey:${match[1]}:`;
+  for (const name of await caches.keys()) {
+    if (name !== cacheName && name.startsWith(prefix))
+      await caches.delete(name);
   }
 }
 
@@ -2304,6 +2367,14 @@ async function activateMatchingWaitingWorker(expectedCacheName) {
   if (!('serviceWorker' in navigator))
     return false;
 
+  // An earlier attempt may have activated the worker but missed confirmation.
+  const controller = navigator.serviceWorker.controller;
+  if (controller) {
+    const info = await getServiceWorkerCacheInfo(controller, 3000);
+    if (info.cacheName === expectedCacheName)
+      return true;
+  }
+
   let reg = await navigator.serviceWorker.getRegistration();
   if (!reg)
     return false;
@@ -2332,12 +2403,19 @@ async function activateMatchingWaitingWorker(expectedCacheName) {
     if (worker.state !== "activated")
       worker.postMessage({ type: 'SKIP_WAITING' });
 
-    if (!await controllerChange)
+    await controllerChange;
+    if (navigator.serviceWorker.controller !== worker)
       throw new Error(
        "Timed out waiting for new service worker to take control"
       );
   }
 
+  const activeController = navigator.serviceWorker.controller;
+  if (!activeController)
+    return false;
+  const activeInfo = await getServiceWorkerCacheInfo(activeController, 3000);
+  if (activeInfo.cacheName !== expectedCacheName)
+    throw new Error("Unexpected service worker took control");
   return true;
 }
 
@@ -2404,63 +2482,6 @@ function getCurrentCacheName() {
   return null;
 }
 
-async function commitStagedCache(staging, cacheName, appShell, oldCacheName) {
-  if (oldCacheName === cacheName) {
-    await replaceCurrentCacheFromStaging(staging, cacheName, appShell);
-    return;
-  }
-
-  // The normal path uses a new timestamped cache name. The old cache remains
-  // untouched until the new one has been fully populated and verified.
-  await copyStagingToCache(staging, cacheName, appShell);
-}
-
-async function replaceCurrentCacheFromStaging(staging, cacheName, appShell) {
-  let doCleanup = false;
-  const backupName = `${cacheName}:backup:${Date.now()}`;
-  const hadCurrentCache = await caches.has(cacheName);
-
-  if (hadCurrentCache) {
-    try {
-      await copyCache(cacheName, backupName);
-    } catch (error) {
-      console.error("Could not back up cache");
-      try {
-        await caches.delete(backupName);
-      } catch {
-        console.error(`Could not delete backup cache ${backupName}`);
-      }
-      throw error;
-    }
-  }
-
-  try {
-    await caches.delete(cacheName);
-    await copyStagingToCache(staging, cacheName, appShell);
-    doCleanup = true;
-  } catch (e) {
-    if (hadCurrentCache) {
-      try {
-        await caches.delete(cacheName);
-        await copyCache(backupName, cacheName);
-        doCleanup = true;
-      } catch (restoreError) {
-        console.error('Could not restore cache backup', backupName, restoreError);
-      }
-    }
-
-    throw e;
-  } finally {
-    if (hadCurrentCache && doCleanup) {
-      try {
-        await caches.delete(backupName);
-      } catch (cleanupError) {
-        console.warn('Could not delete cache backup', backupName, cleanupError);
-      }
-    }
-  }
-}
-
 async function copyStagingToCache(staging, cacheName, appShell) {
   const target = await caches.open(cacheName);
 
@@ -2474,17 +2495,6 @@ async function copyStagingToCache(staging, cacheName, appShell) {
   }
 
   await verifyCacheContains(target, appShell);
-}
-
-async function copyCache(sourceName, targetName) {
-  const source = await caches.open(sourceName);
-  const target = await caches.open(targetName);
-
-  for (const req of await source.keys()) {
-    const res = await source.match(req);
-    if (res)
-      await target.put(req, res.clone());
-  }
 }
 
 async function verifyCacheContains(cache, appShell) {
@@ -3430,7 +3440,42 @@ function openLogEntryMenu(button, row, entry, legId) {
   }
 }
 
-function closeLogEntryMenu() {
+function positionLogEntryMenu() {
+  const context = entryMenuContext;
+  if (!context)
+    return;
+
+  if (!context.row.isConnected || ui.log.view.hidden) {
+    closeLogEntryMenu(false);
+    return;
+  }
+
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+  const logRect = ui.log.log.getBoundingClientRect();
+  const visibleTop = Math.max(viewportTop, logRect.top);
+  const visibleBottom = Math.min(viewportBottom, logRect.bottom);
+  const rowRect = context.row.getBoundingClientRect();
+
+  if (rowRect.bottom <= visibleTop || rowRect.top >= visibleBottom) {
+    // Returning focus here could scroll an offscreen entry back into view.
+    closeLogEntryMenu(false);
+    return;
+  }
+
+  const menu = ui.log.entryMenu;
+  const height = menu.getBoundingClientRect().height;
+  const centeredTop = (rowRect.top + rowRect.bottom - height) / 2;
+  const top = Math.max(visibleTop + 4,
+    Math.min(centeredTop, visibleBottom - height - 4));
+  const buttonRect = context.button.getBoundingClientRect();
+
+  menu.style.top = `${top}px`;
+  menu.style.right = `${Math.max(4, window.innerWidth - buttonRect.right)}px`;
+}
+
+function closeLogEntryMenu(restoreFocus = true) {
   const target = entryMenuContext;
 
   ui.log.entryMenu.hidden = true;
