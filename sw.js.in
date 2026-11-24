@@ -60,39 +60,8 @@ async function cacheAppShell() {
 
 // ACTIVATE
 function handleActivate(event) {
-  event.waitUntil(deleteOldCaches());
-}
-
-async function deleteOldCaches() {
-  const cachePrefix = cacheFamilyPrefix(CACHE_NAME);
-  if (!cachePrefix) {
-    console.warn('SW: could not identify cache family for', CACHE_NAME);
-    await clients.claim();
-    return;
-  }
-
-  const keys = await caches.keys();
-
-  await Promise.all(
-    keys.map(key => {
-      if (key !== CACHE_NAME && key.startsWith(cachePrefix)) {
-        console.warn('SW: deleting old cache for this branch:', key);
-        return caches.delete(key);
-      }
-
-      return Promise.resolve(false);
-    })
-  );
-
-  await clients.claim();
-}
-
-function cacheFamilyPrefix(cacheName) {
-  const match = cacheName.match(/^FoE:survey:([^:]+):/);
-  if (!match)
-    return null;
-
-  return `FoE:survey:${match[1]}:`;
+  // Cache cleanup belongs to the page, after it confirms this worker controls it.
+  event.waitUntil(clients.claim());
 }
 
 // FETCH
